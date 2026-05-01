@@ -1,7 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase-browser'
-import { Dumbbell } from 'lucide-react'
+import { Dumbbell, Building2 } from 'lucide-react'
 
 export default function LoginPage() {
   const supabase = createClient()
@@ -17,15 +17,19 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-100 flex items-center justify-center p-4">
-      <div className="card p-8 w-full max-w-sm text-center">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-sm text-center">
+
+        {/* Logo */}
         <div className="flex justify-center mb-4">
           <div className="bg-green-600 p-3 rounded-2xl">
             <Dumbbell className="w-8 h-8 text-white" />
           </div>
         </div>
+
         <h1 className="text-2xl font-bold text-gray-900 mb-1">GymApp</h1>
         <p className="text-gray-500 text-sm mb-8">Trainer Management Platform</p>
 
+        {/* Google login */}
         <button
           onClick={handleGoogleLogin}
           className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -43,6 +47,12 @@ export default function LoginPage() {
           Access is limited to authorised gym staff only.<br />
           Contact your admin if you need an account.
         </p>
+
+        {/* Gym Library branding */}
+        <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-center gap-1.5">
+          <Building2 className="w-3.5 h-3.5 text-gray-300" />
+          <p className="text-xs text-gray-300 font-medium tracking-wide">Gym Library</p>
+        </div>
       </div>
     </div>
   )
