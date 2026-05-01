@@ -1,8 +1,4 @@
-// ============================================================
-// GymApp — Shared TypeScript Types
-// ============================================================
-
-export type UserRole = 'admin' | 'manager' | 'trainer'
+export type UserRole = 'admin' | 'manager' | 'business_ops' | 'trainer'
 export type ClientStatus = 'active' | 'inactive' | 'lost'
 export type PackageStatus = 'active' | 'completed' | 'expired' | 'cancelled'
 export type SessionStatus = 'scheduled' | 'completed' | 'cancelled' | 'no_show'
@@ -14,6 +10,7 @@ export interface Gym {
   name: string
   address?: string
   phone?: string
+  logo_url?: string
   is_active: boolean
   created_at: string
 }
@@ -24,6 +21,7 @@ export interface User {
   email: string
   phone?: string
   role: UserRole
+  manager_gym_id?: string
   is_active: boolean
   commission_signup_pct: number
   commission_session_pct: number
@@ -104,6 +102,7 @@ export interface Session {
   location?: string
   status: SessionStatus
   performance_notes?: string
+  is_notes_complete: boolean
   session_commission_pct?: number
   session_commission_sgd?: number
   commission_paid: boolean
@@ -128,6 +127,7 @@ export interface CommissionPayout {
   session_commissions_sgd: number
   total_commission_sgd: number
   sessions_conducted: number
+  qualified_sessions: number
   new_clients: number
   status: PayoutStatus
   approved_by?: string
@@ -149,38 +149,6 @@ export interface WhatsappLog {
   sent_at: string
 }
 
-// ============================================================
-// Dashboard / Report Types
-// ============================================================
-
-export interface MonthlyPayoutReport {
-  trainer: User
-  gym: Gym
-  month: number
-  year: number
-  sessions: Session[]
-  packages: Package[]
-  signup_commission_total: number
-  session_commission_total: number
-  total_commission: number
-  sessions_conducted: number
-  new_clients: number
-}
-
-export interface TrainerPerformance {
-  trainer_id: string
-  trainer_name: string
-  gym_id: string
-  gym_name: string
-  period: string
-  new_clients: number
-  retained_clients: number
-  lost_clients: number
-  revenue: number
-  sessions_conducted: number
-  top_clients: TopClient[]
-}
-
 export interface TopClient {
   client_id: string
   client_name: string
@@ -194,12 +162,4 @@ export interface DashboardStats {
   sessions_this_month: number
   commission_this_month: number
   upcoming_sessions: Session[]
-  recent_activity: ActivityItem[]
-}
-
-export interface ActivityItem {
-  type: 'session_completed' | 'package_assigned' | 'client_added' | 'payout_approved'
-  description: string
-  timestamp: string
-  actor?: string
 }
