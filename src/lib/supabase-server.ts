@@ -28,3 +28,4 @@ export const createAdminClient = () =>
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
+ 
