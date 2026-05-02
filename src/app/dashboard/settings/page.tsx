@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Gym, User } from '@/types'
-import { Upload, Save, Building2, CheckCircle, Plus, ImageIcon } from 'lucide-react'
+import { Upload, Save, Building2, CheckCircle, Plus, ImageIcon, Timer } from 'lucide-react'
 
 interface GymWithManager extends Gym {
   manager?: User
@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [newGymName, setNewGymName] = useState('')
   const [commissionForm, setCommissionForm] = useState({ signup_pct: '10', session_pct: '15' })
+  const [autoLogoutMinutes, setAutoLogoutMinutes] = useState('10')
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [])
@@ -49,6 +50,7 @@ export default function SettingsPage() {
     if (settings) {
       setLoginLogoPreview(settings.login_logo_url || null)
       setSidebarLogoPreview(settings.admin_sidebar_logo_url || null)
+      setAutoLogoutMinutes(settings.auto_logout_minutes?.toString() || '10')
     }
   }
 
@@ -144,6 +146,20 @@ export default function SettingsPage() {
     }).eq('role', 'trainer')
     setSaving(null)
     setSaved('commission')
+    setTimeout(() => setSaved(null), 3000)
+  }
+
+  const handleSaveAutoLogout = async () => {
+    setSaving('logout')
+    const mins = parseInt(autoLogoutMinutes)
+    if (isNaN(mins) || mins < 1) return
+    await supabase.from('app_settings').upsert({
+      id: 'global',
+      auto_logout_minutes: mins,
+      updated_at: new Date().toISOString(),
+    })
+    setSaving(null)
+    setSaved('logout')
     setTimeout(() => setSaved(null), 3000)
   }
 
@@ -307,6 +323,47 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── AUTO LOGOUT ── */}
+      <div className="card p-4 space-y-4">
+        <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+          <Timer className="w-4 h-4 text-green-600" /> Auto Logout Timer
+        </h2>
+        <p className="text-xs text-gray-500">
+          Automatically logs out all users after the specified period of inactivity. Applies to all roles across all gym clubs.
+        </p>
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label className="label">Inactivity timeout (minutes)</label>
+            <select
+              className="input"
+              value={autoLogoutMinutes}
+              onChange={e => setAutoLogoutMinutes(e.target.value)}
+            >
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="20">20 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+              <option value="120">2 hours</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Currently set to: <span className="font-medium text-gray-600">{autoLogoutMinutes} minutes</span>
+            </p>
+          </div>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+          ⚠ Changing this setting takes effect immediately for all active sessions on next page interaction.
+        </div>
+        <button onClick={handleSaveAutoLogout} disabled={saving === 'logout'} className="btn-primary flex items-center gap-2">
+          {saved === 'logout'
+            ? <><CheckCircle className="w-4 h-4" /> Saved!</>
+            : <><Save className="w-4 h-4" /> {saving === 'logout' ? 'Saving...' : 'Save Auto Logout Setting'}</>
+          }
+        </button>
       </div>
 
       {/* ── COMMISSION RATES ── */}
