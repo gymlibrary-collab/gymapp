@@ -6,21 +6,44 @@ import { Dumbbell, Building2, Clock } from 'lucide-react'
 
 export default function LoginPage() {
   const [loginLogo, setLoginLogo] = useState<string | null>(null)
+  const [appName, setAppName] = useState('GymApp')
   const [timedOut, setTimedOut] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
-    const loadLogo = async () => {
-      const { data } = await supabase
-        .from('app_settings').select('login_logo_url').eq('id', 'global').single()
-      if (data?.login_logo_url) setLoginLogo(data.login_logo_url)
-    }
-    loadLogo()
     // Check if redirected due to inactivity timeout
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       if (params.get('reason') === 'timeout') setTimedOut(true)
     }
+
+    const loadSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('login_logo_url, app_name')
+          .eq('id', 'global')
+          .single()
+
+        if (!error && data) {
+          if (data.app_name) setAppName(data.app_name)
+          if (data.login_logo_url) {
+            // Cache bust to force browser to reload the latest uploaded image
+            const cacheBusted = data.login_logo_url.includes('?')
+              ? data.login_logo_url.split('?')[0] + '?t=' + Date.now()
+              : data.login_logo_url + '?t=' + Date.now()
+            setLoginLogo(cacheBusted)
+          }
+        }
+      } catch (e) {
+        // Settings table may not exist yet on first run — fall back to defaults
+      } finally {
+        setLoaded(true)
+      }
+    }
+
+    loadSettings()
   }, [])
 
   const handleGoogleLogin = async () => {
@@ -30,19 +53,36 @@ export default function LoginPage() {
     })
   }
 
+  // Don't flash the default logo before the real one loads
+  if (!loaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-gray-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8 w-full max-w-sm text-center">
 
         {/* Logo */}
         <div className="flex justify-center mb-4">
-          {loginLogo
-            ? <img src={loginLogo} alt="Logo" className="h-16 w-auto object-contain" />
-            : <div className="bg-green-600 p-3 rounded-2xl"><Dumbbell className="w-8 h-8 text-white" /></div>
-          }
+          {loginLogo ? (
+            <img
+              src={loginLogo}
+              alt={appName}
+              className="h-20 w-auto object-contain"
+              onError={() => setLoginLogo(null)}
+            />
+          ) : (
+            <div className="bg-green-600 p-3 rounded-2xl">
+              <Dumbbell className="w-8 h-8 text-white" />
+            </div>
+          )}
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">GymApp</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">{appName}</h1>
         <p className="text-gray-500 text-sm mb-6">Trainer Management Platform</p>
 
         {/* Timeout notice */}
@@ -50,7 +90,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6 text-left">
             <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
             <p className="text-xs text-amber-700">
-              You were logged out automatically due to inactivity. Please sign in again.
+              You were logged out due to inactivity. Please sign in again.
             </p>
           </div>
         )}
@@ -70,7 +110,7 @@ export default function LoginPage() {
         </button>
 
         <p className="text-xs text-gray-400 mt-6">
-          Access is limited to authorised gym staff only.<br />
+          Access is limited to authorised staff only.<br />
           Contact your admin if you need an account.
         </p>
 
