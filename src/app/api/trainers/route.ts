@@ -72,7 +72,7 @@ export async function PATCH(request: Request) {
       .from('users').select('role, manager_gym_id').eq('id', user.id).single()
 
     const body = await request.json()
-    const { userId, full_name, email, phone, role, is_active,
+    const { userId, full_name, email, phone, role, is_active, date_of_birth, date_of_joining, date_of_departure, departure_reason,
       commission_signup_pct, commission_session_pct,
       gym_ids, manager_gym_id, reset_login, is_also_trainer } = body
 
