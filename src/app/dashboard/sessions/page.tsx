@@ -9,10 +9,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 const statusIcons = {
-  scheduled: Clock,
-  completed: CheckCircle,
-  cancelled: XCircle,
-  no_show: AlertCircle,
+  scheduled: Clock, completed: CheckCircle, cancelled: XCircle, no_show: AlertCircle,
 }
 
 const statusColors = {
@@ -40,14 +37,17 @@ export default function SessionsPage() {
       .select('*, clients(full_name, phone), gyms(name), packages(package_name)')
       .order('scheduled_at', { ascending: filter === 'upcoming' })
 
-    if (userData?.role === 'trainer') {
-      query = query.eq('trainer_id', authUser.id)
+    const isTrainer = userData?.role === 'trainer' ||
+      (userData?.role === 'manager' && userData?.is_also_trainer)
+
+    if (isTrainer) query = query.eq('trainer_id', authUser.id)
+    else if (userData?.role === 'manager' && userData?.manager_gym_id) {
+      query = query.eq('gym_id', userData.manager_gym_id)
     }
 
     const now = new Date().toISOString()
     if (filter === 'upcoming') query = query.gte('scheduled_at', now).eq('status', 'scheduled')
     else if (filter === 'completed') query = query.eq('status', 'completed')
-    else if (filter === 'all') query = query.order('scheduled_at', { ascending: false })
 
     const { data } = await query.limit(50)
     setSessions(data || [])
@@ -60,9 +60,8 @@ export default function SessionsPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
 
-    const session = sessions.find(s => s.id === sessionId)
-    const { data: pkg } = await supabase.from('packages').select('session_commission_pct, price_per_session_sgd').eq('id', packageId).single()
-
+    const { data: pkg } = await supabase
+      .from('packages').select('session_commission_pct, price_per_session_sgd').eq('id', packageId).single()
     const commissionSgd = pkg ? (pkg.price_per_session_sgd * pkg.session_commission_pct / 100) : 0
 
     await supabase.from('sessions').update({
@@ -74,13 +73,22 @@ export default function SessionsPage() {
     }).eq('id', sessionId)
 
     // Increment sessions_used on package
-    await supabase.rpc('increment', { row_id: packageId, table_name: 'packages', column_name: 'sessions_used' })
+    const session = sessions.find(s => s.id === sessionId)
+    if (session?.package_id) {
+      const { data: pkgData } = await supabase
+        .from('packages').select('sessions_used').eq('id', session.package_id).single()
+      if (pkgData) {
+        await supabase.from('packages').update({ sessions_used: pkgData.sessions_used + 1 })
+          .eq('id', session.package_id)
+      }
+    }
 
     loadSessions()
   }
 
   const isManagerOrAdmin = user?.role === 'manager' || user?.role === 'admin'
-  const isTrainer = user?.role === 'trainer'
+  const isTrainer = user?.role === 'trainer' ||
+    (user?.role === 'manager' && (user as any)?.is_also_trainer)
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600" /></div>
 
@@ -88,7 +96,9 @@ export default function SessionsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">{isTrainer ? 'My Sessions' : 'All Sessions'}</h1>
+          <h1 className="text-xl font-bold text-gray-900">
+            {isTrainer && !isManagerOrAdmin ? 'My Sessions' : 'All Sessions'}
+          </h1>
           <p className="text-sm text-gray-500">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</p>
         </div>
         {isTrainer && (
@@ -107,8 +117,7 @@ export default function SessionsPage() {
         ].map(({ key, label }) => (
           <button key={key} onClick={() => setFilter(key)}
             className={cn('flex-1 py-1.5 rounded-md text-xs font-medium transition-colors',
-              filter === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'
-            )}>
+              filter === key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600')}>
             {label}
           </button>
         ))}
@@ -119,7 +128,9 @@ export default function SessionsPage() {
           <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">No sessions found</p>
           {isTrainer && (
-            <Link href="/dashboard/sessions/new" className="btn-primary inline-block mt-3">Schedule a session</Link>
+            <Link href="/dashboard/sessions/new" className="btn-primary inline-block mt-3">
+              Schedule a session
+            </Link>
           )}
         </div>
       ) : (
@@ -132,43 +143,48 @@ export default function SessionsPage() {
                   <div className="flex items-center gap-2">
                     <Icon className={cn('w-4 h-4 flex-shrink-0',
                       session.status === 'completed' ? 'text-green-600' :
-                      session.status === 'scheduled' ? 'text-blue-600' : 'text-gray-400'
-                    )} />
+                      session.status === 'scheduled' ? 'text-blue-600' : 'text-gray-400')} />
                     <div>
-                      <p className="font-medium text-gray-900 text-sm">{session.clients?.full_name}</p>
+                      <p className="font-medium text-gray-900 text-sm">
+                        {session.clients?.full_name}
+                      </p>
                       <p className="text-xs text-gray-500">{formatDateTime(session.scheduled_at)}</p>
                     </div>
                   </div>
-                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium capitalize', statusColors[session.status as keyof typeof statusColors])}>
+                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium capitalize',
+                    statusColors[session.status as keyof typeof statusColors])}>
                     {session.status}
                   </span>
                 </div>
 
                 {session.packages?.package_name && (
-                  <p className="text-xs text-gray-500 pl-6">{session.packages.package_name} · {session.gyms?.name}</p>
+                  <p className="text-xs text-gray-500 pl-6">
+                    {session.packages.package_name} · {session.gyms?.name}
+                  </p>
                 )}
 
                 {session.performance_notes && (
-                  <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 ml-6">{session.performance_notes}</p>
+                  <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2 ml-6">
+                    {session.performance_notes}
+                  </p>
                 )}
 
                 {session.status === 'completed' && session.session_commission_sgd && (
-                  <p className="text-xs text-green-600 font-medium pl-6">Commission: {formatSGD(session.session_commission_sgd)}</p>
+                  <p className="text-xs text-green-600 font-medium pl-6">
+                    Commission: {formatSGD(session.session_commission_sgd)}
+                  </p>
                 )}
 
                 <div className="flex gap-2 pl-6 pt-1">
-                  {/* Manager can mark complete */}
                   {isManagerOrAdmin && session.status === 'scheduled' && (
-                    <button
-                      onClick={() => handleMarkComplete(session.id, session.package_id)}
-                      className="btn-primary text-xs py-1.5"
-                    >
+                    <button onClick={() => handleMarkComplete(session.id, session.package_id)}
+                      className="btn-primary text-xs py-1.5">
                       Mark Complete
                     </button>
                   )}
-                  {/* Trainer can add performance notes */}
                   {isTrainer && session.status === 'completed' && (
-                    <Link href={`/dashboard/sessions/${session.id}/notes`} className="btn-secondary text-xs py-1.5">
+                    <Link href={`/dashboard/sessions/${session.id}/notes`}
+                      className="btn-secondary text-xs py-1.5">
                       {session.performance_notes ? 'Edit Notes' : 'Add Notes'}
                     </Link>
                   )}
