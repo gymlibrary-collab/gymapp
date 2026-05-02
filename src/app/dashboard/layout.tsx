@@ -8,32 +8,39 @@ import { User } from '@/types'
 import {
   Dumbbell, LayoutDashboard, Users, Package, Calendar,
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
-  FileText, Banknote, X, Building2, UserCheck, Clock
+  FileText, Banknote, X, Building2, UserCheck, Clock,
+  ChevronDown, RefreshCw, Shield, Briefcase
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Nav items per role
-const getNavItems = (isAlsoTrainer: boolean) => ({
+// ── Nav definitions ──────────────────────────────────────────
+
+const managerNav = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/manager-trainers', label: 'My Trainers', icon: UserCheck },
+  { href: '/dashboard/clients', label: 'Clients', icon: Users },
+  { href: '/dashboard/sessions', label: 'Sessions', icon: Calendar },
+  { href: '/dashboard/payouts', label: 'Payouts', icon: DollarSign },
+  { href: '/dashboard/reports', label: 'Monthly Reports', icon: BarChart3 },
+  { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
+]
+
+const trainerNav = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/clients', label: 'My Clients', icon: Users },
+  { href: '/dashboard/sessions', label: 'My Sessions', icon: Calendar },
+  { href: '/dashboard/reports', label: 'My Reports', icon: BarChart3 },
+  { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
+]
+
+const navByRole: Record<string, typeof managerNav> = {
   admin: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/trainers', label: 'Staff Management', icon: Users },
     { href: '/dashboard/packages', label: 'Package Templates', icon: Package },
     { href: '/dashboard/settings', label: 'Settings', icon: Settings },
   ],
-  // Manager-trainer hybrid gets both manager AND trainer nav items
-  manager: [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/dashboard/manager-trainers', label: 'My Trainers', icon: UserCheck },
-    { href: '/dashboard/clients', label: 'All Clients', icon: Users },
-    { href: '/dashboard/sessions', label: 'All Sessions', icon: Calendar },
-    { href: '/dashboard/payouts', label: 'Payouts', icon: DollarSign },
-    { href: '/dashboard/reports', label: 'Monthly Reports', icon: BarChart3 },
-    { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
-    ...(isAlsoTrainer ? [
-      { href: '/dashboard/clients/new', label: '+ Add My Client', icon: Users },
-      { href: '/dashboard/sessions/new', label: '+ Schedule Session', icon: Calendar },
-    ] : []),
-  ],
+  manager: managerNav,
   business_ops: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/clients', label: 'All Clients', icon: Users },
@@ -43,14 +50,8 @@ const getNavItems = (isAlsoTrainer: boolean) => ({
     { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
     { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
   ],
-  trainer: [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/dashboard/clients', label: 'My Clients', icon: Users },
-    { href: '/dashboard/sessions', label: 'My Sessions', icon: Calendar },
-    { href: '/dashboard/reports', label: 'My Reports', icon: BarChart3 },
-    { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
-  ],
-})
+  trainer: trainerNav,
+}
 
 const roleLabels: Record<string, string> = {
   admin: 'Admin',
@@ -59,10 +60,16 @@ const roleLabels: Record<string, string> = {
   trainer: 'Trainer',
 }
 
+// View mode stored in sessionStorage so it persists across nav but resets on logout
+const VIEW_KEY = 'gymapp_view_mode'
+
+type ViewMode = 'manager' | 'trainer'
+
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
 
 interface ExtendedUser extends User {
   is_also_trainer?: boolean
+  manager_gym_id?: string
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -71,8 +78,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [gymName, setGymName] = useState<string>('GymApp')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
+  const [showViewSwitcher, setShowViewSwitcher] = useState(false)
   const [countdown, setCountdown] = useState(60)
   const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(10)
+  const [viewMode, setViewMode] = useState<ViewMode>('manager')
   const [initError, setInitError] = useState<string | null>(null)
 
   const router = useRouter()
@@ -86,6 +95,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const doLogout = useCallback(async () => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current)
     if (countdownInterval.current) clearInterval(countdownInterval.current)
+    sessionStorage.removeItem(VIEW_KEY)
     await supabase.auth.signOut()
     router.push('/?reason=timeout')
   }, [])
@@ -124,20 +134,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .from('users').select('*').eq('id', session.user.id).single()
 
         if (userError || !userData) {
-          await supabase.auth.signOut()
-          router.push('/?error=not_authorised')
-          return
+          await supabase.auth.signOut(); router.push('/?error=not_authorised'); return
         }
-
         if (userData.is_archived || !userData.is_active) {
-          await supabase.auth.signOut()
-          router.push('/?error=account_disabled')
-          return
+          await supabase.auth.signOut(); router.push('/?error=account_disabled'); return
         }
 
         setUser(userData)
 
-        // Load settings
+        // Restore saved view mode for manager-trainers
+        if (userData.role === 'manager' && userData.is_also_trainer) {
+          const saved = sessionStorage.getItem(VIEW_KEY) as ViewMode | null
+          setViewMode(saved || 'manager')
+        }
+
+        // Load settings + logo
         const { data: settings } = await supabase
           .from('app_settings')
           .select('admin_sidebar_logo_url, auto_logout_minutes')
@@ -146,7 +157,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setAutoLogoutMinutes(mins)
         logoutMinutesRef.current = mins
 
-        // Load sidebar logo
         if (userData.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url
             ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null)
@@ -195,8 +205,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleLogout = async () => {
     clearAllTimers()
+    sessionStorage.removeItem(VIEW_KEY)
     await supabase.auth.signOut()
     router.push('/')
+  }
+
+  const switchView = (mode: ViewMode) => {
+    setViewMode(mode)
+    sessionStorage.setItem(VIEW_KEY, mode)
+    setShowViewSwitcher(false)
+    setSidebarOpen(false)
+    router.push('/dashboard')
   }
 
   if (initError) return (
@@ -215,16 +234,87 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   )
 
-  const isAlsoTrainer = !!(user as any).is_also_trainer
-  const nav = getNavItems(isAlsoTrainer)[user.role as keyof ReturnType<typeof getNavItems>] || []
+  // Determine which nav + label to show
+  const isManagerTrainer = user.role === 'manager' && !!(user as any).is_also_trainer
+  const effectiveView = isManagerTrainer ? viewMode : user.role
+  const nav = isManagerTrainer
+    ? (viewMode === 'trainer' ? trainerNav : managerNav)
+    : (navByRole[user.role] || [])
+
+  const portalLabel = isManagerTrainer
+    ? (viewMode === 'trainer' ? 'Trainer View' : 'Manager View')
+    : `${roleLabels[user.role] || user.role} Portal`
+
   const isAdmin = user.role === 'admin'
 
-  const roleDisplay = user.role === 'manager' && isAlsoTrainer
-    ? 'Manager / Trainer'
-    : roleLabels[user.role] || user.role
+  const ViewSwitcher = () => (
+    <div className="relative">
+      <button
+        onClick={() => setShowViewSwitcher(!showViewSwitcher)}
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 hover:bg-green-100 transition-colors"
+      >
+        <RefreshCw className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+        <span className="flex-1 text-left text-xs font-medium text-green-700">
+          {viewMode === 'manager' ? 'Manager View' : 'Trainer View'}
+        </span>
+        <ChevronDown className={cn('w-3.5 h-3.5 text-green-600 transition-transform', showViewSwitcher && 'rotate-180')} />
+      </button>
+
+      {showViewSwitcher && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden z-50">
+          <p className="text-xs text-gray-400 px-3 pt-2 pb-1">Switch view</p>
+
+          <button
+            onClick={() => switchView('manager')}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors',
+              viewMode === 'manager' && 'bg-green-50'
+            )}
+          >
+            <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0',
+              viewMode === 'manager' ? 'bg-green-600' : 'bg-yellow-100')}>
+              <Users className={cn('w-3.5 h-3.5', viewMode === 'manager' ? 'text-white' : 'text-yellow-700')} />
+            </div>
+            <div>
+              <p className={cn('text-xs font-semibold', viewMode === 'manager' ? 'text-green-700' : 'text-gray-900')}>
+                Manager View
+              </p>
+              <p className="text-xs text-gray-400">Payouts, reports, all sessions</p>
+            </div>
+            {viewMode === 'manager' && (
+              <span className="ml-auto text-xs text-green-600 font-medium">Active</span>
+            )}
+          </button>
+
+          <button
+            onClick={() => switchView('trainer')}
+            className={cn(
+              'w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors border-t border-gray-100',
+              viewMode === 'trainer' && 'bg-green-50'
+            )}
+          >
+            <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0',
+              viewMode === 'trainer' ? 'bg-green-600' : 'bg-green-100')}>
+              <Dumbbell className={cn('w-3.5 h-3.5', viewMode === 'trainer' ? 'text-white' : 'text-green-700')} />
+            </div>
+            <div>
+              <p className={cn('text-xs font-semibold', viewMode === 'trainer' ? 'text-green-700' : 'text-gray-900')}>
+                Trainer View
+              </p>
+              <p className="text-xs text-gray-400">My clients, sessions, commissions</p>
+            </div>
+            {viewMode === 'trainer' && (
+              <span className="ml-auto text-xs text-green-600 font-medium">Active</span>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
+      {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b border-gray-200 flex-shrink-0">
         {sidebarLogo
           ? <img src={sidebarLogo} alt={gymName}
@@ -236,14 +326,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
         <div className="flex-1 min-w-0">
           <p className="font-bold text-gray-900 text-sm truncate">{gymName}</p>
-          <p className="text-xs text-gray-500">{roleDisplay} Portal</p>
+          <p className="text-xs text-gray-500">{portalLabel}</p>
         </div>
         <button onClick={() => setSidebarOpen(false)} className="md:hidden p-1 text-gray-400 flex-shrink-0">
           <X className="w-4 h-4" />
         </button>
       </div>
 
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+      {/* View switcher — only for manager-trainers */}
+      {isManagerTrainer && (
+        <div className="px-3 pt-3">
+          <ViewSwitcher />
+        </div>
+      )}
+
+      {/* Nav */}
+      <nav className="flex-1 p-3 space-y-1 overflow-y-auto" onClick={() => setShowViewSwitcher(false)}>
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
           return (
@@ -260,7 +358,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })}
       </nav>
 
-      <div className="flex-shrink-0 border-t border-gray-200">
+      {/* User footer */}
+      <div className="flex-shrink-0 border-t border-gray-200" onClick={() => setShowViewSwitcher(false)}>
         <div className="p-3">
           <div className="flex items-center gap-2 p-2 rounded-lg">
             <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -268,7 +367,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{user.full_name}</p>
-              <p className="text-xs text-gray-500">{roleDisplay}</p>
+              <p className="text-xs text-gray-500">
+                {isManagerTrainer ? `Manager / Trainer` : roleLabels[user.role] || user.role}
+              </p>
             </div>
             <button onClick={handleLogout}
               className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
@@ -293,17 +394,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      {/* Desktop sidebar */}
       <div className="hidden md:block fixed top-0 left-0 bottom-0 w-56 z-30">
         <SidebarContent />
       </div>
 
+      {/* Mobile sidebar */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setSidebarOpen(false); setShowViewSwitcher(false) }} />
           <div className="absolute top-0 left-0 bottom-0 w-64 z-50"><SidebarContent /></div>
         </div>
       )}
 
+      {/* Auto logout warning */}
       {showWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center space-y-4">
@@ -326,9 +430,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      <div className="md:pl-56 flex flex-col min-h-screen bg-gray-50">
+      {/* Main content */}
+      <div className="md:pl-56 flex flex-col min-h-screen bg-gray-50" onClick={() => setShowViewSwitcher(false)}>
+        {/* Mobile top bar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-20">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100">
+          <button onClick={e => { e.stopPropagation(); setSidebarOpen(true) }}
+            className="p-2 rounded-lg hover:bg-gray-100">
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
           <div className="flex items-center gap-2">
@@ -337,11 +444,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               : <Dumbbell className="w-5 h-5 text-green-600" />
             }
             <span className="font-bold text-gray-900 text-sm">{gymName}</span>
+            {isManagerTrainer && (
+              <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
+                viewMode === 'manager' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700')}>
+                {viewMode === 'manager' ? 'Mgr' : 'Trainer'}
+              </span>
+            )}
           </div>
           <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
             <span className="text-green-700 font-semibold text-xs">{user.full_name.charAt(0)}</span>
           </div>
         </div>
+
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </>
