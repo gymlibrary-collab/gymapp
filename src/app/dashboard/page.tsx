@@ -5,22 +5,35 @@ import { createClient } from '@/lib/supabase-browser'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatSGD, formatDateTime } from '@/lib/utils'
 import {
-  Users, Package, Building2, Settings, ChevronRight,
-  CheckCircle, Clock, TrendingUp, DollarSign, Briefcase,
-  UserCheck, Dumbbell, Shield
+  Users, Building2, Settings, ChevronRight,
+  CheckCircle, Clock, TrendingUp, DollarSign,
+  UserCheck, Dumbbell, Shield, Briefcase, MapPin, Maximize2
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
+interface GymStats {
+  id: string
+  name: string
+  address?: string
+  size_sqft?: number
+  date_opened?: string
+  is_active: boolean
+  managers: number
+  trainers: number
+  bizOps: number
+  totalStaff: number
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
+  const [gymStats, setGymStats] = useState<GymStats[]>([])
+  const [roleCounts, setRoleCounts] = useState<Record<string, number>>({})
+  const [totalGyms, setTotalGyms] = useState(0)
   const [stats, setStats] = useState<any>({})
-  const [gymBreakdown, setGymBreakdown] = useState<any[]>([])
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
-
-  // ── Use context — not user.is_also_trainer ──
   const { isActingAsTrainer } = useViewMode()
 
   useEffect(() => {
@@ -32,33 +45,48 @@ export default function DashboardPage() {
       setUser(userData)
 
       if (userData.role === 'admin') {
-        const { data: gyms } = await supabase.from('gyms').select('id, name, is_active').order('name')
-        const { data: allStaff } = await supabase.from('users').select('id, role, manager_gym_id, trainer_gyms(gym_id)').eq('is_archived', false)
-        const roleCount: Record<string, number> = {}
-        allStaff?.forEach((s: any) => { roleCount[s.role] = (roleCount[s.role] || 0) + 1 })
-        const gymRows = (gyms || []).map(g => {
-          const managers = allStaff?.filter((s: any) => s.role === 'manager' && s.manager_gym_id === g.id).length || 0
-          const trainers = allStaff?.filter((s: any) => s.role === 'trainer' && (s.trainer_gyms as any[])?.some((tg: any) => tg.gym_id === g.id)).length || 0
-          return { ...g, managers, trainers }
+        // Load gyms
+        const { data: gyms } = await supabase.from('gyms').select('*').order('name')
+
+        // Load all active staff with their gym assignments
+        const { data: allStaff } = await supabase
+          .from('users')
+          .select('id, role, manager_gym_id, trainer_gyms(gym_id)')
+          .eq('is_archived', false)
+
+        // Count by role globally
+        const rc: Record<string, number> = {}
+        allStaff?.forEach((s: any) => { rc[s.role] = (rc[s.role] || 0) + 1 })
+        setRoleCounts(rc)
+
+        // Per-gym breakdown
+        const rows: GymStats[] = (gyms || []).map(g => {
+          const managers = allStaff?.filter((s: any) =>
+            s.role === 'manager' && s.manager_gym_id === g.id).length || 0
+          const trainers = allStaff?.filter((s: any) =>
+            s.role === 'trainer' && (s.trainer_gyms as any[])?.some((tg: any) => tg.gym_id === g.id)).length || 0
+          const bizOps = rc['business_ops'] || 0 // biz ops see all gyms
+          return {
+            id: g.id, name: g.name, address: g.address,
+            size_sqft: g.size_sqft, date_opened: g.date_opened,
+            is_active: g.is_active,
+            managers, trainers, bizOps: 0, // biz ops not per-gym
+            totalStaff: managers + trainers,
+          }
         })
-        const { count: pkgCount } = await supabase.from('package_templates').select('id', { count: 'exact', head: true }).eq('is_archived', false)
-        setStats({ gyms: gyms?.filter(g => g.is_active).length || 0, totalStaff: allStaff?.length || 0, roleCount, pkgCount: pkgCount || 0 })
-        setGymBreakdown(gymRows)
+
+        setGymStats(rows)
+        setTotalGyms(rows.filter(g => g.is_active).length)
         setLoading(false)
         return
       }
 
-      // Non-admin: stats scoped by role
+      // Non-admin: operational dashboard
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString()
       const gymId = userData.manager_gym_id
-
-      // NOTE: isActingAsTrainer from context determines data scope
-      // We use userData.role here for the query structure (manager gym vs trainer id)
-      // but the component rendering uses isActingAsTrainer from context
-      const actingAsTrainer = userData.role === 'trainer' // pure trainer always true
-      // For manager-trainers, the context value is used in rendering below
+      const actingAsTrainer = userData.role === 'trainer'
 
       let memberQ = supabase.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'active')
       if (actingAsTrainer) memberQ = memberQ.eq('trainer_id', authUser.id)
@@ -70,19 +98,19 @@ export default function DashboardPage() {
       else if (gymId) pkgQ = pkgQ.eq('gym_id', gymId)
       const { count: pkgs } = await pkgQ
 
-      let sessQ = supabase.from('sessions').select('session_commission_sgd').eq('status', 'completed')
-        .gte('marked_complete_at', monthStart).lte('marked_complete_at', monthEnd)
+      let sessQ = supabase.from('sessions').select('session_commission_sgd')
+        .eq('status', 'completed').gte('marked_complete_at', monthStart).lte('marked_complete_at', monthEnd)
       if (actingAsTrainer) sessQ = sessQ.eq('trainer_id', authUser.id)
       else if (gymId) sessQ = sessQ.eq('gym_id', gymId)
       const { data: sessData } = await sessQ
       const commission = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
 
-      let upcomingQ = supabase.from('sessions')
-        .select('*, clients(full_name), gyms(name)').eq('status', 'scheduled')
-        .gte('scheduled_at', now.toISOString()).order('scheduled_at', { ascending: true }).limit(5)
-      if (actingAsTrainer) upcomingQ = upcomingQ.eq('trainer_id', authUser.id)
-      else if (gymId) upcomingQ = upcomingQ.eq('gym_id', gymId)
-      const { data: upcoming } = await upcomingQ
+      let upQ = supabase.from('sessions').select('*, clients(full_name), gyms(name)')
+        .eq('status', 'scheduled').gte('scheduled_at', now.toISOString())
+        .order('scheduled_at', { ascending: true }).limit(5)
+      if (actingAsTrainer) upQ = upQ.eq('trainer_id', authUser.id)
+      else if (gymId) upQ = upQ.eq('gym_id', gymId)
+      const { data: upcoming } = await upQ
 
       setStats({ members: members || 0, packages: pkgs || 0, sessions: sessData?.length || 0, commission })
       setUpcomingSessions(upcoming || [])
@@ -99,93 +127,122 @@ export default function DashboardPage() {
 
   const now = new Date()
   const monthName = now.toLocaleString('default', { month: 'long' })
-  const isAdmin = user.role === 'admin'
 
+  const roleColors: Record<string, string> = {
+    admin: 'text-red-600 bg-red-50',
+    business_ops: 'text-purple-600 bg-purple-50',
+    manager: 'text-yellow-700 bg-yellow-50',
+    trainer: 'text-green-700 bg-green-50',
+  }
+  const roleLabels: Record<string, string> = {
+    admin: 'Admins', business_ops: 'Business Ops', manager: 'Managers', trainer: 'Trainers',
+  }
   const roleIcons: Record<string, any> = {
     admin: Shield, business_ops: Briefcase, manager: UserCheck, trainer: Dumbbell,
   }
-  const roleColors: Record<string, string> = {
-    admin: 'text-red-600 bg-red-100', business_ops: 'text-purple-600 bg-purple-100',
-    manager: 'text-yellow-700 bg-yellow-100', trainer: 'text-green-700 bg-green-100',
-  }
-  const roleLabels: Record<string, string> = {
-    admin: 'Admin', business_ops: 'Business Ops', manager: 'Manager', trainer: 'Trainer',
-  }
 
-  if (isAdmin) return (
+  // ── Admin view ──────────────────────────────────────────────
+  if (user.role === 'admin') return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500">Gym Library overview</p>
+        <p className="text-sm text-gray-500">View-only overview — Gym Library</p>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="stat-card">
           <div className="flex items-center gap-1.5 mb-1"><Building2 className="w-4 h-4 text-red-600" /><p className="text-xs text-gray-500">Active Gyms</p></div>
-          <p className="text-2xl font-bold text-gray-900">{stats.gyms}</p>
+          <p className="text-2xl font-bold text-gray-900">{totalGyms}</p>
         </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-1.5 mb-1"><Users className="w-4 h-4 text-red-600" /><p className="text-xs text-gray-500">Total Staff</p></div>
-          <p className="text-2xl font-bold text-gray-900">{stats.totalStaff}</p>
-        </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-1.5 mb-1"><Package className="w-4 h-4 text-red-600" /><p className="text-xs text-gray-500">Active Packages</p></div>
-          <p className="text-2xl font-bold text-gray-900">{stats.pkgCount}</p>
-        </div>
-      </div>
-      <div className="card p-4">
-        <h2 className="font-semibold text-gray-900 text-sm mb-3">Staff Breakdown by Role</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(stats.roleCount || {}).map(([role, count]) => {
-            const Icon = roleIcons[role] || Users
-            return (
-              <div key={role} className={cn('flex items-center gap-3 p-3 rounded-lg', roleColors[role]?.split(' ')[1] || 'bg-gray-50')}>
-                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', roleColors[role] || 'text-gray-600 bg-gray-100')}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-gray-900">{count as number}</p>
-                  <p className="text-xs text-gray-500">{roleLabels[role] || role}</p>
-                </div>
+        {Object.entries(roleCounts).map(([role, count]) => {
+          const Icon = roleIcons[role] || Users
+          const color = roleColors[role] || 'text-gray-600 bg-gray-50'
+          return (
+            <div key={role} className="stat-card">
+              <div className={cn('flex items-center gap-1.5 mb-1')}>
+                <Icon className={cn('w-4 h-4', color.split(' ')[0])} />
+                <p className="text-xs text-gray-500">{roleLabels[role] || role}</p>
               </div>
-            )
-          })}
-        </div>
+              <p className="text-2xl font-bold text-gray-900">{count as number}</p>
+            </div>
+          )
+        })}
       </div>
+
+      {/* Per-gym breakdown */}
       <div className="card">
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900 text-sm">Staff per Gym Club</h2>
-          <Link href="/dashboard/admin-gyms" className="text-xs text-red-600 font-medium">Manage Gyms</Link>
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900 text-sm">Gym Clubs & Staff Breakdown</h2>
+          <p className="text-xs text-gray-400 mt-0.5">View only — contact Business Ops to make changes</p>
         </div>
-        {gymBreakdown.length === 0 ? (
+        {gymStats.length === 0 ? (
           <p className="p-4 text-sm text-gray-400 text-center">No gyms configured yet</p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {gymBreakdown.map(gym => (
-              <div key={gym.id} className="flex items-center gap-3 p-4">
-                <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', gym.is_active ? 'bg-red-100' : 'bg-gray-100')}>
-                  <Building2 className={cn('w-4 h-4', gym.is_active ? 'text-red-600' : 'text-gray-400')} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-medium', gym.is_active ? 'text-gray-900' : 'text-gray-400')}>
-                    {gym.name}{!gym.is_active && ' (Inactive)'}
-                  </p>
-                  <p className="text-xs text-gray-400">{gym.managers} manager{gym.managers !== 1 ? 's' : ''} · {gym.trainers} trainer{gym.trainers !== 1 ? 's' : ''}</p>
+            {gymStats.map(gym => (
+              <div key={gym.id} className={cn('p-4', !gym.is_active && 'opacity-50')}>
+                <div className="flex items-start gap-3">
+                  <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0',
+                    gym.is_active ? 'bg-red-100' : 'bg-gray-100')}>
+                    <Building2 className={cn('w-4 h-4', gym.is_active ? 'text-red-600' : 'text-gray-400')} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900 text-sm">{gym.name}</p>
+                      {!gym.is_active && <span className="badge-inactive">Inactive</span>}
+                    </div>
+                    {gym.address && (
+                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 flex-shrink-0" /> {gym.address}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      {gym.size_sqft && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          <Maximize2 className="w-3 h-3" /> {gym.size_sqft.toLocaleString()} sq ft
+                        </p>
+                      )}
+                    </div>
+                    {/* Staff counts */}
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-100 rounded-lg px-2 py-1">
+                        <UserCheck className="w-3 h-3 text-yellow-700" />
+                        <span className="text-xs font-medium text-yellow-800">
+                          {gym.managers} Manager{gym.managers !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-green-50 border border-green-100 rounded-lg px-2 py-1">
+                        <Dumbbell className="w-3 h-3 text-green-700" />
+                        <span className="text-xs font-medium text-green-800">
+                          {gym.trainers} Trainer{gym.trainers !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+                        <Users className="w-3 h-3 text-gray-600" />
+                        <span className="text-xs font-medium text-gray-700">
+                          {gym.totalStaff} Total
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Quick actions — admin only has settings and biz ops staff */}
       <div className="card p-4">
         <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
         <div className="space-y-2">
           {[
-            { href: '/dashboard/admin-gyms', label: 'Manage Gym Clubs', icon: Building2 },
-            { href: '/dashboard/packages', label: 'Manage PT Packages', icon: Package },
             { href: '/dashboard/admin-staff', label: 'Manage Business Ops Accounts', icon: Briefcase },
             { href: '/dashboard/settings', label: 'App Settings', icon: Settings },
           ].map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+            <Link key={href} href={href}
+              className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
               <Icon className="w-4 h-4 text-red-600 flex-shrink-0" />
               <span className="text-sm text-gray-700 flex-1">{label}</span>
               <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -196,11 +253,13 @@ export default function DashboardPage() {
     </div>
   )
 
-  // Non-admin dashboard
+  // ── Non-admin operational dashboard ─────────────────────────
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Welcome back, {user.full_name.split(' ')[0]} 👋</h1>
+        <h1 className="text-xl font-bold text-gray-900">
+          Welcome back, {user.full_name.split(' ')[0]} 👋
+        </h1>
         <p className="text-sm text-gray-500">{monthName} {now.getFullYear()} overview</p>
       </div>
 
@@ -232,7 +291,6 @@ export default function DashboardPage() {
           <div className="p-6 text-center">
             <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
             <p className="text-sm text-gray-500">No upcoming sessions</p>
-            {/* Schedule button ONLY in trainer view */}
             {isActingAsTrainer && (
               <Link href="/dashboard/sessions/new" className="btn-primary inline-block mt-3">
                 Schedule a session
@@ -257,7 +315,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Quick actions: ONLY shown in trainer view */}
+      {/* Quick actions — trainer view only */}
       {isActingAsTrainer && (
         <div className="card p-4">
           <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
