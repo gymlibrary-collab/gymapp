@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useViewMode } from '@/lib/view-mode-context'
 import { Client, Package, Session, User, PackageTemplate } from '@/types'
 import { formatDate, formatDateTime, formatSGD, getSessionsRemaining } from '@/lib/utils'
 import { ArrowLeft, Phone, Heart, Package as PkgIcon, Calendar, Plus, Edit2, Save, X } from 'lucide-react'
@@ -20,12 +21,11 @@ export default function MemberDetailPage() {
   const [showEditForm, setShowEditForm] = useState(false)
   const [pkgForm, setPkgForm] = useState({ template_id: '', total_price_sgd: '', start_date: '' })
   const [editForm, setEditForm] = useState({ full_name: '', phone: '', date_of_birth: '', gender: '', health_notes: '' })
-  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
 
-  const isTrainerRole = (u: User | null) =>
-    u?.role === 'trainer' || (u?.role === 'manager' && (u as any)?.is_also_trainer)
+  // ── KEY FIX: use context ──
+  const { isActingAsTrainer } = useViewMode()
 
   useEffect(() => {
     const load = async () => {
@@ -34,29 +34,18 @@ export default function MemberDetailPage() {
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
       setCurrentUser(userData)
 
-      const { data: memberData } = await supabase
-        .from('clients').select('*, gyms(name), users(full_name)').eq('id', id).single()
-      setMember(memberData)
-      if (memberData) {
-        setEditForm({
-          full_name: memberData.full_name,
-          phone: memberData.phone || '',
-          date_of_birth: memberData.date_of_birth || '',
-          gender: memberData.gender || '',
-          health_notes: memberData.health_notes || '',
-        })
-      }
+      const { data: m } = await supabase.from('clients').select('*, gyms(name), users(full_name)').eq('id', id).single()
+      setMember(m)
+      if (m) setEditForm({ full_name: m.full_name, phone: m.phone || '', date_of_birth: m.date_of_birth || '', gender: m.gender || '', health_notes: m.health_notes || '' })
 
-      const { data: pkgData } = await supabase
-        .from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
-      setPackages(pkgData || [])
+      const { data: pkgs } = await supabase.from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
+      setPackages(pkgs || [])
 
-      const { data: sessData } = await supabase
-        .from('sessions').select('*').eq('client_id', id).order('scheduled_at', { ascending: false })
-      setSessions(sessData || [])
+      const { data: sess } = await supabase.from('sessions').select('*').eq('client_id', id).order('scheduled_at', { ascending: false })
+      setSessions(sess || [])
 
-      const { data: tplData } = await supabase.from('package_templates').select('*').eq('is_active', true)
-      setTemplates(tplData || [])
+      const { data: tpls } = await supabase.from('package_templates').select('*').eq('is_archived', false)
+      setTemplates(tpls || [])
     }
     load()
   }, [id])
@@ -66,15 +55,12 @@ export default function MemberDetailPage() {
     if (!member) return
     setSaving(true)
     await supabase.from('clients').update({
-      full_name: editForm.full_name,
-      phone: editForm.phone,
+      full_name: editForm.full_name, phone: editForm.phone,
       date_of_birth: editForm.date_of_birth || null,
       gender: editForm.gender || null,
       health_notes: editForm.health_notes || null,
     }).eq('id', member.id)
-
-    const { data: updated } = await supabase
-      .from('clients').select('*, gyms(name), users(full_name)').eq('id', id).single()
+    const { data: updated } = await supabase.from('clients').select('*, gyms(name), users(full_name)').eq('id', id).single()
     setMember(updated)
     setSaving(false); setShowEditForm(false)
   }
@@ -82,27 +68,24 @@ export default function MemberDetailPage() {
   const handleAssignPackage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!member || !currentUser) return
-    setLoading(true)
+    setSaving(true)
     const tpl = templates.find(t => t.id === pkgForm.template_id)
     if (!tpl) return
     await supabase.from('packages').insert({
-      template_id: pkgForm.template_id,
-      client_id: member.id, trainer_id: currentUser.id, gym_id: member.gym_id,
-      package_name: tpl.name, total_sessions: tpl.total_sessions,
-      total_price_sgd: parseFloat(pkgForm.total_price_sgd),
-      start_date: pkgForm.start_date,
+      template_id: pkgForm.template_id, client_id: member.id, trainer_id: currentUser.id,
+      gym_id: member.gym_id, package_name: tpl.name, total_sessions: tpl.total_sessions,
+      total_price_sgd: parseFloat(pkgForm.total_price_sgd), start_date: pkgForm.start_date,
       signup_commission_pct: currentUser.commission_signup_pct,
       session_commission_pct: currentUser.commission_session_pct,
     })
-    const { data: pkgData } = await supabase.from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
-    setPackages(pkgData || [])
+    const { data: pkgs } = await supabase.from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
+    setPackages(pkgs || [])
     setShowPkgForm(false); setPkgForm({ template_id: '', total_price_sgd: '', start_date: '' })
-    setLoading(false)
+    setSaving(false)
   }
 
   if (!member) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
-  const isTrainer = isTrainerRole(currentUser)
   const activePackage = packages.find(p => p.status === 'active')
 
   return (
@@ -115,62 +98,32 @@ export default function MemberDetailPage() {
           <h1 className="text-xl font-bold text-gray-900">{member.full_name}</h1>
           <p className="text-xs text-gray-500 capitalize">{member.status} member · {(member as any).gyms?.name}</p>
         </div>
-        {isTrainer && (
-          <button onClick={() => setShowEditForm(!showEditForm)}
-            className="btn-secondary flex items-center gap-1.5">
+        {/* Edit button ONLY in trainer view */}
+        {isActingAsTrainer && (
+          <button onClick={() => setShowEditForm(!showEditForm)} className="btn-secondary flex items-center gap-1.5">
             <Edit2 className="w-3.5 h-3.5" /> Edit
           </button>
         )}
       </div>
 
-      {/* Edit form */}
-      {showEditForm && isTrainer && (
+      {/* Edit form — trainer view only */}
+      {showEditForm && isActingAsTrainer && (
         <form onSubmit={handleSaveMember} className="card p-4 space-y-3 border-red-200">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 text-sm">Edit Member Details</h2>
-            <button type="button" onClick={() => setShowEditForm(false)}>
-              <X className="w-4 h-4 text-gray-400" />
-            </button>
+            <button type="button" onClick={() => setShowEditForm(false)}><X className="w-4 h-4 text-gray-400" /></button>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Full Name *</label>
-              <input className="input" required value={editForm.full_name}
-                onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Phone *</label>
-              <input className="input" required type="tel" value={editForm.phone}
-                onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
-            </div>
+            <div><label className="label">Full Name *</label><input className="input" required value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} /></div>
+            <div><label className="label">Phone *</label><input className="input" required type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Date of Birth</label>
-              <input className="input" type="date" value={editForm.date_of_birth}
-                onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Gender</label>
-              <select className="input" value={editForm.gender}
-                onChange={e => setEditForm(f => ({ ...f, gender: e.target.value }))}>
-                <option value="">Select...</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-                <option value="prefer_not_to_say">Prefer not to say</option>
-              </select>
-            </div>
+            <div><label className="label">Date of Birth</label><input className="input" type="date" value={editForm.date_of_birth} onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))} /></div>
+            <div><label className="label">Gender</label><select className="input" value={editForm.gender} onChange={e => setEditForm(f => ({ ...f, gender: e.target.value }))}><option value="">Select...</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option><option value="prefer_not_to_say">Prefer not to say</option></select></div>
           </div>
-          <div>
-            <label className="label">Health Notes / Medical Conditions</label>
-            <textarea className="input min-h-[80px] resize-none" value={editForm.health_notes}
-              onChange={e => setEditForm(f => ({ ...f, health_notes: e.target.value }))}
-              placeholder="Any injuries, medical conditions or notes..." />
-          </div>
+          <div><label className="label">Health Notes</label><textarea className="input min-h-[80px] resize-none" value={editForm.health_notes} onChange={e => setEditForm(f => ({ ...f, health_notes: e.target.value }))} placeholder="Injuries, conditions, notes..." /></div>
           <div className="flex gap-2">
-            <button type="submit" disabled={saving}
-              className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50">
+            <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50">
               <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
             </button>
             <button type="button" onClick={() => setShowEditForm(false)} className="btn-secondary">Cancel</button>
@@ -178,17 +131,15 @@ export default function MemberDetailPage() {
         </form>
       )}
 
-      {/* Member Info */}
+      {/* Contact & Health */}
       <div className="card p-4 space-y-3">
         <h2 className="font-semibold text-gray-900 text-sm">Contact & Health</h2>
-        <div className="space-y-2 text-sm">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-gray-600">
             <Phone className="w-4 h-4 text-gray-400" />
-            <a href={`tel:${member.phone}`} className="hover:text-red-600">{member.phone}</a>
+            <a href={`tel:${member.phone}`} className="text-sm hover:text-red-600">{member.phone}</a>
           </div>
-          {member.date_of_birth && (
-            <p className="text-xs text-gray-500">DOB: {formatDate(member.date_of_birth)}</p>
-          )}
+          {member.date_of_birth && <p className="text-xs text-gray-500">DOB: {formatDate(member.date_of_birth)}</p>}
           {member.health_notes && (
             <div className="flex items-start gap-2 text-gray-600">
               <Heart className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
@@ -204,35 +155,27 @@ export default function MemberDetailPage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
             <PkgIcon className="w-4 h-4 text-red-600" /> Packages
           </h2>
-          {isTrainer && (
-            <button onClick={() => setShowPkgForm(!showPkgForm)}
-              className="btn-primary flex items-center gap-1 text-xs py-1.5">
+          {/* Assign package — trainer view only */}
+          {isActingAsTrainer && (
+            <button onClick={() => setShowPkgForm(!showPkgForm)} className="btn-primary flex items-center gap-1 text-xs py-1.5">
               <Plus className="w-3.5 h-3.5" /> Assign Package
             </button>
           )}
         </div>
 
-        {showPkgForm && (
+        {showPkgForm && isActingAsTrainer && (
           <form onSubmit={handleAssignPackage} className="p-4 border-b border-gray-100 bg-red-50 space-y-3">
             <select className="input" required value={pkgForm.template_id}
-              onChange={e => { const tpl = templates.find(t => t.id === e.target.value); setPkgForm(f => ({ ...f, template_id: e.target.value, total_price_sgd: tpl?.default_price_sgd.toString() || '' })) }}>
+              onChange={e => { const t = templates.find(x => x.id === e.target.value); setPkgForm(f => ({ ...f, template_id: e.target.value, total_price_sgd: t?.default_price_sgd.toString() || '' })) }}>
               <option value="">Select package...</option>
               {templates.map(t => <option key={t.id} value={t.id}>{t.name} ({t.total_sessions} sessions)</option>)}
             </select>
             <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="label">Price (SGD)</label>
-                <input className="input" type="number" step="0.01" required value={pkgForm.total_price_sgd}
-                  onChange={e => setPkgForm(f => ({ ...f, total_price_sgd: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Start Date</label>
-                <input className="input" type="date" required value={pkgForm.start_date}
-                  onChange={e => setPkgForm(f => ({ ...f, start_date: e.target.value }))} />
-              </div>
+              <div><label className="label">Price (SGD)</label><input className="input" type="number" step="0.01" required value={pkgForm.total_price_sgd} onChange={e => setPkgForm(f => ({ ...f, total_price_sgd: e.target.value }))} /></div>
+              <div><label className="label">Start Date</label><input className="input" type="date" required value={pkgForm.start_date} onChange={e => setPkgForm(f => ({ ...f, start_date: e.target.value }))} /></div>
             </div>
             <div className="flex gap-2">
-              <button type="submit" disabled={loading} className="btn-primary flex-1">{loading ? 'Saving...' : 'Assign Package'}</button>
+              <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Saving...' : 'Assign Package'}</button>
               <button type="button" onClick={() => setShowPkgForm(false)} className="btn-secondary">Cancel</button>
             </div>
           </form>
@@ -280,7 +223,8 @@ export default function MemberDetailPage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
             <Calendar className="w-4 h-4 text-red-600" /> Sessions
           </h2>
-          {isTrainer && activePackage && (
+          {/* Schedule session — trainer view only */}
+          {isActingAsTrainer && activePackage && (
             <Link href={`/dashboard/sessions/new?client=${member.id}&package=${activePackage.id}`}
               className="btn-primary flex items-center gap-1 text-xs py-1.5">
               <Plus className="w-3.5 h-3.5" /> Schedule
@@ -299,14 +243,11 @@ export default function MemberDetailPage() {
                   session.status === 'cancelled' ? 'bg-gray-400' : 'bg-red-400')} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-900">{formatDateTime(session.scheduled_at)}</p>
-                  {session.performance_notes && (
-                    <p className="text-xs text-gray-500 truncate">{session.performance_notes}</p>
-                  )}
+                  {session.performance_notes && <p className="text-xs text-gray-500 truncate">{session.performance_notes}</p>}
                 </div>
                 <span className={cn('text-xs px-2 py-0.5 rounded-full capitalize',
                   session.status === 'completed' ? 'bg-green-100 text-green-700' :
-                  session.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                  'bg-gray-100 text-gray-600')}>
+                  session.status === 'scheduled' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
                   {session.status}
                 </span>
               </div>
