@@ -4,15 +4,26 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
-import { User } from '@/types'
 import {
   Dumbbell, LayoutDashboard, Users, Package, Calendar,
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
   FileText, Banknote, X, Building2, UserCheck, Clock,
-  Calculator
+  Calculator, Briefcase, Shield
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// ── Nav definitions ─────────────────────────────────────────
+
+// Admin: gym clubs, PT packages, business ops staff, app settings
+const adminNav = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/admin-gyms', label: 'Gym Clubs', icon: Building2 },
+  { href: '/dashboard/packages', label: 'PT Packages', icon: Package },
+  { href: '/dashboard/admin-staff', label: 'Business Ops Staff', icon: Briefcase },
+  { href: '/dashboard/settings', label: 'App Settings', icon: Settings },
+]
+
+// Manager view — management functions ONLY, NO trainer functions
 const managerNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/manager-trainers', label: 'My Trainers', icon: UserCheck },
@@ -23,6 +34,7 @@ const managerNav = [
   { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
 ]
 
+// Trainer view — trainer functions ONLY, NO manager functions
 const trainerNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/clients', label: 'My Members', icon: Users },
@@ -31,30 +43,23 @@ const trainerNav = [
   { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
 ]
 
-const navByRole: Record<string, { href: string; label: string; icon: any }[]> = {
-  // Admin: app settings ONLY
-  admin: [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/dashboard/settings', label: 'App Settings', icon: Settings },
-  ],
-  // Manager: gym operations
-  manager: managerNav,
-  // Business Ops: staff management, gym config, payroll, all reports
-  business_ops: [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/dashboard/trainers', label: 'Staff Management', icon: Users },
-    { href: '/dashboard/business-ops/gyms', label: 'Gym Clubs', icon: Building2 },
-    { href: '/dashboard/packages', label: 'Package Templates', icon: Package },
-    { href: '/dashboard/clients', label: 'All Members', icon: Users },
-    { href: '/dashboard/sessions', label: 'All Sessions', icon: Calendar },
-    { href: '/dashboard/payouts', label: 'Payouts', icon: DollarSign },
-    { href: '/dashboard/reports', label: 'Monthly Reports', icon: BarChart3 },
-    { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
-    { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
-    { href: '/dashboard/cpf-config', label: 'CPF Configuration', icon: Calculator },
-  ],
-  trainer: trainerNav,
-}
+// Business Ops: staff, gyms, members, payroll, CPF
+const bizOpsNav = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/trainers', label: 'Staff Management', icon: Users },
+  { href: '/dashboard/business-ops/gyms', label: 'Gym Clubs', icon: Building2 },
+  { href: '/dashboard/packages', label: 'Package Templates', icon: Package },
+  { href: '/dashboard/clients', label: 'All Members', icon: Users },
+  { href: '/dashboard/sessions', label: 'All Sessions', icon: Calendar },
+  { href: '/dashboard/payouts', label: 'Payouts', icon: DollarSign },
+  { href: '/dashboard/reports', label: 'Monthly Reports', icon: BarChart3 },
+  { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
+  { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
+  { href: '/dashboard/cpf-config', label: 'CPF Configuration', icon: Calculator },
+]
+
+// Pure trainer nav (not manager)
+const pureTrainerNav = trainerNav
 
 const roleLabels: Record<string, string> = {
   admin: 'Admin', manager: 'Manager', business_ops: 'Business Ops', trainer: 'Trainer',
@@ -64,15 +69,10 @@ const VIEW_KEY = 'gymapp_view_mode'
 type ViewMode = 'manager' | 'trainer'
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
 
-interface ExtendedUser extends User {
-  is_also_trainer?: boolean
-  manager_gym_id?: string
-}
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<ExtendedUser | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [sidebarLogo, setSidebarLogo] = useState<string | null>(null)
-  const [gymName, setGymName] = useState<string>('GymApp')
+  const [gymName, setGymName] = useState('GymApp')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [countdown, setCountdown] = useState(60)
@@ -120,7 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [startWarningCountdown])
 
   useEffect(() => {
-    const getUser = async () => {
+    const init = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error || !session) { router.push('/'); return }
@@ -137,9 +137,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setViewMode(saved || 'manager')
         }
 
-        const { data: settings } = await supabase
-          .from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes')
-          .eq('id', 'global').single()
+        const { data: settings } = await supabase.from('app_settings')
+          .select('admin_sidebar_logo_url, auto_logout_minutes').eq('id', 'global').single()
         const mins = settings?.auto_logout_minutes || 10
         setAutoLogoutMinutes(mins); logoutMinutesRef.current = mins
 
@@ -162,15 +161,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       } catch (err: any) { setInitError(err.message) }
     }
-    getUser()
+    init()
   }, [])
 
   useEffect(() => {
     if (!user) return
     resetTimer()
-    const handleActivity = () => resetTimer()
-    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handleActivity, { passive: true }))
-    return () => { clearAllTimers(); ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handleActivity)) }
+    const h = () => resetTimer()
+    ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, h, { passive: true }))
+    return () => { clearAllTimers(); ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, h)) }
   }, [user, resetTimer])
 
   const handleLogout = async () => {
@@ -179,8 +178,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const switchView = (mode: ViewMode) => {
-    setViewMode(mode); sessionStorage.setItem(VIEW_KEY, mode)
-    setSidebarOpen(false); router.push('/dashboard')
+    setViewMode(mode)
+    sessionStorage.setItem(VIEW_KEY, mode)
+    setSidebarOpen(false)
+    router.push('/dashboard')
   }
 
   if (initError) return (
@@ -199,14 +200,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   )
 
-  const isManagerTrainer = user.role === 'manager' && !!(user as any).is_also_trainer
-  const nav = isManagerTrainer
-    ? (viewMode === 'trainer' ? trainerNav : managerNav)
-    : (navByRole[user.role] || [])
-  const portalLabel = isManagerTrainer
-    ? (viewMode === 'trainer' ? 'Trainer View' : 'Manager View')
-    : `${roleLabels[user.role] || user.role} Portal`
-  const isAdmin = user.role === 'admin'
+  const isManagerTrainer = user.role === 'manager' && !!user.is_also_trainer
+
+  // Determine nav — strict separation between manager and trainer views
+  let nav: typeof managerNav
+  let portalLabel: string
+  if (user.role === 'admin') {
+    nav = adminNav; portalLabel = 'Admin Portal'
+  } else if (user.role === 'business_ops') {
+    nav = bizOpsNav; portalLabel = 'Business Ops Portal'
+  } else if (user.role === 'trainer') {
+    nav = pureTrainerNav; portalLabel = 'Trainer Portal'
+  } else if (isManagerTrainer) {
+    // Manager-trainer: STRICTLY switch — no mixing of functions
+    if (viewMode === 'trainer') {
+      nav = trainerNav; portalLabel = 'Trainer View'
+    } else {
+      nav = managerNav; portalLabel = 'Manager View'
+    }
+  } else {
+    nav = managerNav; portalLabel = 'Manager Portal'
+  }
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
@@ -225,21 +239,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </button>
       </div>
 
-      {/* View switcher — manager-trainers only */}
+      {/* View switcher — manager-trainers ONLY, inline buttons */}
       {isManagerTrainer && (
         <div className="px-3 pt-3 pb-1">
           <p className="text-xs text-gray-400 mb-2 font-medium px-1">Switch view</p>
           <div className="flex gap-1.5">
-            <button onClick={() => switchView('manager')}
-              className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
-                viewMode === 'manager' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')}>
-              <Users className="w-3.5 h-3.5 flex-shrink-0" />
+            <button
+              onClick={() => switchView('manager')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
+                viewMode === 'manager'
+                  ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              )}>
+              <UserCheck className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Manager</span>
               {viewMode === 'manager' && <span className="text-yellow-600 font-bold">✓</span>}
             </button>
-            <button onClick={() => switchView('trainer')}
-              className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
-                viewMode === 'trainer' ? 'bg-red-50 border-red-300 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')}>
+            <button
+              onClick={() => switchView('trainer')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
+                viewMode === 'trainer'
+                  ? 'bg-red-50 border-red-300 text-red-800'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              )}>
               <Dumbbell className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Trainer</span>
               {viewMode === 'trainer' && <span className="text-red-600 font-bold">✓</span>}
@@ -254,8 +278,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const active = pathname === href
           return (
             <Link key={href} href={href} onClick={() => setSidebarOpen(false)}
-              className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                active ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')}>
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                active ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}>
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1 truncate">{label}</span>
               {active && <ChevronRight className="w-3 h-3 text-red-600 flex-shrink-0" />}
@@ -273,25 +299,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{user.full_name}</p>
-              <p className="text-xs text-gray-500">{isManagerTrainer ? 'Manager / Trainer' : roleLabels[user.role] || user.role}</p>
+              <p className="text-xs text-gray-500">
+                {isManagerTrainer ? 'Manager / Trainer' : roleLabels[user.role] || user.role}
+              </p>
             </div>
             <button onClick={handleLogout}
-              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"
-              title="Logout">
+              className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>
-        <div className="px-4 pb-2 flex items-center gap-1.5">
+        <div className="px-4 pb-3 flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-gray-300 flex-shrink-0" />
           <p className="text-xs text-gray-300">Auto logout: {autoLogoutMinutes}m</p>
         </div>
-        {isAdmin && (
-          <div className="px-4 pb-4 flex items-center gap-1.5">
-            <Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" />
-            <p className="text-xs text-gray-300 font-medium tracking-wide">Gym Library</p>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -309,6 +330,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
+      {/* Auto logout warning */}
       {showWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center space-y-4">
@@ -332,12 +354,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       <div className="md:pl-56 flex flex-col min-h-screen bg-gray-50">
+        {/* Mobile top bar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100">
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
           <div className="flex items-center gap-2">
-            {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-6 w-auto object-contain" /> : <Dumbbell className="w-5 h-5 text-red-600" />}
+            {sidebarLogo
+              ? <img src={sidebarLogo} alt={gymName} className="h-6 w-auto object-contain" />
+              : <Dumbbell className="w-5 h-5 text-red-600" />
+            }
             <span className="font-bold text-gray-900 text-sm">{gymName}</span>
             {isManagerTrainer && (
               <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
@@ -350,6 +376,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-red-700 font-semibold text-xs">{user.full_name.charAt(0)}</span>
           </div>
         </div>
+
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </>
