@@ -6,7 +6,7 @@ import { User, Gym } from '@/types'
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
   Edit2, Trash2, X, Save, CheckCircle, AlertCircle,
-  Archive, Building2, ToggleLeft, ToggleRight
+  Archive, Building2
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -24,6 +24,9 @@ const roleBadge: Record<string, string> = {
   manager: 'bg-yellow-100 text-yellow-800',
   business_ops: 'bg-purple-100 text-purple-700',
 }
+
+// Roles that require a mandatory phone number
+const PHONE_REQUIRED_ROLES = ['admin', 'manager']
 
 interface StaffMember extends User {
   trainer_gyms?: { gym_id: string; gyms: { name: string } }[]
@@ -68,15 +71,13 @@ export default function TrainersPage() {
     const { data: activeStaff } = await supabase
       .from('users')
       .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
-      .eq('is_archived', false)
-      .order('role').order('full_name')
+      .eq('is_archived', false).order('role').order('full_name')
     setStaff(activeStaff || [])
 
     const { data: archivedStaff } = await supabase
       .from('users')
       .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
-      .eq('is_archived', true)
-      .order('archived_at', { ascending: false })
+      .eq('is_archived', true).order('archived_at', { ascending: false })
     setArchived(archivedStaff || [])
 
     const { data: gymData } = await supabase.from('gyms').select('*').eq('is_active', true)
@@ -96,11 +97,8 @@ export default function TrainersPage() {
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
-    await loadData()
-    setShowCreateForm(false)
-    resetCreateForm()
-    setSaving(false)
-    showSuccess('Account created successfully')
+    await loadData(); setShowCreateForm(false); resetCreateForm()
+    setSaving(false); showSuccess('Account created successfully')
   }
 
   const openEdit = (member: StaffMember) => {
@@ -128,9 +126,7 @@ export default function TrainersPage() {
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
-    await loadData()
-    setEditingUser(null)
-    setSaving(false)
+    await loadData(); setEditingUser(null); setSaving(false)
     showSuccess('Profile updated successfully')
   }
 
@@ -153,8 +149,7 @@ export default function TrainersPage() {
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
-    await loadData(); setSaving(false)
-    showSuccess(`${member.full_name} has been archived`)
+    await loadData(); setSaving(false); showSuccess(`${member.full_name} archived`)
   }
 
   const resetCreateForm = () => setCreateForm({
@@ -165,15 +160,9 @@ export default function TrainersPage() {
 
   const toggleGym = (gymId: string, type: 'create' | 'edit') => {
     if (type === 'create') {
-      setCreateForm(f => ({
-        ...f, gym_ids: f.gym_ids.includes(gymId)
-          ? f.gym_ids.filter(g => g !== gymId) : [...f.gym_ids, gymId]
-      }))
+      setCreateForm(f => ({ ...f, gym_ids: f.gym_ids.includes(gymId) ? f.gym_ids.filter(g => g !== gymId) : [...f.gym_ids, gymId] }))
     } else {
-      setEditForm(f => ({
-        ...f, gym_ids: f.gym_ids.includes(gymId)
-          ? f.gym_ids.filter(g => g !== gymId) : [...f.gym_ids, gymId]
-      }))
+      setEditForm(f => ({ ...f, gym_ids: f.gym_ids.includes(gymId) ? f.gym_ids.filter(g => g !== gymId) : [...f.gym_ids, gymId] }))
     }
   }
 
@@ -188,6 +177,7 @@ export default function TrainersPage() {
     return '—'
   }
 
+  const isPhoneRequired = (role: string) => PHONE_REQUIRED_ROLES.includes(role)
   const filteredStaff = filterRole === 'all' ? staff : staff.filter(s => s.role === filterRole)
   const isSelf = (m: StaffMember) => m.id === currentUser?.id
 
@@ -195,26 +185,33 @@ export default function TrainersPage() {
     const info = ALL_ROLES.find(r => r.value === member.role)
     return (
       <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadge[member.role] || 'bg-gray-100 text-gray-600')}>
-        {info?.label || member.role}
-        {member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
+        {info?.label || member.role}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
       </span>
     )
   }
 
+  const PhoneField = ({ value, onChange, required }: { value: string; onChange: (v: string) => void; required: boolean }) => (
+    <div>
+      <label className="label">
+        Phone {required ? <span className="text-red-500">*</span> : <span className="text-gray-400 text-xs">(optional)</span>}
+      </label>
+      <input className="input" type="tel" value={value} required={required}
+        onChange={e => onChange(e.target.value)} placeholder="+65 9123 4567" />
+      {required && <p className="text-xs text-gray-400 mt-1">Required for admin and manager accounts</p>}
+    </div>
+  )
+
   const AlsoTrainerToggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
-    <div className={cn(
-      'flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer',
-      value ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
-    )} onClick={() => onChange(!value)}>
+    <div className={cn('flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+      value ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300')}
+      onClick={() => onChange(!value)}>
       <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5',
         value ? 'border-green-500 bg-green-500' : 'border-gray-300')}>
         {value && <CheckCircle className="w-3.5 h-3.5 text-white" />}
       </div>
       <div>
         <p className="text-sm font-medium text-gray-900">Also acts as a Trainer</p>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Manager can also manage their own clients, schedule sessions and earn trainer commissions. They will appear in trainer lists.
-        </p>
+        <p className="text-xs text-gray-500 mt-0.5">Manager can manage own clients, schedule sessions and earn trainer commissions.</p>
       </div>
     </div>
   )
@@ -279,7 +276,7 @@ export default function TrainersPage() {
                       createForm.role === r.value ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300')}>
                     <input type="radio" name="create_role" value={r.value}
                       checked={createForm.role === r.value}
-                      onChange={e => setCreateForm(f => ({ ...f, role: e.target.value, is_also_trainer: false }))}
+                      onChange={e => setCreateForm(f => ({ ...f, role: e.target.value, is_also_trainer: false, phone: '' }))}
                       className="mt-0.5 flex-shrink-0" />
                     <div>
                       <p className="text-xs font-medium text-gray-900">{r.label}</p>
@@ -293,20 +290,20 @@ export default function TrainersPage() {
                 <div>
                   <label className="label">Full Name *</label>
                   <input className="input" required value={createForm.full_name}
-                    onChange={e => setCreateForm(f => ({ ...f, full_name: e.target.value }))} />
+                    onChange={e => setCreateForm(f => ({ ...f, full_name: e.target.value }))} placeholder="e.g. John Lim" />
                 </div>
                 <div>
                   <label className="label">Email *</label>
                   <input className="input" required type="email" value={createForm.email}
-                    onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} />
+                    onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} placeholder="john@gym.com" />
                 </div>
               </div>
 
-              <div>
-                <label className="label">Phone</label>
-                <input className="input" value={createForm.phone}
-                  onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" />
-              </div>
+              <PhoneField
+                value={createForm.phone}
+                onChange={v => setCreateForm(f => ({ ...f, phone: v }))}
+                required={isPhoneRequired(createForm.role)}
+              />
 
               {(createForm.role === 'trainer' || (createForm.role === 'manager' && createForm.is_also_trainer)) && (
                 <div className="grid grid-cols-2 gap-3">
@@ -351,10 +348,8 @@ export default function TrainersPage() {
                       {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </select>
                   </div>
-                  <AlsoTrainerToggle
-                    value={createForm.is_also_trainer}
-                    onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))}
-                  />
+                  <AlsoTrainerToggle value={createForm.is_also_trainer}
+                    onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))} />
                 </>
               )}
 
@@ -387,18 +382,18 @@ export default function TrainersPage() {
                     onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="label">Email Address *</label>
+                  <label className="label">Email *</label>
                   <input className="input" required type="email" value={editForm.email}
                     onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
-                  <p className="text-xs text-gray-400 mt-1">Changing email updates their Google login</p>
+                  <p className="text-xs text-gray-400 mt-1">Changing updates their Google login</p>
                 </div>
               </div>
 
-              <div>
-                <label className="label">Phone</label>
-                <input className="input" value={editForm.phone}
-                  onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
-              </div>
+              <PhoneField
+                value={editForm.phone}
+                onChange={v => setEditForm(f => ({ ...f, phone: v }))}
+                required={isPhoneRequired(editForm.role)}
+              />
 
               {!isSelf(editingUser) && (
                 <div className="grid grid-cols-2 gap-3">
@@ -463,10 +458,8 @@ export default function TrainersPage() {
                       {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                     </select>
                   </div>
-                  <AlsoTrainerToggle
-                    value={editForm.is_also_trainer}
-                    onChange={v => setEditForm(f => ({ ...f, is_also_trainer: v }))}
-                  />
+                  <AlsoTrainerToggle value={editForm.is_also_trainer}
+                    onChange={v => setEditForm(f => ({ ...f, is_also_trainer: v }))} />
                 </>
               )}
 
@@ -517,8 +510,7 @@ export default function TrainersPage() {
             <div className="space-y-2">
               {filteredStaff.map(member => (
                 <div key={member.id}
-                  className={cn('card p-4', !member.is_active && 'opacity-70',
-                    isSelf(member) && 'border-green-200 bg-green-50/30')}>
+                  className={cn('card p-4', !member.is_active && 'opacity-70', isSelf(member) && 'border-green-200 bg-green-50/30')}>
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                       <span className="text-green-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
@@ -533,7 +525,12 @@ export default function TrainersPage() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
-                      {member.phone && <p className="text-xs text-gray-400">{member.phone}</p>}
+                      {member.phone
+                        ? <p className="text-xs text-gray-400">{member.phone}</p>
+                        : PHONE_REQUIRED_ROLES.includes(member.role) && (
+                          <p className="text-xs text-amber-500">⚠ Phone not set</p>
+                        )
+                      }
                       <div className="flex items-center gap-1 mt-1">
                         <Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" />
                         <p className="text-xs text-gray-400">{getGymLabel(member)}</p>
@@ -587,18 +584,15 @@ export default function TrainersPage() {
                       <span className="badge-danger">Archived</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
+                    {member.phone && <p className="text-xs text-gray-400">{member.phone}</p>}
                     <div className="flex items-center gap-1 mt-1">
                       <Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" />
                       <p className="text-xs text-gray-400">{getGymLabel(member)}</p>
                     </div>
                     <div className="mt-2 pt-2 border-t border-gray-100 space-y-0.5">
-                      <p className="text-xs text-gray-400">
-                        <span className="font-medium text-gray-500">Created:</span> {formatDateTime(member.created_at)}
-                      </p>
+                      <p className="text-xs text-gray-400"><span className="font-medium text-gray-500">Created:</span> {formatDateTime(member.created_at)}</p>
                       {member.archived_at && (
-                        <p className="text-xs text-red-400">
-                          <span className="font-medium text-red-500">Archived:</span> {formatDateTime(member.archived_at)}
-                        </p>
+                        <p className="text-xs text-red-400"><span className="font-medium text-red-500">Archived:</span> {formatDateTime(member.archived_at)}</p>
                       )}
                     </div>
                   </div>
