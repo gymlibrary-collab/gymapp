@@ -86,13 +86,14 @@ export default function ManagerTrainersPage() {
     if (!gymId) return
     setSaving(true)
     setError('')
-    const { error: err } = await supabase.from('trainer_gyms').insert({
-      trainer_id: trainerId,
-      gym_id: gymId,
-      is_primary: true,
+    const res = await fetch('/api/gym-assignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trainer_id: trainerId, gym_id: gymId }),
     })
-    if (err) {
-      setError(err.message)
+    const result = await res.json()
+    if (!res.ok) {
+      setError(result.error || 'Failed to add trainer')
     } else {
       showMsg('Trainer added to your gym')
       setShowAdd(false)
@@ -103,9 +104,17 @@ export default function ManagerTrainersPage() {
 
   const handleRemove = async (trainerId: string, trainerName: string) => {
     if (!confirm(`Remove ${trainerName} from ${gymName}? Their account will remain active.`)) return
-    await supabase.from('trainer_gyms').delete()
-      .eq('trainer_id', trainerId).eq('gym_id', gymId!)
-    showMsg(`${trainerName} removed from ${gymName}`)
+    const res = await fetch('/api/gym-assignments', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trainer_id: trainerId, gym_id: gymId }),
+    })
+    const result = await res.json()
+    if (!res.ok) {
+      setError(result.error || 'Failed to remove trainer')
+    } else {
+      showMsg(`${trainerName} removed from ${gymName}`)
+    }
     await loadData()
   }
 
