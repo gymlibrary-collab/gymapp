@@ -149,25 +149,24 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500">View-only overview — Gym Library</p>
       </div>
 
-      {/* Summary tiles */}
+      {/* Summary tiles — fixed order, always shown even if count is 0 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="stat-card">
           <div className="flex items-center gap-1.5 mb-1"><Building2 className="w-4 h-4 text-red-600" /><p className="text-xs text-gray-500">Active Gyms</p></div>
           <p className="text-2xl font-bold text-gray-900">{totalGyms}</p>
         </div>
-        {Object.entries(roleCounts).map(([role, count]) => {
-          const Icon = roleIcons[role] || Users
-          const color = roleColors[role] || 'text-gray-600 bg-gray-50'
-          return (
-            <div key={role} className="stat-card">
-              <div className={cn('flex items-center gap-1.5 mb-1')}>
-                <Icon className={cn('w-4 h-4', color.split(' ')[0])} />
-                <p className="text-xs text-gray-500">{roleLabels[role] || role}</p>
-              </div>
-              <p className="text-2xl font-bold text-gray-900">{count as number}</p>
-            </div>
-          )
-        })}
+        <div className="stat-card">
+          <div className="flex items-center gap-1.5 mb-1"><Briefcase className="w-4 h-4 text-purple-600" /><p className="text-xs text-gray-500">Business Ops</p></div>
+          <p className="text-2xl font-bold text-gray-900">{roleCounts['business_ops'] || 0}</p>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center gap-1.5 mb-1"><UserCheck className="w-4 h-4 text-yellow-700" /><p className="text-xs text-gray-500">Managers</p></div>
+          <p className="text-2xl font-bold text-gray-900">{roleCounts['manager'] || 0}</p>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center gap-1.5 mb-1"><Dumbbell className="w-4 h-4 text-green-700" /><p className="text-xs text-gray-500">Trainers</p></div>
+          <p className="text-2xl font-bold text-gray-900">{roleCounts['trainer'] || 0}</p>
+        </div>
       </div>
 
       {/* Per-gym breakdown */}
