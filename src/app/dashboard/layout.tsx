@@ -53,7 +53,6 @@ const roleLabels: Record<string, string> = {
   trainer: 'Trainer',
 }
 
-// Activity events that reset the inactivity timer
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click']
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -64,19 +63,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showWarning, setShowWarning] = useState(false)
   const [countdown, setCountdown] = useState(60)
   const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(10)
+  const [initError, setInitError] = useState<string | null>(null)
 
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
 
-  // Refs for timers so we can clear them
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null)
   const warningTimer = useRef<NodeJS.Timeout | null>(null)
   const countdownInterval = useRef<NodeJS.Timeout | null>(null)
   const logoutMinutesRef = useRef(10)
 
   const doLogout = useCallback(async () => {
-    clearAllTimers()
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current)
+    if (warningTimer.current) clearTimeout(warningTimer.current)
+    if (countdownInterval.current) clearInterval(countdownInterval.current)
     await supabase.auth.signOut()
     router.push('/?reason=timeout')
   }, [])
@@ -105,75 +106,109 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const resetTimer = useCallback(() => {
     clearAllTimers()
     setShowWarning(false)
-
     const mins = logoutMinutesRef.current
-    const warningAt = Math.max((mins * 60 - 60) * 1000, 0) // 60s before logout
-
-    inactivityTimer.current = setTimeout(() => {
-      startWarningCountdown()
-    }, warningAt)
+    const warningAt = Math.max((mins * 60 - 60) * 1000, 0)
+    inactivityTimer.current = setTimeout(startWarningCountdown, warningAt)
   }, [startWarningCountdown])
 
-  const stayLoggedIn = () => {
-    resetTimer()
-  }
-
-  // Load user + logo + auto logout setting
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.push('/'); return }
+      try {
+        // Get the current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-      const { data: userData } = await supabase
-        .from('users').select('*').eq('id', authUser.id).single()
-      if (!userData) { router.push('/'); return }
-      setUser(userData)
-
-      // Load auto logout setting
-      const { data: settings } = await supabase
-        .from('app_settings').select('auto_logout_minutes, admin_sidebar_logo_url, login_logo_url')
-        .eq('id', 'global').single()
-
-      const mins = settings?.auto_logout_minutes || 10
-      setAutoLogoutMinutes(mins)
-      logoutMinutesRef.current = mins
-
-      // Load sidebar logo
-      if (userData.role === 'admin') {
-        setSidebarLogo(settings?.admin_sidebar_logo_url || null)
-        setGymName('Gym Library')
-      } else if (userData.role === 'manager' && userData.manager_gym_id) {
-        const { data: gym } = await supabase
-          .from('gyms').select('name, logo_url').eq('id', userData.manager_gym_id).single()
-        if (gym) { setSidebarLogo(gym.logo_url); setGymName(gym.name) }
-      } else if (userData.role === 'trainer') {
-        const { data: tg } = await supabase
-          .from('trainer_gyms').select('gym_id, gyms(name, logo_url)')
-          .eq('trainer_id', authUser.id).eq('is_primary', true).single()
-        if (tg && (tg as any).gyms) {
-          setSidebarLogo((tg as any).gyms.logo_url)
-          setGymName((tg as any).gyms.name)
+        if (sessionError || !session) {
+          router.push('/')
+          return
         }
-      } else {
-        const { data: gyms } = await supabase
-          .from('gyms').select('name, logo_url').eq('is_active', true).limit(1)
-        if (gyms?.[0]) { setSidebarLogo(gyms[0].logo_url); setGymName(gyms[0].name) }
+
+        // Look up the user in our users table
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+
+        if (userError || !userData) {
+          // User authenticated but not in staff table
+          await supabase.auth.signOut()
+          router.push('/?error=not_authorised')
+          return
+        }
+
+        if (userData.is_archived || !userData.is_active) {
+          await supabase.auth.signOut()
+          router.push('/?error=account_disabled')
+          return
+        }
+
+        setUser(userData)
+
+        // Load sidebar logo based on role
+        if (userData.role === 'admin') {
+          const { data: settings } = await supabase
+            .from('app_settings')
+            .select('admin_sidebar_logo_url, auto_logout_minutes')
+            .eq('id', 'global')
+            .single()
+          setSidebarLogo(settings?.admin_sidebar_logo_url
+            ? settings.admin_sidebar_logo_url + '?t=' + Date.now()
+            : null)
+          setGymName('Gym Library')
+          const mins = settings?.auto_logout_minutes || 10
+          setAutoLogoutMinutes(mins)
+          logoutMinutesRef.current = mins
+        } else {
+          const { data: settings } = await supabase
+            .from('app_settings').select('auto_logout_minutes').eq('id', 'global').single()
+          const mins = settings?.auto_logout_minutes || 10
+          setAutoLogoutMinutes(mins)
+          logoutMinutesRef.current = mins
+
+          if (userData.role === 'manager' && userData.manager_gym_id) {
+            const { data: gym } = await supabase
+              .from('gyms').select('name, logo_url').eq('id', userData.manager_gym_id).single()
+            if (gym) {
+              setSidebarLogo(gym.logo_url ? gym.logo_url + '?t=' + Date.now() : null)
+              setGymName(gym.name)
+            }
+          } else if (userData.role === 'trainer') {
+            const { data: tg } = await supabase
+              .from('trainer_gyms')
+              .select('gym_id, gyms(name, logo_url)')
+              .eq('trainer_id', session.user.id)
+              .eq('is_primary', true)
+              .single()
+            if (tg && (tg as any).gyms) {
+              const logo = (tg as any).gyms.logo_url
+              setSidebarLogo(logo ? logo + '?t=' + Date.now() : null)
+              setGymName((tg as any).gyms.name)
+            }
+          } else {
+            const { data: gyms } = await supabase
+              .from('gyms').select('name, logo_url').eq('is_active', true).limit(1)
+            if (gyms?.[0]) {
+              const logo = gyms[0].logo_url
+              setSidebarLogo(logo ? logo + '?t=' + Date.now() : null)
+              setGymName(gyms[0].name)
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error('Dashboard init error:', err)
+        setInitError(err.message)
       }
     }
+
     getUser()
   }, [])
 
-  // Set up activity listeners and inactivity timer
+  // Set up activity listeners
   useEffect(() => {
     if (!user) return
-
-    // Start timer
     resetTimer()
-
-    // Listen for activity
     const handleActivity = () => resetTimer()
     ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handleActivity, { passive: true }))
-
     return () => {
       clearAllTimers()
       ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handleActivity))
@@ -184,6 +219,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     clearAllTimers()
     await supabase.auth.signOut()
     router.push('/')
+  }
+
+  if (initError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="card p-6 max-w-sm w-full text-center space-y-3">
+          <p className="text-red-600 font-medium">Something went wrong</p>
+          <p className="text-xs text-gray-500">{initError}</p>
+          <button onClick={() => router.push('/')} className="btn-primary w-full">Back to Login</button>
+        </div>
+      </div>
+    )
   }
 
   if (!user) return (
@@ -197,10 +244,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
-      {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b border-gray-200 flex-shrink-0">
         {sidebarLogo
-          ? <img src={sidebarLogo} alt={gymName} className="h-8 w-auto max-w-[32px] object-contain rounded-lg flex-shrink-0" />
+          ? <img src={sidebarLogo} alt={gymName} className="h-8 w-auto max-w-[32px] object-contain rounded-lg flex-shrink-0"
+              onError={() => setSidebarLogo(null)} />
           : <div className="bg-green-600 p-2 rounded-lg flex-shrink-0"><Dumbbell className="w-4 h-4 text-white" /></div>
         }
         <div className="flex-1 min-w-0">
@@ -212,7 +259,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </button>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
@@ -230,7 +276,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })}
       </nav>
 
-      {/* User footer */}
       <div className="flex-shrink-0 border-t border-gray-200">
         <div className="p-3">
           <div className="flex items-center gap-2 p-2 rounded-lg">
@@ -248,7 +293,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </div>
         </div>
-        {/* Auto logout indicator */}
         <div className="px-4 pb-2 flex items-center gap-1.5">
           <Clock className="w-3 h-3 text-gray-300 flex-shrink-0" />
           <p className="text-xs text-gray-300">Auto logout: {autoLogoutMinutes}m</p>
@@ -265,12 +309,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      {/* Fixed desktop sidebar */}
       <div className="hidden md:block fixed top-0 left-0 bottom-0 w-56 z-30">
         <SidebarContent />
       </div>
 
-      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
@@ -280,7 +322,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* Auto logout warning modal */}
+      {/* Auto logout warning */}
       {showWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center space-y-4">
@@ -289,31 +331,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Still there?</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                You'll be logged out automatically due to inactivity.
-              </p>
+              <p className="text-sm text-gray-500 mt-1">You'll be logged out due to inactivity.</p>
             </div>
             <div className="bg-amber-50 rounded-xl p-4">
               <p className="text-3xl font-bold text-amber-600">{countdown}</p>
               <p className="text-xs text-amber-500 mt-1">seconds remaining</p>
             </div>
             <div className="flex gap-3">
-              <button onClick={stayLoggedIn}
-                className="btn-primary flex-1">
-                Stay Logged In
-              </button>
-              <button onClick={doLogout}
-                className="btn-secondary flex-1">
-                Log Out Now
-              </button>
+              <button onClick={resetTimer} className="btn-primary flex-1">Stay Logged In</button>
+              <button onClick={doLogout} className="btn-secondary flex-1">Log Out Now</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main content */}
       <div className="md:pl-56 flex flex-col min-h-screen bg-gray-50">
-        {/* Mobile top bar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100">
             <Menu className="w-5 h-5 text-gray-600" />
@@ -330,10 +362,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        {/* Page content */}
-        <main className="flex-1 p-4 md:p-6">
-          {children}
-        </main>
+        <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </>
   )
