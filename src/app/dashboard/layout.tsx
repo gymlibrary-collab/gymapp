@@ -21,7 +21,7 @@ const adminNav = [
   { href: '/dashboard/settings', label: 'App Settings', icon: Settings },
 ]
 
-// Manager view: management functions ONLY — no trainer actions whatsoever
+// Manager view: management functions ONLY
 const managerNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/manager-trainers', label: 'My Trainers', icon: UserCheck },
@@ -32,7 +32,7 @@ const managerNav = [
   { href: '/dashboard/reports/activity', label: 'Activity Report', icon: FileText },
 ]
 
-// Trainer view: trainer functions ONLY — no manager actions whatsoever
+// Trainer view: trainer functions ONLY
 const trainerNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/clients', label: 'My Members', icon: Users },
@@ -54,8 +54,6 @@ const bizOpsNav = [
   { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
   { href: '/dashboard/cpf-config', label: 'CPF Configuration', icon: Calculator },
 ]
-
-const pureTrainerNav = trainerNav
 
 const roleLabels: Record<string, string> = {
   admin: 'Admin', manager: 'Manager', business_ops: 'Business Ops', trainer: 'Trainer',
@@ -83,7 +81,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const logoutMinutesRef = useRef(10)
 
   const doLogout = useCallback(async () => {
-    clearTimeout(inactivityTimer.current!); clearInterval(countdownInterval.current!)
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current)
+    if (countdownInterval.current) clearInterval(countdownInterval.current)
     sessionStorage.removeItem(VIEW_KEY)
     await supabase.auth.signOut(); router.push('/?reason=timeout')
   }, [])
@@ -161,9 +160,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     await supabase.auth.signOut(); router.push('/')
   }
 
+  // KEY FIX: switchView only updates state — NO router.push()
+  // router.push() was causing the layout to re-mount, re-read sessionStorage,
+  // and re-initialize viewMode before the context could propagate to child pages.
   const switchView = (mode: ViewMode) => {
-    setViewMode(mode); sessionStorage.setItem(VIEW_KEY, mode)
-    setSidebarOpen(false); router.push('/dashboard')
+    sessionStorage.setItem(VIEW_KEY, mode)  // persist for page refreshes
+    setViewMode(mode)                        // update React state → context updates → pages re-render
+    setSidebarOpen(false)
+    // Do NOT navigate — stay on current page so context propagates in the same render tree
   }
 
   if (initError) return (
@@ -184,14 +188,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isManagerTrainer = user.role === 'manager' && !!user.is_also_trainer
 
-  // isActingAsTrainer = true ONLY when manager-trainer is in trainer view
-  // A manager-trainer in manager view has isActingAsTrainer = false
-  // A pure manager always has isActingAsTrainer = false
-  const isActingAsTrainer = isManagerTrainer
-    ? viewMode === 'trainer'
-    : user.role === 'trainer'
+  // isActingAsTrainer = true ONLY when pure trainer OR manager-trainer in trainer view
+  const isActingAsTrainer: boolean = user.role === 'trainer'
+    ? true
+    : isManagerTrainer && viewMode === 'trainer'
 
-  // Nav — strictly one set, no mixing
+  // Pick nav — strictly one set, zero mixing
   let nav: typeof managerNav
   let portalLabel: string
   if (user.role === 'admin') {
@@ -199,19 +201,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   } else if (user.role === 'business_ops') {
     nav = bizOpsNav; portalLabel = 'Business Ops Portal'
   } else if (user.role === 'trainer') {
-    nav = pureTrainerNav; portalLabel = 'Trainer Portal'
-  } else if (isManagerTrainer) {
-    if (viewMode === 'trainer') {
-      nav = trainerNav; portalLabel = 'Trainer View'
-    } else {
-      nav = managerNav; portalLabel = 'Manager View'
-    }
+    nav = trainerNav; portalLabel = 'Trainer Portal'
+  } else if (isManagerTrainer && viewMode === 'trainer') {
+    nav = trainerNav; portalLabel = 'Trainer View'
   } else {
-    nav = managerNav; portalLabel = 'Manager Portal'
+    // manager (pure) OR manager-trainer in manager view
+    nav = managerNav; portalLabel = isManagerTrainer ? 'Manager View' : 'Manager Portal'
   }
 
-  const SidebarContent = () => (
+  const SidebarInner = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
+      {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b border-gray-200 flex-shrink-0">
         {sidebarLogo
           ? <img src={sidebarLogo} alt={gymName} className="h-8 w-auto max-w-[32px] object-contain rounded-lg flex-shrink-0" onError={() => setSidebarLogo(null)} />
@@ -226,36 +226,49 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </button>
       </div>
 
-      {/* View switcher — inline buttons, manager-trainers only */}
+      {/* View switcher — ONLY for manager-trainers */}
       {isManagerTrainer && (
         <div className="px-3 pt-3 pb-1">
           <p className="text-xs text-gray-400 mb-2 font-medium px-1">Switch view</p>
           <div className="flex gap-1.5">
-            <button onClick={() => switchView('manager')}
-              className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
-                viewMode === 'manager' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')}>
+            <button
+              onClick={() => switchView('manager')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
+                viewMode === 'manager'
+                  ? 'bg-yellow-50 border-yellow-300 text-yellow-800'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              )}>
               <UserCheck className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Manager</span>
-              {viewMode === 'manager' && <span className="text-yellow-600 font-bold">✓</span>}
+              {viewMode === 'manager' && <span className="font-bold">✓</span>}
             </button>
-            <button onClick={() => switchView('trainer')}
-              className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
-                viewMode === 'trainer' ? 'bg-red-50 border-red-300 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')}>
+            <button
+              onClick={() => switchView('trainer')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition-colors border',
+                viewMode === 'trainer'
+                  ? 'bg-red-50 border-red-300 text-red-800'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+              )}>
               <Dumbbell className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Trainer</span>
-              {viewMode === 'trainer' && <span className="text-red-600 font-bold">✓</span>}
+              {viewMode === 'trainer' && <span className="font-bold">✓</span>}
             </button>
           </div>
         </div>
       )}
 
+      {/* Nav */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href
           return (
             <Link key={href + label} href={href} onClick={() => setSidebarOpen(false)}
-              className={cn('flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                active ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')}>
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                active ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              )}>
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1 truncate">{label}</span>
               {active && <ChevronRight className="w-3 h-3 text-red-600 flex-shrink-0" />}
@@ -264,6 +277,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         })}
       </nav>
 
+      {/* Footer */}
       <div className="flex-shrink-0 border-t border-gray-200">
         <div className="p-3">
           <div className="flex items-center gap-2 p-2 rounded-lg">
@@ -291,19 +305,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   )
 
   return (
-    // Provide viewMode context to ALL child pages
     <ViewModeContext.Provider value={{ viewMode, isActingAsTrainer }}>
+      {/* Desktop sidebar */}
       <div className="hidden md:block fixed top-0 left-0 bottom-0 w-56 z-30">
-        <SidebarContent />
+        <SidebarInner />
       </div>
 
+      {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="absolute top-0 left-0 bottom-0 w-64 z-50"><SidebarContent /></div>
+          <div className="absolute top-0 left-0 bottom-0 w-64 z-50"><SidebarInner /></div>
         </div>
       )}
 
+      {/* Auto logout warning */}
       {showWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full text-center space-y-4">
@@ -326,13 +342,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
+      {/* Main content */}
       <div className="md:pl-56 flex flex-col min-h-screen bg-gray-50">
+        {/* Mobile top bar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100">
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
           <div className="flex items-center gap-2">
-            {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-6 w-auto object-contain" /> : <Dumbbell className="w-5 h-5 text-red-600" />}
+            {sidebarLogo
+              ? <img src={sidebarLogo} alt={gymName} className="h-6 w-auto object-contain" />
+              : <Dumbbell className="w-5 h-5 text-red-600" />
+            }
             <span className="font-bold text-gray-900 text-sm">{gymName}</span>
             {isManagerTrainer && (
               <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium',
@@ -345,6 +366,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-red-700 font-semibold text-xs">{user.full_name.charAt(0)}</span>
           </div>
         </div>
+
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </div>
     </ViewModeContext.Provider>
