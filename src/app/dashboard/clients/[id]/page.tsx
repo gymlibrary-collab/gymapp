@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { Client, Package, Session, User, PackageTemplate } from '@/types'
 import { formatDate, formatDateTime, formatSGD, getSessionsRemaining } from '@/lib/utils'
-import { ArrowLeft, Phone, Heart, Package as PkgIcon, Calendar, Plus, Edit } from 'lucide-react'
+import { ArrowLeft, Phone, Heart, Package as PkgIcon, Calendar, Plus, Edit2, Save, X } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -17,9 +17,15 @@ export default function MemberDetailPage() {
   const [templates, setTemplates] = useState<PackageTemplate[]>([])
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [showPkgForm, setShowPkgForm] = useState(false)
+  const [showEditForm, setShowEditForm] = useState(false)
   const [pkgForm, setPkgForm] = useState({ template_id: '', total_price_sgd: '', start_date: '' })
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', date_of_birth: '', gender: '', health_notes: '' })
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const supabase = createClient()
+
+  const isTrainerRole = (u: User | null) =>
+    u?.role === 'trainer' || (u?.role === 'manager' && (u as any)?.is_also_trainer)
 
   useEffect(() => {
     const load = async () => {
@@ -31,6 +37,15 @@ export default function MemberDetailPage() {
       const { data: memberData } = await supabase
         .from('clients').select('*, gyms(name), users(full_name)').eq('id', id).single()
       setMember(memberData)
+      if (memberData) {
+        setEditForm({
+          full_name: memberData.full_name,
+          phone: memberData.phone || '',
+          date_of_birth: memberData.date_of_birth || '',
+          gender: memberData.gender || '',
+          health_notes: memberData.health_notes || '',
+        })
+      }
 
       const { data: pkgData } = await supabase
         .from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
@@ -46,45 +61,48 @@ export default function MemberDetailPage() {
     load()
   }, [id])
 
-  const handleTemplateChange = (templateId: string) => {
-    const tpl = templates.find(t => t.id === templateId)
-    setPkgForm(f => ({ ...f, template_id: templateId, total_price_sgd: tpl?.default_price_sgd.toString() || '' }))
+  const handleSaveMember = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!member) return
+    setSaving(true)
+    await supabase.from('clients').update({
+      full_name: editForm.full_name,
+      phone: editForm.phone,
+      date_of_birth: editForm.date_of_birth || null,
+      gender: editForm.gender || null,
+      health_notes: editForm.health_notes || null,
+    }).eq('id', member.id)
+
+    const { data: updated } = await supabase
+      .from('clients').select('*, gyms(name), users(full_name)').eq('id', id).single()
+    setMember(updated)
+    setSaving(false); setShowEditForm(false)
   }
 
   const handleAssignPackage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!member || !currentUser) return
     setLoading(true)
-
     const tpl = templates.find(t => t.id === pkgForm.template_id)
     if (!tpl) return
-
-    const { error } = await supabase.from('packages').insert({
+    await supabase.from('packages').insert({
       template_id: pkgForm.template_id,
-      client_id: member.id,
-      trainer_id: currentUser.id,
-      gym_id: member.gym_id,
-      package_name: tpl.name,
-      total_sessions: tpl.total_sessions,
+      client_id: member.id, trainer_id: currentUser.id, gym_id: member.gym_id,
+      package_name: tpl.name, total_sessions: tpl.total_sessions,
       total_price_sgd: parseFloat(pkgForm.total_price_sgd),
       start_date: pkgForm.start_date,
       signup_commission_pct: currentUser.commission_signup_pct,
       session_commission_pct: currentUser.commission_session_pct,
     })
-
-    if (!error) {
-      const { data: pkgData } = await supabase.from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
-      setPackages(pkgData || [])
-      setShowPkgForm(false)
-      setPkgForm({ template_id: '', total_price_sgd: '', start_date: '' })
-    }
+    const { data: pkgData } = await supabase.from('packages').select('*').eq('client_id', id).order('created_at', { ascending: false })
+    setPackages(pkgData || [])
+    setShowPkgForm(false); setPkgForm({ template_id: '', total_price_sgd: '', start_date: '' })
     setLoading(false)
   }
 
-  if (!member) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600" /></div>
+  if (!member) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
-  const isTrainer = currentUser?.role === 'trainer' ||
-    (currentUser?.role === 'manager' && (currentUser as any)?.is_also_trainer)
+  const isTrainer = isTrainerRole(currentUser)
   const activePackage = packages.find(p => p.status === 'active')
 
   return (
@@ -98,11 +116,67 @@ export default function MemberDetailPage() {
           <p className="text-xs text-gray-500 capitalize">{member.status} member · {(member as any).gyms?.name}</p>
         </div>
         {isTrainer && (
-          <Link href={`/dashboard/clients/${member.id}/edit`} className="btn-secondary flex items-center gap-1.5">
-            <Edit className="w-3.5 h-3.5" /> Edit
-          </Link>
+          <button onClick={() => setShowEditForm(!showEditForm)}
+            className="btn-secondary flex items-center gap-1.5">
+            <Edit2 className="w-3.5 h-3.5" /> Edit
+          </button>
         )}
       </div>
+
+      {/* Edit form */}
+      {showEditForm && isTrainer && (
+        <form onSubmit={handleSaveMember} className="card p-4 space-y-3 border-red-200">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900 text-sm">Edit Member Details</h2>
+            <button type="button" onClick={() => setShowEditForm(false)}>
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Full Name *</label>
+              <input className="input" required value={editForm.full_name}
+                onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Phone *</label>
+              <input className="input" required type="tel" value={editForm.phone}
+                onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Date of Birth</label>
+              <input className="input" type="date" value={editForm.date_of_birth}
+                onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Gender</label>
+              <select className="input" value={editForm.gender}
+                onChange={e => setEditForm(f => ({ ...f, gender: e.target.value }))}>
+                <option value="">Select...</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="label">Health Notes / Medical Conditions</label>
+            <textarea className="input min-h-[80px] resize-none" value={editForm.health_notes}
+              onChange={e => setEditForm(f => ({ ...f, health_notes: e.target.value }))}
+              placeholder="Any injuries, medical conditions or notes..." />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving}
+              className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50">
+              <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button type="button" onClick={() => setShowEditForm(false)} className="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      )}
 
       {/* Member Info */}
       <div className="card p-4 space-y-3">
@@ -110,8 +184,11 @@ export default function MemberDetailPage() {
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2 text-gray-600">
             <Phone className="w-4 h-4 text-gray-400" />
-            <a href={`tel:${member.phone}`} className="hover:text-green-600">{member.phone}</a>
+            <a href={`tel:${member.phone}`} className="hover:text-red-600">{member.phone}</a>
           </div>
+          {member.date_of_birth && (
+            <p className="text-xs text-gray-500">DOB: {formatDate(member.date_of_birth)}</p>
+          )}
           {member.health_notes && (
             <div className="flex items-start gap-2 text-gray-600">
               <Heart className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
@@ -125,7 +202,7 @@ export default function MemberDetailPage() {
       <div className="card">
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-            <PkgIcon className="w-4 h-4 text-green-600" /> Packages
+            <PkgIcon className="w-4 h-4 text-red-600" /> Packages
           </h2>
           {isTrainer && (
             <button onClick={() => setShowPkgForm(!showPkgForm)}
@@ -136,14 +213,11 @@ export default function MemberDetailPage() {
         </div>
 
         {showPkgForm && (
-          <form onSubmit={handleAssignPackage} className="p-4 border-b border-gray-100 bg-green-50 space-y-3">
-            <p className="text-sm font-medium text-gray-700">Assign New Package</p>
+          <form onSubmit={handleAssignPackage} className="p-4 border-b border-gray-100 bg-red-50 space-y-3">
             <select className="input" required value={pkgForm.template_id}
-              onChange={e => handleTemplateChange(e.target.value)}>
-              <option value="">Select package template...</option>
-              {templates.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({t.total_sessions} sessions)</option>
-              ))}
+              onChange={e => { const tpl = templates.find(t => t.id === e.target.value); setPkgForm(f => ({ ...f, template_id: e.target.value, total_price_sgd: tpl?.default_price_sgd.toString() || '' })) }}>
+              <option value="">Select package...</option>
+              {templates.map(t => <option key={t.id} value={t.id}>{t.name} ({t.total_sessions} sessions)</option>)}
             </select>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -158,9 +232,7 @@ export default function MemberDetailPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button type="submit" disabled={loading} className="btn-primary flex-1">
-                {loading ? 'Saving...' : 'Assign Package'}
-              </button>
+              <button type="submit" disabled={loading} className="btn-primary flex-1">{loading ? 'Saving...' : 'Assign Package'}</button>
               <button type="button" onClick={() => setShowPkgForm(false)} className="btn-secondary">Cancel</button>
             </div>
           </form>
@@ -171,7 +243,6 @@ export default function MemberDetailPage() {
         ) : (
           <div className="divide-y divide-gray-100">
             {packages.map(pkg => {
-              const remaining = getSessionsRemaining(pkg.total_sessions, pkg.sessions_used)
               const pct = Math.round((pkg.sessions_used / pkg.total_sessions) * 100)
               return (
                 <div key={pkg.id} className="p-4">
@@ -193,9 +264,9 @@ export default function MemberDetailPage() {
                     <span className="font-medium text-gray-700">{formatSGD(pkg.total_price_sgd)} total</span>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${pct}%` }} />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">{remaining} sessions remaining</p>
+                  <p className="text-xs text-gray-500 mt-1">{getSessionsRemaining(pkg.total_sessions, pkg.sessions_used)} sessions remaining</p>
                 </div>
               )
             })}
@@ -207,7 +278,7 @@ export default function MemberDetailPage() {
       <div className="card">
         <div className="flex items-center justify-between p-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-green-600" /> Sessions
+            <Calendar className="w-4 h-4 text-red-600" /> Sessions
           </h2>
           {isTrainer && activePackage && (
             <Link href={`/dashboard/sessions/new?client=${member.id}&package=${activePackage.id}`}
