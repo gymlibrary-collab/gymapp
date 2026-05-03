@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatDateTime, formatSGD } from '@/lib/utils'
 import {
@@ -51,12 +52,16 @@ export default function TrainersPage() {
   const [success, setSuccess] = useState('')
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
+  const router = useRouter()
   const supabase = createClient()
 
   const loadData = async () => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
+    if (!authUser) { router.push('/dashboard'); return }
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    if (!userData || !['manager', 'business_ops', 'admin'].includes(userData.role)) {
+      router.push('/dashboard'); return
+    }
     setCurrentUser(userData)
 
     const { data: active } = await supabase.from('users')
@@ -150,6 +155,7 @@ export default function TrainersPage() {
   }
 
   const isSelf = (m: any) => m.id === currentUser?.id
+  const isBizOps = currentUser?.role === 'business_ops'
 
   // Filter
   let filteredStaff = tab === 'active' ? staff : archived
@@ -178,24 +184,28 @@ export default function TrainersPage() {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
-        <div><label className="label">NRIC / FIN</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>
+        {isBizOps && <div><label className="label">NRIC / FIN</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Nationality</label><input className="input" value={form.nationality} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
-        <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
-      </div>
+      {isBizOps && (
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label">Nationality</label><input className="input" value={form.nationality} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
+          <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
         <div><label className="label">Date of Departure</label><input className="input" type="date" value={form.date_of_departure} onChange={e => setF((f: any) => ({ ...f, date_of_departure: e.target.value }))} /></div>
       </div>
-      <div>
-        <label className="label">Annual Leave Entitlement (days) *</label>
-        <input className="input" type="number" required min="0" max="365"
-          value={form.leave_entitlement_days}
-          onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
-          placeholder="e.g. 14" />
-        <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
-      </div>
+      {isBizOps && (
+        <div>
+          <label className="label">Annual Leave Entitlement (days) *</label>
+          <input className="input" type="number" required min="0" max="365"
+            value={form.leave_entitlement_days}
+            onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
+            placeholder="e.g. 14" />
+          <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
+        </div>
+      )}
       {form.date_of_departure && (
         <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
       )}
