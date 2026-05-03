@@ -37,7 +37,7 @@ export default function LeaveManagementPage() {
     if (u.role === 'manager' && u.manager_gym_id) {
       // Manager approves trainers in their gym
       const { data: gymStaff } = await supabase.from('users')
-        .select('id').eq('manager_gym_id', u.manager_gym_id).neq('id', authUser.id)
+        .select('id').eq('manager_gym_id', u.manager_gym_id).neq('id', authUser.id).in('role', ['staff', 'manager'])
       // Also trainers assigned to this gym
       const { data: gymTrainers } = await supabase.from('trainer_gyms')
         .select('trainer_id').eq('gym_id', u.manager_gym_id)
