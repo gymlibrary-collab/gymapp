@@ -67,7 +67,9 @@ export default function CpfPage() {
   const generatePreview = async () => {
     setGenerating(true)
     const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`
-    const monthEnd = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]
+    // Use local date construction to avoid UTC timezone off-by-one in SGT
+    const lastDay = new Date(selectedYear, selectedMonth, 0).getDate()
+    const monthEnd = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
     const { data: payslips } = await supabase.from('payslips')
       .select('*, user:users!payslips_user_id_fkey(full_name, nric, date_of_birth)')
