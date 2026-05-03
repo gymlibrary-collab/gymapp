@@ -78,9 +78,23 @@ export default function MyLeavePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const days = calcDays(form.start_date, form.end_date)
     if (days === 0) { setError('Invalid date range'); setSaving(false); return }
-    const approvedBalance = (user?.leave_entitlement_days || 14) - takenDays
-    const availableBalance = approvedBalance - pendingDays
-    if (days > availableBalance) { setError(`Insufficient leave balance. You have ${availableBalance} day${availableBalance !== 1 ? 's' : ''} available (${pendingDays > 0 ? `${pendingDays} day${pendingDays !== 1 ? 's' : ''} pending approval` : 'approved balance only'}).`); setSaving(false); return }
+    const entitlementDays = user?.leave_entitlement_days || 14
+    const availableBalance = Math.max(0, entitlementDays - takenDays - pendingDays)
+    if (availableBalance === 0) { setError('No leave balance remaining. Contact HR if you believe this is incorrect.'); setSaving(false); return }
+    if (days > availableBalance) { setError(`Insufficient leave balance. You have ${availableBalance} day${availableBalance !== 1 ? 's' : ''} available${pendingDays > 0 ? ` (${pendingDays} day${pendingDays !== 1 ? 's' : ''} pending approval)` : ''}.`); setSaving(false); return }
+
+    // Check for overlapping pending or approved leave
+    const { data: existing } = await supabase.from('leave_applications')
+      .select('id, start_date, end_date, status, leave_type')
+      .eq('user_id', authUser!.id)
+      .in('status', ['pending', 'approved'])
+      .lte('start_date', form.end_date)
+      .gte('end_date', form.start_date)
+    if (existing && existing.length > 0) {
+      const clash = existing[0]
+      setError(`Overlapping leave application exists (${LEAVE_TYPES.find(t => t.value === clash.leave_type)?.label || clash.leave_type}, ${formatDate(clash.start_date)} — ${formatDate(clash.end_date)}, ${clash.status}). Please withdraw or wait for a decision on that application first.`)
+      setSaving(false); return
+    }
 
     const { error: err } = await supabase.from('leave_applications').insert({
       user_id: authUser!.id, leave_type: form.leave_type,
@@ -100,8 +114,8 @@ export default function MyLeavePage() {
   }
 
   const entitlement = user?.leave_entitlement_days || 14
-  const available = entitlement - takenDays - pendingDays  // for submission check
   const balance = entitlement - takenDays                  // approved-only balance
+  const available = Math.max(0, entitlement - takenDays - pendingDays)  // clamped to 0
   const days = calcDays(form.start_date, form.end_date)
 
   const recentDecisions = applications.filter(a => {
@@ -151,11 +165,13 @@ export default function MyLeavePage() {
             <p className="text-2xl font-bold text-gray-700">{takenDays}</p>
             <p className="text-xs text-gray-500 mt-1">Approved & Taken</p>
           </div>
-          <div className="bg-amber-50 rounded-xl p-3">
-            <p className="text-2xl font-bold text-amber-700">{pendingDays}</p>
-            <p className="text-xs text-amber-600 mt-1">Pending Approval</p>
-          </div>
-          <div className={cn('rounded-xl p-3 col-span-2', balance < 3 ? 'bg-amber-50' : 'bg-green-50')}>
+          {pendingDays > 0 && (
+            <div className="bg-amber-50 rounded-xl p-3">
+              <p className="text-2xl font-bold text-amber-700">{pendingDays}</p>
+              <p className="text-xs text-amber-600 mt-1">Pending Approval</p>
+            </div>
+          )}
+          <div className={cn('rounded-xl p-3', pendingDays > 0 ? '' : 'col-span-2', balance < 3 ? 'bg-amber-50' : 'bg-green-50')}>
             <p className={cn('text-2xl font-bold', balance < 3 ? 'text-amber-700' : 'text-green-700')}>{balance}</p>
             <p className={cn('text-xs mt-1', balance < 3 ? 'text-amber-600' : 'text-green-600')}>Current Balance (approved only)</p>
           </div>
