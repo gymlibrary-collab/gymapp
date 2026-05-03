@@ -67,7 +67,8 @@ const trainerViewNav: NavItem[] = [
   { href: '/dashboard/members', label: 'My Members', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
-  { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
+  // My Leave intentionally omitted — manager-trainers apply for leave from Manager View only
+  // to avoid duplicate applications and confusion about which role the leave is for
 ]
 
 const pureTrainerNav: NavItem[] = [
