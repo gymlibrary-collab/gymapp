@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import {
@@ -34,6 +35,7 @@ export default function AdminStaffPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingUser, setEditingUser] = useState<BizOpsUser | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
+  const router = useRouter()
   const supabase = createClient()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
@@ -41,6 +43,12 @@ export default function AdminStaffPage() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
+    // Route guard
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || (me.role !== 'admin')) { router.replace('/dashboard'); return }
+
     const { data: active } = await supabase.from('users').select('*')
       .eq('role', 'business_ops').eq('is_archived', false).order('full_name')
     const { data: arch } = await supabase.from('users').select('*')
