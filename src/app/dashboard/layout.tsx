@@ -87,6 +87,15 @@ const partTimerNav: NavItem[] = [
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
 ]
 
+const staffNav: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
+  { href: '/dashboard/members', label: 'Member Lookup', icon: Users },
+  { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
+  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
+]
+
 const VIEW_KEY = 'gymapp_view_mode'
 const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click', 'keydown'] as const
 
@@ -152,7 +161,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const mins = settings?.auto_logout_minutes || 10; logoutMinutesRef.current = mins; setAutoLogoutMinutes(mins)
         if (u.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null); setGymName('Gym Library')
-        } else if (u.role === 'manager' && u.manager_gym_id) {
+        } else if ((u.role === 'manager' || u.role === 'staff') && u.manager_gym_id) {
           const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', u.manager_gym_id).single()
           if (gym) { setSidebarLogo(gym.logo_url ? gym.logo_url + '?t=' + Date.now() : null); setGymName(gym.name) }
         } else if (u.role === 'trainer') {
@@ -197,6 +206,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   let portalLabel: string
   if (user.role === 'admin') { nav = adminNav; portalLabel = 'Admin Portal' }
   else if (user.role === 'business_ops') { nav = bizOpsNav; portalLabel = 'Business Ops Portal' }
+  else if (user.role === 'staff') { nav = staffNav; portalLabel = 'Operations Staff Portal' }
   else if (user.role === 'trainer' && isPartTime) { nav = partTimerNav; portalLabel = 'Part-time Staff Portal' }
   else if (user.role === 'trainer') { nav = pureTrainerNav; portalLabel = 'Trainer Portal' }
   else if (isManagerTrainer && viewMode === 'trainer') { nav = trainerViewNav; portalLabel = 'Trainer View' }
@@ -247,7 +257,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{user.full_name}</p>
-            <p className="text-xs text-gray-500">{isManagerTrainer ? 'Manager / Trainer' : user.role.replace('_', ' ')}{isPartTime && ' · PT'}</p>
+            <p className="text-xs text-gray-500">{
+  isManagerTrainer ? 'Manager / Trainer' :
+  user.role === 'staff' ? 'Operations Staff' :
+  user.role === 'business_ops' ? 'Business Ops' :
+  user.role.charAt(0).toUpperCase() + user.role.slice(1)
+}{isPartTime && ' · Part-time'}</p>
           </div>
           <button onClick={() => performLogout('manual')} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0"><LogOut className="w-4 h-4" /></button>
         </div>
