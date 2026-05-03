@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
-import { FileText, Download, CheckCircle, Clock } from 'lucide-react'
+import { FileText, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MyPayslipsPage() {
@@ -284,9 +284,7 @@ export default function MyPayslipsPage() {
                 <div className="flex items-center gap-1.5 mt-1">
                   {p.status === 'paid'
                     ? <><CheckCircle className="w-3 h-3 text-green-600" /><span className="text-xs text-green-600">Paid</span></>
-                    : p.status === 'approved'
-                    ? <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
-                    : <><Clock className="w-3 h-3 text-amber-500" /><span className="text-xs text-amber-500">Draft</span></>
+                    : <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
                   }
                 </div>
               </div>
