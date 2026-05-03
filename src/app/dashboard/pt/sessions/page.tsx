@@ -260,12 +260,16 @@ export default function PtSessionsPage() {
                     <button onClick={() => openAction(session, 'complete')} className="btn-primary text-xs py-1.5">Mark Outcome</button>
                   )}
                   {/* Trainer: notes */}
-                  {isOwnSession && session.status === 'completed' && !session.manager_confirmed && (
-                    <Link href={`/dashboard/pt/sessions/${session.id}/notes`}
-                      className={cn('text-xs py-1.5 px-3 rounded-lg font-medium', session.is_notes_complete ? 'btn-secondary' : 'btn-primary')}>
-                      {session.is_notes_complete ? 'Edit Notes' : '⚠ Submit Notes'}
-                    </Link>
-                  )}
+                  {isOwnSession && session.status === 'completed' && !session.manager_confirmed && (() => {
+                    const pkg = session.package
+                    const pkgClosed = pkg && (pkg.status === 'expired' || pkg.status === 'completed' || pkg.status === 'cancelled')
+                    return (
+                      <Link href={`/dashboard/pt/sessions/${session.id}/notes`}
+                        className={cn('text-xs py-1.5 px-3 rounded-lg font-medium', session.is_notes_complete || pkgClosed ? 'btn-secondary' : 'btn-primary')}>
+                        {pkgClosed ? 'View Notes (package closed)' : session.is_notes_complete ? 'Edit Notes' : '⚠ Submit Notes'}
+                      </Link>
+                    )
+                  })()}
                   {/* Trainer: cancel/reschedule upcoming */}
                   {isOwnSession && isScheduled && (
                     <>
