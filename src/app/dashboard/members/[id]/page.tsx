@@ -42,13 +42,13 @@ export default function MemberProfilePage() {
       // Fully used up
       if (pkg.sessions_used >= pkg.total_sessions) {
         updates.push(
-          supabase.from('packages').update({ status: 'completed' }).eq('id', pkg.id)
+          supabase.from('packages').update({ status: 'completed' }).eq('id', pkg.id).then()
         )
       }
       // Past end date
       else if (pkg.end_date_calculated && pkg.end_date_calculated < today) {
         updates.push(
-          supabase.from('packages').update({ status: 'expired' }).eq('id', pkg.id)
+          supabase.from('packages').update({ status: 'expired' }).eq('id', pkg.id).then()
         )
       }
     })
@@ -149,7 +149,7 @@ export default function MemberProfilePage() {
       await Promise.all(openPackages.map(pkg =>
         supabase.from('packages').update({
           status: pkg.sessions_used >= pkg.total_sessions ? 'completed' : 'expired',
-        }).eq('id', pkg.id)
+        }).eq('id', pkg.id).then()
       ))
     }
 
