@@ -30,16 +30,24 @@ export async function POST(request: Request) {
     if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
     const { employment_type, hourly_rate, membership_commission_pct, nric, nationality, leave_entitlement_days } = body
+    const resolvedRole = role || 'trainer'
+    const resolvedEmployment = employment_type || 'full_time'
+    // Leave entitlement: null for roles excluded from the leave system (admin, part-timers).
+    // For everyone else, Business Ops sets the value explicitly during onboarding — no silent default.
+    const isLeaveExcluded = resolvedRole === 'admin' || resolvedEmployment === 'part_time'
+    const resolvedLeaveEntitlement = isLeaveExcluded
+      ? null
+      : (leave_entitlement_days != null && leave_entitlement_days !== '' ? parseInt(leave_entitlement_days) : null)
     const userPayload: any = {
       id: authData.user.id, full_name, email,
-      phone: phone || null, role: role || 'trainer',
-      employment_type: employment_type || 'full_time',
+      phone: phone || null, role: resolvedRole,
+      employment_type: resolvedEmployment,
       hourly_rate: hourly_rate ? parseFloat(hourly_rate) : null,
       commission_signup_pct: parseFloat(commission_signup_pct) || 10,
       commission_session_pct: parseFloat(commission_session_pct) || 15,
       membership_commission_pct: parseFloat(membership_commission_pct) || 5,
       nric: nric || null, nationality: nationality || null,
-      leave_entitlement_days: leave_entitlement_days ? parseInt(leave_entitlement_days) : 14,
+      leave_entitlement_days: resolvedLeaveEntitlement,
     }
     if (role === 'manager' && manager_gym_id) userPayload.manager_gym_id = manager_gym_id
     if (role === 'manager') userPayload.is_also_trainer = !!is_also_trainer
