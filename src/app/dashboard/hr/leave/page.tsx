@@ -138,8 +138,7 @@ export default function LeaveManagementPage() {
     await supabase.from('leave_applications').update({
       status: 'approved', approver_id: authUser!.id, approved_at: new Date().toISOString(),
     }).eq('id', id)
-    // WhatsApp to applicant
-    const app = applications.find(a => a.id === id)
+    // WhatsApp to applicant (app already declared above)
     if (app) {
       const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
       if (applicant?.phone) {
