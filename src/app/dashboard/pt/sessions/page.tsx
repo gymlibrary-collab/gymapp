@@ -92,14 +92,27 @@ export default function PtSessionsPage() {
       ? (session.session_commission_pct || 0) * (pkg.total_price_sgd / pkg.total_sessions || 0) / 100
       : 0
 
+    // Calculate new sessions_used before writing so we can store is_last_session
+    // on the session row at the same time — avoids a timing ambiguity where the
+    // notes page recomputes last-session from an already-incremented sessions_used.
+    const newSessionsUsed = (pkg?.sessions_used || 0) + 1
+    const isLastSession = pkg ? newSessionsUsed >= pkg.total_sessions : false
+
     await supabase.from('sessions').update({
       status, marked_complete_by: authUser!.id,
       marked_complete_at: new Date().toISOString(),
       session_commission_sgd: status === 'completed' ? commissionSgd : 0,
+      // Store the last-session flag now so the notes page reads it directly
+      // from the DB rather than recomputing from an already-incremented count.
+      is_last_session: status === 'completed' ? isLastSession : false,
     }).eq('id', session.id)
 
-    if (status === 'completed') {
-      await supabase.from('packages').update({ sessions_used: (session.package?.sessions_used || 0) + 1 }).eq('id', session.package_id)
+    if (status === 'completed' && pkg) {
+      // Close the package immediately when all sessions are consumed so the
+      // DB reflects reality without waiting for a member-profile visit.
+      const pkgUpdate: any = { sessions_used: newSessionsUsed }
+      if (isLastSession) pkgUpdate.status = 'completed'
+      await supabase.from('packages').update(pkgUpdate).eq('id', session.package_id)
     }
     setActionSession(null); setActionType(null); setSaving(false); loadSessions()
   }
