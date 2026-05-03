@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     })
     if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
-    const { employment_type, hourly_rate, membership_commission_pct, nric, nationality } = body
+    const { employment_type, hourly_rate, membership_commission_pct, nric, nationality, leave_entitlement_days } = body
     const userPayload: any = {
       id: authData.user.id, full_name, email,
       phone: phone || null, role: role || 'trainer',
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       commission_session_pct: parseFloat(commission_session_pct) || 15,
       membership_commission_pct: parseFloat(membership_commission_pct) || 5,
       nric: nric || null, nationality: nationality || null,
+      leave_entitlement_days: leave_entitlement_days ? parseInt(leave_entitlement_days) : 14,
     }
     if (role === 'manager' && manager_gym_id) userPayload.manager_gym_id = manager_gym_id
     if (role === 'manager') userPayload.is_also_trainer = !!is_also_trainer
@@ -124,6 +125,7 @@ export async function PATCH(request: Request) {
       if (is_active !== undefined) updatePayload.is_active = is_active
       if (commission_signup_pct !== undefined) updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
       if (commission_session_pct !== undefined) updatePayload.commission_session_pct = parseFloat(commission_session_pct)
+      if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
       if (is_also_trainer !== undefined) updatePayload.is_also_trainer = is_also_trainer
       if (role === 'manager' || manager_gym_id !== undefined) {
         updatePayload.manager_gym_id = manager_gym_id || null
@@ -133,6 +135,10 @@ export async function PATCH(request: Request) {
     if (isManager) {
       if (commission_signup_pct !== undefined) updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
       if (commission_session_pct !== undefined) updatePayload.commission_session_pct = parseFloat(commission_session_pct)
+    }
+    // Biz Ops can update leave entitlement
+    if (currentUser?.role === 'business_ops') {
+      if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
     }
 
     if (Object.keys(updatePayload).length > 0) {
