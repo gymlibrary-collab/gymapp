@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle } from 'lucide-react'
@@ -21,12 +22,19 @@ export default function PayrollPage() {
   const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[]} | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
+  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => { load() }, [selectedMonth, selectedYear])
 
   const load = async () => {
     setLoading(true)
+    // Issue 7: Guard — only business_ops can access payroll
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+
     // Load all active staff with payroll profile
     const { data: staff } = await supabase
       .from('users')
@@ -84,6 +92,14 @@ export default function PayrollPage() {
   }
 
   const handleBulkGenerate = async () => {
+    // Issue 5: Hard block future month
+    const now = new Date()
+    const isFuture = bulkYear > now.getFullYear() ||
+      (bulkYear === now.getFullYear() && bulkMonth > now.getMonth() + 1)
+    if (isFuture) {
+      alert(`Cannot generate payslips for a future month (${bulkMonth}/${bulkYear}). Wait until the month has ended.`)
+      return
+    }
     setBulkGenerating(true); setBulkResult(null)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const monthStart = `${bulkYear}-${String(bulkMonth).padStart(2, '0')}-01`
