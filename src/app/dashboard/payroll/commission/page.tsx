@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, formatDate, getMonthName } from '@/lib/utils'
 import {
@@ -25,6 +26,7 @@ export default function CommissionPayoutsPage() {
     user_ids: [] as string[], gym_id: '',
   })
   const [preview, setPreview] = useState<any[]>([])
+  const router = useRouter()
   const supabase = createClient()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
@@ -32,6 +34,12 @@ export default function CommissionPayoutsPage() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
+    // Route guard
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
