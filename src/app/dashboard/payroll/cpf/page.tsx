@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
@@ -25,6 +26,7 @@ export default function CpfPage() {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
+  const router = useRouter()
   const supabase = createClient()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
@@ -32,6 +34,12 @@ export default function CpfPage() {
   useEffect(() => { load() }, [])
 
   const load = async () => {
+    // Route guard
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || (me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+
     const { data: br } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
     setBrackets(br || [])
     const { data: subs } = await supabase.from('cpf_submissions').select('*, submitted_by:users!cpf_submissions_submitted_by_fkey(full_name)').order('payroll_year', { ascending: false }).order('payroll_month', { ascending: false })
