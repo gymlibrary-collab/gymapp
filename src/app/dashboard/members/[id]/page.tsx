@@ -35,26 +35,18 @@ export default function MemberProfilePage() {
   // ── Auto-expire stale packages ────────────────────────────
   const expireStalePackages = async (packages: any[]) => {
     const today = new Date().toISOString().split('T')[0]
-    const updates: PromiseLike<any>[] = []
-
-    packages.forEach(pkg => {
-      if (pkg.status !== 'active') return
-      // Fully used up
+    let count = 0
+    for (const pkg of packages) {
+      if (pkg.status !== 'active') continue
       if (pkg.sessions_used >= pkg.total_sessions) {
-        updates.push(
-          Promise.resolve(supabase.from('packages').update({ status: 'completed' }).eq('id', pkg.id))
-        )
+        await supabase.from('packages').update({ status: 'completed' }).eq('id', pkg.id)
+        count++
+      } else if (pkg.end_date_calculated && pkg.end_date_calculated < today) {
+        await supabase.from('packages').update({ status: 'expired' }).eq('id', pkg.id)
+        count++
       }
-      // Past end date
-      else if (pkg.end_date_calculated && pkg.end_date_calculated < today) {
-        updates.push(
-          Promise.resolve(supabase.from('packages').update({ status: 'expired' }).eq('id', pkg.id))
-        )
-      }
-    })
-
-    if (updates.length > 0) await Promise.all(updates)
-    return updates.length // how many were updated
+    }
+    return count
   }
 
   const load = async () => {
@@ -146,11 +138,11 @@ export default function MemberProfilePage() {
     const openPackages = ptPackages.filter(p => p.status === 'active')
     if (openPackages.length > 0) {
       const today = new Date().toISOString().split('T')[0]
-      await Promise.all(openPackages.map(pkg =>
-        Promise.resolve(supabase.from('packages').update({
-          status: pkg.sessions_used >= pkg.total_sessions ? 'completed' : 'expired',
-        }).eq('id', pkg.id))
-      ))
+      for (const pkg of openPackages) {
+      await supabase.from('packages').update({
+        status: pkg.sessions_used >= pkg.total_sessions ? 'completed' : 'expired',
+      }).eq('id', pkg.id)
+    }
     }
 
     // Create new package
