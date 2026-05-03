@@ -143,26 +143,33 @@ export default function StaffPayrollDetailPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const isPartTime = staff?.employment_type === 'part_time'
 
-    // Get roster hours for part-timers
+    // Issue 2 fix: only include completed shifts for part-timers
     let totalHours = 0, totalPay = 0
     if (isPartTime) {
       const monthStart = `${payslipForm.year}-${String(payslipForm.month).padStart(2, '0')}-01`
       const monthEnd = new Date(payslipForm.year, payslipForm.month, 0).toISOString().split('T')[0]
-      const { data: roster } = await supabase.from('duty_roster').select('hours_worked, gross_pay, status')
-        .eq('user_id', id).gte('shift_date', monthStart).lte('shift_date', monthEnd).neq('status', 'absent')
+      const { data: roster } = await supabase.from('duty_roster')
+        .select('hours_worked, gross_pay')
+        .eq('user_id', id)
+        .gte('shift_date', monthStart).lte('shift_date', monthEnd)
+        .eq('status', 'completed')  // completed shifts only, not scheduled or cancelled
       totalHours = roster?.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0) || 0
       totalPay = roster?.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0) || 0
     }
 
     const basicSalary = isPartTime ? totalPay : (payroll?.current_salary || 0)
-    const bonusAmt = parseFloat(payslipForm.bonus_amount) || 0
-    const isCpf = payroll?.is_cpf_liable
 
-    // Get CPF rate for this month
-    const { data: rateData } = await supabase.from('cpf_rates').select('*')
-      .lte('effective_from', `${payslipForm.year}-${String(payslipForm.month).padStart(2, '0')}-01`)
-      .order('effective_from', { ascending: false }).limit(1)
-    const rate = rateData?.[0]
+    // Issue 1 fix: auto-pull bonuses from staff_bonuses for this month
+    const { data: bonusRows } = await supabase.from('staff_bonuses')
+      .select('amount').eq('user_id', id as string)
+      .eq('month', payslipForm.month).eq('year', payslipForm.year)
+    const bonusAmt = bonusRows?.reduce((s: number, b: any) => s + (b.amount || 0), 0) || 0
+
+    const isCpf = payroll?.is_cpf_liable ?? (isPartTime ? false : true)
+
+    // Issue 1 fix: use age-bracket rates from cpf_age_brackets
+    const brackets = Array.isArray(cpfRates) ? cpfRates : []
+    const rates = getBracketRates(brackets, staff?.date_of_birth || null)
 
     const { error: err } = await supabase.from('payslips').upsert({
       user_id: id, month: payslipForm.month, year: payslipForm.year,
@@ -170,8 +177,9 @@ export default function StaffPayrollDetailPage() {
       basic_salary: basicSalary, bonus_amount: bonusAmt,
       total_hours: isPartTime ? totalHours : null,
       hourly_rate_used: isPartTime ? (staff?.hourly_rate || 0) : null,
-      is_cpf_liable: isCpf, employee_cpf_rate: rate?.employee_rate || 20,
-      employer_cpf_rate: rate?.employer_rate || 17,
+      is_cpf_liable: isCpf,
+      employee_cpf_rate: isCpf ? rates.employee_rate : 0,
+      employer_cpf_rate: isCpf ? rates.employer_rate : 0,
       notes: payslipForm.notes || null, status: 'draft',
       generated_by: authUser?.id, generated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,month,year' })
