@@ -44,6 +44,7 @@ export default function MyPayslipsPage() {
 
       const { data: slips } = await supabase.from('payslips')
         .select('*').eq('user_id', authUser.id)
+        .in('status', ['approved', 'paid'])  // drafts not visible to staff
         .order('year', { ascending: false }).order('month', { ascending: false })
         .limit(13)
       setPayslips(slips || [])
