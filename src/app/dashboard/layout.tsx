@@ -10,7 +10,7 @@ import {
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
   FileText, Banknote, X, Building2, UserCheck, Clock,
   Calculator, Briefcase, CreditCard, CalendarDays, Receipt,
-  TrendingUp, Layers, UserMinus
+  TrendingUp, Layers, UserMinus, MessageSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
