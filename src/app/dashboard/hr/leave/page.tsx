@@ -106,7 +106,10 @@ export default function LeaveManagementPage() {
       ...s,
       taken: takenByStaff[s.id] || 0,
       pending: pendingByStaff[s.id] || 0,
-      balance: (s.leave_entitlement_days || 14) - (takenByStaff[s.id] || 0),
+      // If entitlement not set, show 0 balance to force escalation to Biz Ops to rectify
+      balance: s.leave_entitlement_days != null
+        ? s.leave_entitlement_days - (takenByStaff[s.id] || 0)
+        : 0,
     })) || [])
 
     setLoading(false)
@@ -114,6 +117,24 @@ export default function LeaveManagementPage() {
 
   const handleApprove = async (id: string) => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
+
+    // Hard block: check entitlement before approving
+    const app = applications.find(a => a.id === id)
+    if (app) {
+      const staffBalance = staffBalances.find(s => s.id === app.user_id)
+      if (staffBalance) {
+        if (staffBalance.leave_entitlement_days == null) {
+          alert('Cannot approve — leave entitlement has not been set for this staff member. Please ask Business Operations to update their entitlement first.')
+          return
+        }
+        const remainingAfterApproval = staffBalance.balance - app.days_applied
+        if (remainingAfterApproval < 0) {
+          alert(`Cannot approve — this would exceed the staff member's leave entitlement. They have ${staffBalance.balance} day${staffBalance.balance !== 1 ? 's' : ''} remaining but this application is for ${app.days_applied} day${app.days_applied !== 1 ? 's' : ''}.`)
+          return
+        }
+      }
+    }
+
     await supabase.from('leave_applications').update({
       status: 'approved', approver_id: authUser!.id, approved_at: new Date().toISOString(),
     }).eq('id', id)
@@ -215,9 +236,13 @@ export default function LeaveManagementPage() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className={cn('text-sm font-bold', s.balance < 3 ? 'text-red-600' : 'text-gray-900')}>{s.balance} days left</p>
-                  <p className="text-xs text-gray-400">{s.taken} taken / {s.leave_entitlement_days ?? '—'} entitled</p>
+                  <p className="text-xs text-gray-400">
+                    {s.taken} taken / {s.leave_entitlement_days != null ? s.leave_entitlement_days : '0 (not set)'} entitled
+                  </p>
                   {s.pending > 0 && <p className="text-xs text-amber-500">{s.pending} days pending</p>}
-                  {!s.leave_entitlement_days && <p className="text-xs text-red-500">Entitlement not set</p>}
+                  {s.leave_entitlement_days == null && (
+                    <p className="text-xs text-red-600 font-medium">Entitlement not set — contact Business Ops</p>
+                  )}
                 </div>
               </div>
             ))}
