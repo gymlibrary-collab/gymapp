@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucide-react'
@@ -21,6 +22,7 @@ export default function LeaveManagementPage() {
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [success, setSuccess] = useState('')
+  const router = useRouter()
   const supabase = createClient()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
@@ -31,6 +33,10 @@ export default function LeaveManagementPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    // Only manager, business_ops, and admin can access leave management
+    if (!u || !['manager', 'business_ops', 'admin'].includes(u.role)) {
+      router.replace('/dashboard'); return
+    }
     setUser(u)
 
     // Get staff IDs this user can approve for
