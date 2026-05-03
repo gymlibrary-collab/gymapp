@@ -29,6 +29,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/membership/sales', label: 'Membership Sales', icon: CreditCard },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
   { href: '/dashboard/pt/packages', label: 'PT Package Templates', icon: Package },
+  { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/config/commission', label: 'Commission Rates', icon: DollarSign },
   { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
   { href: '/dashboard/config/public-holidays', label: 'Public Holidays', icon: CalendarDays },
@@ -37,7 +38,6 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/hr/staff', label: 'Staff Management', icon: Users },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/payroll', label: 'Monthly Payroll', icon: Banknote },
-  { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { label: 'Reports', header: true },
   { href: '/dashboard/reports', label: 'Summary Reports', icon: BarChart3 },
   { label: 'My Account', header: true },
@@ -239,7 +239,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {nav.map((item, i) => {
           if (item.header) return <p key={i} className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 pt-3 pb-1">{item.label}</p>
           const Icon = item.icon!
-          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href! + '/'))
+          const active = pathname === item.href || (
+            item.href !== '/dashboard' &&
+            item.href !== '/dashboard/payroll' &&
+            pathname.startsWith(item.href! + '/')
+          )
           return (
             <Link key={item.href} href={item.href!} onClick={() => setSidebarOpen(false)}
               className={cn('flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors', active ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900')}>
