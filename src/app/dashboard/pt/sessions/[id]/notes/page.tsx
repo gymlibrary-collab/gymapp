@@ -4,18 +4,33 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatDateTime, formatSGD } from '@/lib/utils'
-import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock } from 'lucide-react'
+import { formatDateTime } from '@/lib/utils'
+import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock, RefreshCw, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 const EDIT_WINDOW_MINUTES = 30
+
+const NON_RENEWAL_REASONS = [
+  'Price — too expensive',
+  'Schedule conflict — timing does not work',
+  'Moving to another gym',
+  'Health reasons — unable to continue',
+  'Satisfied with progress — pausing for now',
+  'Trainer mismatch — looking for different trainer',
+  'Financial constraints',
+  'Relocating',
+  'Other',
+]
 
 export default function PtSessionNotesPage() {
   const { id } = useParams()
   const [session, setSession] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [notes, setNotes] = useState('')
+  const [renewalStatus, setRenewalStatus] = useState<'renewed' | 'not_renewing' | 'undecided' | ''>('')
+  const [nonRenewalReason, setNonRenewalReason] = useState('')
+  const [nonRenewalCustom, setNonRenewalCustom] = useState('')
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -34,10 +49,32 @@ export default function PtSessionNotesPage() {
         .eq('id', id).single()
       setSession(data)
       setNotes(data?.performance_notes || '')
+      if (data?.renewal_status) setRenewalStatus(data.renewal_status)
+      if (data?.non_renewal_reason) {
+        const known = NON_RENEWAL_REASONS.slice(0, -1) // exclude 'Other'
+        if (known.includes(data.non_renewal_reason)) {
+          setNonRenewalReason(data.non_renewal_reason)
+        } else {
+          setNonRenewalReason('Other')
+          setNonRenewalCustom(data.non_renewal_reason)
+        }
+      }
     }
     load()
   }, [id])
 
+  // ── Is this the last session? ─────────────────────────────
+  const isLastSession = () => {
+    const pkg = session?.package
+    if (!pkg) return false
+    // Last session = currently on the final session slot
+    // sessions_used reflects sessions already completed before this one
+    // After marking this session complete, sessions_used = total_sessions
+    const sessionsAfterThis = pkg.sessions_used + 1
+    return sessionsAfterThis >= pkg.total_sessions
+  }
+
+  // ── Package / lock state ─────────────────────────────────
   const packageIsClosed = () => {
     const pkg = session?.package
     if (!pkg) return false
@@ -48,13 +85,9 @@ export default function PtSessionNotesPage() {
 
   const isLocked = () => {
     if (!session || !currentUser) return false
-    // Manager in manager view can always edit
     if (currentUser.role === 'manager' && !isActingAsTrainer) return false
     if (currentUser.role === 'business_ops') return false
-    // Package is expired/completed — notes can no longer trigger commission
-    // Manager must handle any changes
     if (packageIsClosed()) return true
-    // Trainer: locked after EDIT_WINDOW_MINUTES of submitting
     if (session.notes_submitted_at) {
       const elapsed = (Date.now() - new Date(session.notes_submitted_at).getTime()) / 1000 / 60
       return elapsed > EDIT_WINDOW_MINUTES
@@ -62,10 +95,24 @@ export default function PtSessionNotesPage() {
     return false
   }
 
+  // ── Final reason string ───────────────────────────────────
+  const finalReason = () => {
+    if (renewalStatus !== 'not_renewing') return null
+    if (nonRenewalReason === 'Other') return nonRenewalCustom.trim()
+    return nonRenewalReason
+  }
+
+  // ── Submit (trainer) ─────────────────────────────────────
   const handleTrainerSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!notes.trim() || notes.trim().length < 10) {
       setError('Please enter at least 10 characters'); return
+    }
+    if (isLastSession() && !renewalStatus) {
+      setError('Please indicate whether the member has renewed their package'); return
+    }
+    if (renewalStatus === 'not_renewing' && !finalReason()) {
+      setError('Please provide a reason for non-renewal'); return
     }
     setLoading(true); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -73,28 +120,24 @@ export default function PtSessionNotesPage() {
     await supabase.from('sessions').update({
       performance_notes: notes,
       is_notes_complete: true,
+      is_last_session: isLastSession(),
+      renewal_status: renewalStatus || null,
+      non_renewal_reason: finalReason() || null,
       notes_submitted_at: new Date().toISOString(),
-      session_commission_sgd: (session.session_commission_pct || 0) * (session.price_per_session_sgd || 0) / 100,
     }).eq('id', id)
 
-    // Queue WhatsApp notification to manager
-    const { data: manager } = await supabase.from('users')
-      .select('phone, full_name').eq('id', session.gym?.manager_id || '').single()
-      .then(r => r) // won't fail if not found
-
-    // Find manager for this gym
+    // Queue WhatsApp to manager
     const { data: gymManager } = await supabase.from('users')
-      .select('phone, full_name')
-      .eq('manager_gym_id', session.gym_id)
-      .eq('role', 'manager')
-      .single()
-
+      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').single()
     if (gymManager?.phone) {
+      const renewalNote = renewalStatus === 'not_renewing'
+        ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
+        : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''
       await supabase.from('whatsapp_queue').insert({
         notification_type: 'manager_note_alert',
         recipient_phone: gymManager.phone,
         recipient_name: gymManager.full_name,
-        message: `PT session notes submitted by ${currentUser.full_name} for ${session.member?.full_name}. Please review and confirm the session.`,
+        message: `PT session notes submitted by ${currentUser.full_name} for ${session.member?.full_name}. Please review and confirm.${renewalNote}`,
         related_id: id,
         scheduled_for: new Date().toISOString(),
         status: 'pending',
@@ -105,10 +148,15 @@ export default function PtSessionNotesPage() {
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
 
+  // ── Save (manager) ────────────────────────────────────────
   const handleManagerSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('sessions').update({ performance_notes: notes }).eq('id', id)
+    await supabase.from('sessions').update({
+      performance_notes: notes,
+      renewal_status: renewalStatus || null,
+      non_renewal_reason: finalReason() || null,
+    }).eq('id', id)
     setLoading(false); setSaved(true)
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
@@ -122,9 +170,11 @@ export default function PtSessionNotesPage() {
   const locked = isLocked()
   const isManagerView = currentUser.role === 'manager' && !isActingAsTrainer
   const isOwnSession = session.trainer_id === currentUser.id
+  const lastSession = isLastSession()
   const minutesRemaining = session.notes_submitted_at
     ? Math.max(0, EDIT_WINDOW_MINUTES - (Date.now() - new Date(session.notes_submitted_at).getTime()) / 1000 / 60)
     : EDIT_WINDOW_MINUTES
+  const pkgClosed = packageIsClosed()
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -140,6 +190,16 @@ export default function PtSessionNotesPage() {
         </div>
       </div>
 
+      {/* Last session badge */}
+      {lastSession && !pkgClosed && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+          <p className="text-sm text-red-700 font-medium">
+            This is the last session in the current PT package
+          </p>
+        </div>
+      )}
+
       {/* Status banners */}
       {locked && (
         <div className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -147,10 +207,9 @@ export default function PtSessionNotesPage() {
           <div>
             <p className="text-sm font-medium text-gray-700">Notes locked</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              {packageIsClosed()
-                ? `The PT package for this session has expired or been closed. Notes are read-only. Contact your manager if changes are needed.`
-                : `The ${EDIT_WINDOW_MINUTES}-minute edit window has passed. Contact your manager to make changes.`
-              }
+              {pkgClosed
+                ? 'The PT package for this session has expired or been closed. Notes are read-only. Contact your manager if changes are needed.'
+                : `The ${EDIT_WINDOW_MINUTES}-minute edit window has passed. Contact your manager to make changes.`}
             </p>
           </div>
         </div>
@@ -162,14 +221,13 @@ export default function PtSessionNotesPage() {
           <div>
             <p className="text-sm font-medium text-green-800">Notes submitted ✓</p>
             <p className="text-xs text-green-600 mt-0.5">
-              {Math.ceil(minutesRemaining)} minute{Math.ceil(minutesRemaining) !== 1 ? 's' : ''} remaining to edit.
-              Awaiting manager confirmation.
+              {Math.ceil(minutesRemaining)} minute{Math.ceil(minutesRemaining) !== 1 ? 's' : ''} remaining to edit. Awaiting manager confirmation.
             </p>
           </div>
         </div>
       )}
 
-      {!session.is_notes_complete && isOwnSession && !isManagerView && (
+      {!session.is_notes_complete && isOwnSession && !isManagerView && !locked && (
         <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
           <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-700">
@@ -193,23 +251,100 @@ export default function PtSessionNotesPage() {
       )}
 
       <form onSubmit={isManagerView ? handleManagerSave : handleTrainerSubmit} className="card p-4 space-y-4">
+        {/* Package info */}
         <div className="flex items-center gap-2 text-sm text-gray-600 bg-red-50 rounded-lg p-3">
           <FileText className="w-4 h-4 text-red-600 flex-shrink-0" />
           <span>{session.package?.package_name} · {session.gym?.name}</span>
+          {session.package && (
+            <span className="ml-auto text-xs text-gray-400">
+              Session {session.package.sessions_used + 1}/{session.package.total_sessions}
+            </span>
+          )}
         </div>
 
+        {/* Notes */}
         <div>
-          <label className="label">Session Notes {!isManagerView && !locked && <span className="text-red-500">*</span>}</label>
+          <label className="label">
+            Session Notes {!isManagerView && !locked && <span className="text-red-500">*</span>}
+          </label>
           <textarea
             value={notes}
             onChange={e => { setNotes(e.target.value); setError('') }}
-            className={cn('input min-h-[200px] resize-none', locked && !isManagerView && 'bg-gray-50 cursor-not-allowed')}
-            placeholder="Describe the session: exercises, weights/reps, member's performance, areas to improve, goals for next session..."
+            className={cn('input min-h-[160px] resize-none', locked && !isManagerView && 'bg-gray-50 cursor-not-allowed')}
+            placeholder="Exercises performed, weights/reps, member's progress, goals for next session..."
             disabled={locked && !isManagerView}
           />
-          {error && <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {error}</p>}
           <p className="text-xs text-gray-400 mt-1">{notes.length} characters</p>
         </div>
+
+        {/* ── Renewal decision — last session only ── */}
+        {(lastSession || session.renewal_status) && !pkgClosed && (
+          <div className="space-y-3 border border-gray-200 rounded-xl p-4">
+            <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-red-600" />
+              Package Renewal Decision
+            </p>
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: 'renewed', label: 'Renewed', icon: CheckCircle, activeClass: 'border-green-500 bg-green-50' },
+                { value: 'not_renewing', label: 'Not Renewing', icon: XCircle, activeClass: 'border-red-500 bg-red-50' },
+                { value: 'undecided', label: 'Undecided', icon: Clock, activeClass: 'border-amber-500 bg-amber-50' },
+              ].map(({ value, label, icon: Icon, activeClass }) => (
+                <button key={value} type="button"
+                  disabled={locked && !isManagerView}
+                  onClick={() => { setRenewalStatus(value as any); setNonRenewalReason(''); setNonRenewalCustom(''); setError('') }}
+                  className={cn(
+                    'flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-colors text-xs font-medium',
+                    renewalStatus === value ? activeClass : 'border-gray-200 hover:border-gray-300',
+                    locked && !isManagerView && 'opacity-60 cursor-not-allowed'
+                  )}>
+                  <Icon className={cn('w-5 h-5',
+                    value === 'renewed' ? 'text-green-600' :
+                    value === 'not_renewing' ? 'text-red-500' : 'text-amber-500'
+                  )} />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Non-renewal reason */}
+            {renewalStatus === 'not_renewing' && (
+              <div className="space-y-2">
+                <label className="label">Reason for not renewing *</label>
+                <select className="input" value={nonRenewalReason}
+                  disabled={locked && !isManagerView}
+                  onChange={e => { setNonRenewalReason(e.target.value); setNonRenewalCustom(''); setError('') }}>
+                  <option value="">Select reason...</option>
+                  {NON_RENEWAL_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {nonRenewalReason === 'Other' && (
+                  <textarea className="input min-h-[70px] resize-none" value={nonRenewalCustom}
+                    disabled={locked && !isManagerView}
+                    onChange={e => setNonRenewalCustom(e.target.value)}
+                    placeholder="Please describe the reason..." />
+                )}
+              </div>
+            )}
+
+            {renewalStatus === 'renewed' && (
+              <p className="text-xs text-green-600 bg-green-50 rounded-lg p-2">
+                Great! The new package should already be recorded on the member's profile.
+              </p>
+            )}
+            {renewalStatus === 'undecided' && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">
+                Follow up with the member within the next few days.
+              </p>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <p className="text-xs text-red-600 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
+          </p>
+        )}
 
         {saved ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 text-center flex items-center justify-center gap-2">
@@ -217,7 +352,6 @@ export default function PtSessionNotesPage() {
           </div>
         ) : (
           <>
-            {/* Trainer actions */}
             {!isManagerView && !locked && (
               <button type="submit" disabled={loading}
                 className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
@@ -227,7 +361,6 @@ export default function PtSessionNotesPage() {
                   : 'Submit Notes for Manager Confirmation'}
               </button>
             )}
-            {/* Manager actions */}
             {isManagerView && (
               <button type="submit" disabled={loading}
                 className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
@@ -235,7 +368,6 @@ export default function PtSessionNotesPage() {
                 {loading ? 'Saving...' : 'Save Notes'}
               </button>
             )}
-            {/* Locked for trainer */}
             {locked && !isManagerView && (
               <p className="text-xs text-gray-400 text-center py-2">
                 Notes are locked. Contact your manager to make changes.
