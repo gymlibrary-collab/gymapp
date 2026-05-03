@@ -82,6 +82,7 @@ const pureTrainerNav: NavItem[] = [
 
 const partTimerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/my/roster', label: 'My Roster', icon: CalendarDays },
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
