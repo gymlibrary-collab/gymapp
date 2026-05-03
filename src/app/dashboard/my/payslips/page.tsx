@@ -14,6 +14,11 @@ export default function MyPayslipsPage() {
   const [activeTab, setActiveTab] = useState<'salary' | 'commission'>('salary')
   const supabase = createClient()
 
+  // Branding state declared before useEffect so setPayslipBranding is in scope
+  const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({
+    logoUrl: null, companyName: 'Gym Operations Suite', gymName: 'Gym Operations Suite'
+  })
+
   useEffect(() => {
     const load = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -49,10 +54,11 @@ export default function MyPayslipsPage() {
         .limit(13)
       setPayslips(slips || [])
 
-      // Load commission payouts
+      // Load commission payouts — approved and paid only (drafts not visible to staff)
       const { data: payouts } = await supabase.from('commission_payouts')
         .select('*, gym:gyms(name)')
         .eq('user_id', authUser.id)
+        .in('status', ['approved', 'paid'])
         .order('period_end', { ascending: false })
         .limit(13)
       setCommissionPayouts(payouts || [])
@@ -61,11 +67,6 @@ export default function MyPayslipsPage() {
     }
     load()
   }, [])
-
-  // Branding loaded once and stored
-  const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({
-    logoUrl: null, companyName: 'Gym Operations Suite', gymName: 'Gym Operations Suite'
-  })
 
   const downloadPayslip = async (slip: any) => {
     const { default: jsPDF } = await import('jspdf')
@@ -106,11 +107,12 @@ export default function MyPayslipsPage() {
     if (user?.nric) { doc.text(`NRIC/FIN: ${user.nric}`, 14, yPos); yPos += 6 }
     doc.setTextColor(0); yPos += 4
 
-    const rows: any[] = [
-      ['Basic Salary', formatSGD(slip.basic_salary)],
-    ]
+    const rows: any[] = []
     if (slip.total_hours > 0) {
+      // Part-timer: show hours row only — basic_salary IS the hours calculation
       rows.push([`Hours Worked (${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used)}/h)`, formatSGD(slip.basic_salary)])
+    } else {
+      rows.push(['Basic Salary', formatSGD(slip.basic_salary)])
     }
     if (slip.bonus_amount > 0) rows.push(['Bonus', formatSGD(slip.bonus_amount)])
     rows.push(['Gross Salary', formatSGD(slip.gross_salary)])
