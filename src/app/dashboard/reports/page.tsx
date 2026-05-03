@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { BarChart3, CreditCard, Package, Banknote } from 'lucide-react'
@@ -8,10 +9,17 @@ export default function ReportsPage() {
   const [stats, setStats] = useState<any>({})
   const [month] = useState(new Date().getMonth() + 1)
   const [year] = useState(new Date().getFullYear())
+  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     const load = async () => {
+    // Route guard
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+
       const monthStart = `${year}-${String(month).padStart(2,'0')}-01`
       const monthEnd = new Date(year, month, 0).toISOString().split('T')[0]
 
