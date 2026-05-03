@@ -35,21 +35,25 @@ function BizOpsDashboardAlerts() {
         setPendingLeave(count || 0)
       }
 
-      // Check if next year public holidays are set up (prompt from 15 Nov)
+      // Check if next year public holidays are set up (prompt from 15 Nov through 31 Dec)
       const now = new Date()
-      const isNovOrLater = now.getMonth() >= 10 && now.getDate() >= 15
-      if (isNovOrLater) {
+      // Nov 15 onwards in November, OR any day in December.
+      // Previous && logic created a 14-day blind spot from Dec 1–14.
+      const isYearEndPromptWindow = (now.getMonth() === 10 && now.getDate() >= 15) || now.getMonth() === 11
+      if (isYearEndPromptWindow) {
         const nextYear = now.getFullYear() + 1
         const { count } = await supabase.from('public_holidays')
           .select('id', { count: 'exact', head: true }).eq('year', nextYear)
         setHolidaysSetUp((count || 0) > 0)
 
-        // Check if CPF age bracket rates have been updated for next year
+        // Check if CPF age bracket rates have been configured for next year.
+        // SG has 5 age brackets (≤55, 55–60, 60–65, 65–70, >70) — require all 5
+        // explicitly effective from Jan 1 next year, otherwise the prompt stays.
         const nextYearDate = `${nextYear}-01-01`
         const { count: cpfCount } = await supabase.from('cpf_age_brackets')
           .select('id', { count: 'exact', head: true })
-          .gte('effective_from', nextYearDate)
-        setCpfRatesSetUp((cpfCount || 0) > 0)
+          .eq('effective_from', nextYearDate)
+        setCpfRatesSetUp((cpfCount || 0) >= 5)
       }
     }
     load()
@@ -117,25 +121,24 @@ function BizOpsGymActivity() {
       const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
       const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
-        const [
-          { data: todaySessions },
-          { count: pendingMemberships },
-          { count: pendingSessions },
-          { data: lowPkgs },
-          { data: expiringPkgs },
-        ] = await Promise.all([
-          supabase.from('sessions').select('scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
-            .eq('gym_id', g.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
-          supabase.from('gym_memberships').select('id', { count: 'exact', head: true })
-            .eq('gym_id', g.id).eq('sale_status', 'pending'),
-          supabase.from('sessions').select('id', { count: 'exact', head: true })
-            .eq('gym_id', g.id).eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false),
-          supabase.from('packages').select('package_name, sessions_used, total_sessions, member:members(full_name)')
-            .eq('gym_id', g.id).eq('status', 'active').filter('total_sessions - sessions_used', 'lte', 3).limit(5),
-          supabase.from('packages').select('package_name, end_date_calculated, member:members(full_name)')
-            .eq('gym_id', g.id).eq('status', 'active')
-            .lte('end_date_calculated', in14Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5),
-        ])
+        // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
+        // Sequential awaits per gym; gyms still run in parallel via the outer Promise.all-over-async-fn.
+        const { data: todaySessions } = await supabase.from('sessions')
+          .select('scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
+          .eq('gym_id', g.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
+        const { count: pendingMemberships } = await supabase.from('gym_memberships')
+          .select('id', { count: 'exact', head: true })
+          .eq('gym_id', g.id).eq('sale_status', 'pending')
+        const { count: pendingSessions } = await supabase.from('sessions')
+          .select('id', { count: 'exact', head: true })
+          .eq('gym_id', g.id).eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
+        const { data: lowPkgs } = await supabase.from('packages')
+          .select('package_name, sessions_used, total_sessions, member:members(full_name)')
+          .eq('gym_id', g.id).eq('status', 'active').filter('total_sessions - sessions_used', 'lte', 3).limit(5)
+        const { data: expiringPkgs } = await supabase.from('packages')
+          .select('package_name, end_date_calculated, member:members(full_name)')
+          .eq('gym_id', g.id).eq('status', 'active')
+          .lte('end_date_calculated', in14Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5)
 
         const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0)
         return { ...g, todaySessions: todaySessions || [], pendingMemberships: pendingMemberships || 0, pendingSessions: pendingSessions || 0, lowPkgs: lowPkgs || [], expiringPkgs: expiringPkgs || [], totalAlerts }
@@ -245,17 +248,16 @@ function BizOpsGymBreakdown() {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
       const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
-        const [
-          { count: members },
-          { data: memSales },
-          { data: sessions },
-          { data: payouts },
-        ] = await Promise.all([
-          supabase.from('members').select('id', { count: 'exact', head: true }).eq('gym_id', g.id),
-          supabase.from('gym_memberships').select('price_sgd, commission_sgd').eq('gym_id', g.id).eq('sale_status', 'confirmed').gte('created_at', monthStart),
-          supabase.from('sessions').select('session_commission_sgd').eq('gym_id', g.id).eq('status', 'completed').gte('marked_complete_at', monthStart),
-          supabase.from('commission_payouts').select('total_commission_sgd').eq('gym_id', g.id).in('status', ['approved', 'paid']).gte('generated_at', monthStart),
-        ])
+        // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
+        // Sequential awaits per gym; gyms still run in parallel via the outer Promise.all-over-async-fn.
+        const { count: members } = await supabase.from('members')
+          .select('id', { count: 'exact', head: true }).eq('gym_id', g.id)
+        const { data: memSales } = await supabase.from('gym_memberships')
+          .select('price_sgd, commission_sgd').eq('gym_id', g.id).eq('sale_status', 'confirmed').gte('created_at', monthStart)
+        const { data: sessions } = await supabase.from('sessions')
+          .select('session_commission_sgd').eq('gym_id', g.id).eq('status', 'completed').gte('marked_complete_at', monthStart)
+        const { data: payouts } = await supabase.from('commission_payouts')
+          .select('total_commission_sgd').eq('gym_id', g.id).in('status', ['approved', 'paid']).gte('generated_at', monthStart)
         return {
           ...g,
           members: members || 0,
