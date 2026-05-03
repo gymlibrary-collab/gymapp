@@ -30,7 +30,7 @@ export default function PtSessionNotesPage() {
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
       setCurrentUser(userData)
       const { data } = await supabase.from('sessions')
-        .select('*, member:members(full_name), package:packages(package_name), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
+        .select('*, member:members(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
         .eq('id', id).single()
       setSession(data)
       setNotes(data?.performance_notes || '')
@@ -38,11 +38,22 @@ export default function PtSessionNotesPage() {
     load()
   }, [id])
 
+  const packageIsClosed = () => {
+    const pkg = session?.package
+    if (!pkg) return false
+    if (pkg.status === 'expired' || pkg.status === 'completed' || pkg.status === 'cancelled') return true
+    if (pkg.end_date_calculated && pkg.end_date_calculated < new Date().toISOString().split('T')[0]) return true
+    return false
+  }
+
   const isLocked = () => {
     if (!session || !currentUser) return false
     // Manager in manager view can always edit
     if (currentUser.role === 'manager' && !isActingAsTrainer) return false
     if (currentUser.role === 'business_ops') return false
+    // Package is expired/completed — notes can no longer trigger commission
+    // Manager must handle any changes
+    if (packageIsClosed()) return true
     // Trainer: locked after EDIT_WINDOW_MINUTES of submitting
     if (session.notes_submitted_at) {
       const elapsed = (Date.now() - new Date(session.notes_submitted_at).getTime()) / 1000 / 60
@@ -135,7 +146,12 @@ export default function PtSessionNotesPage() {
           <Lock className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-gray-700">Notes locked</p>
-            <p className="text-xs text-gray-500 mt-0.5">The {EDIT_WINDOW_MINUTES}-minute edit window has passed. Contact your manager to make changes.</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {packageIsClosed()
+                ? `The PT package for this session has expired or been closed. Notes are read-only. Contact your manager if changes are needed.`
+                : `The ${EDIT_WINDOW_MINUTES}-minute edit window has passed. Contact your manager to make changes.`
+              }
+            </p>
           </div>
         </div>
       )}
