@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucide-react'
+import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
 
 const LEAVE_TYPES: Record<string, string> = {
@@ -153,11 +154,18 @@ export default function LeaveManagementPage() {
     if (app) {
       const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
       if (applicant?.phone) {
+        const approveMsg = await renderWhatsAppTemplate('leave_approved', {
+          staff_name: applicant.full_name,
+          leave_type: LEAVE_TYPES[app.leave_type] || app.leave_type,
+          start_date: formatDate(app.start_date),
+          end_date: formatDate(app.end_date),
+          days: String(app.days_applied),
+        }, `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} (${app.days_applied} day${app.days_applied !== 1 ? 's' : ''}) has been APPROVED.`)
         await supabase.from('whatsapp_queue').insert({
-          notification_type: 'manager_note_alert',
+          notification_type: 'leave_approved',
           recipient_phone: applicant.phone,
           recipient_name: applicant.full_name,
-          message: `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} (${app.days_applied} day${app.days_applied !== 1 ? 's' : ''}) has been APPROVED.`,
+          message: approveMsg,
           scheduled_for: new Date().toISOString(),
           status: 'pending',
         })
@@ -177,11 +185,18 @@ export default function LeaveManagementPage() {
     if (app) {
       const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
       if (applicant?.phone) {
+        const rejectMsg = await renderWhatsAppTemplate('leave_rejected', {
+          staff_name: applicant.full_name,
+          leave_type: LEAVE_TYPES[app.leave_type] || app.leave_type,
+          start_date: formatDate(app.start_date),
+          end_date: formatDate(app.end_date),
+          rejection_reason: rejectReason,
+        }, `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} has been REJECTED. Reason: ${rejectReason}`)
         await supabase.from('whatsapp_queue').insert({
-          notification_type: 'manager_note_alert',
+          notification_type: 'leave_rejected',
           recipient_phone: applicant.phone,
           recipient_name: applicant.full_name,
-          message: `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} has been REJECTED. Reason: ${rejectReason}`,
+          message: rejectMsg,
           scheduled_for: new Date().toISOString(),
           status: 'pending',
         })
