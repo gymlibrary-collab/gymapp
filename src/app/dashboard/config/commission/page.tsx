@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD } from '@/lib/utils'
 import { Save, CheckCircle, Info, DollarSign } from 'lucide-react'
@@ -11,10 +12,17 @@ export default function CommissionConfigPage() {
   const [saved, setSaved] = useState(false)
   const [membershipPct, setMembershipPct] = useState('5')
   const [defaultHourlyRate, setDefaultHourlyRate] = useState('12')
+  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     const load = async () => {
+    // Route guard
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || (me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+
       const { data } = await supabase.from('commission_config').select('*')
       const cfg: Record<string, any> = {}
       data?.forEach((c: any) => { cfg[c.config_key] = c })
