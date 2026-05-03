@@ -65,15 +65,10 @@ export default function PtSessionNotesPage() {
   }, [id])
 
   // ── Is this the last session? ─────────────────────────────
-  const isLastSession = () => {
-    const pkg = session?.package
-    if (!pkg) return false
-    // Last session = currently on the final session slot
-    // sessions_used reflects sessions already completed before this one
-    // After marking this session complete, sessions_used = total_sessions
-    const sessionsAfterThis = pkg.sessions_used + 1
-    return sessionsAfterThis >= pkg.total_sessions
-  }
+  // Read directly from the session row — is_last_session is written by
+  // handleMarkComplete at completion time (before sessions_used is incremented
+  // on the package), so it is always accurate with no timing ambiguity.
+  const isLastSession = () => !!session?.is_last_session
 
   // ── Package / lock state ─────────────────────────────────
   const packageIsClosed = () => {
@@ -145,7 +140,9 @@ export default function PtSessionNotesPage() {
         notification_type: 'manager_note_alert',
         recipient_phone: gymManager.phone,
         recipient_name: gymManager.full_name,
-        message: noteMsg + renewalNote,
+        // renewalNote is already included in noteMsg via the fallback string
+        // passed to renderWhatsAppTemplate — do not concatenate again here.
+        message: noteMsg,
         related_id: id,
         scheduled_for: new Date().toISOString(),
         status: 'pending',
@@ -179,6 +176,10 @@ export default function PtSessionNotesPage() {
   const isManagerView = currentUser.role === 'manager' && !isActingAsTrainer
   const isOwnSession = session.trainer_id === currentUser.id
   const lastSession = isLastSession()
+  // isLastSessionFlag is true even after the package is closed — used to
+  // override the pkgClosed gate so the renewal widget always shows on the
+  // last session regardless of package status.
+  const isLastSessionFlag = !!session?.is_last_session
   const minutesRemaining = session.notes_submitted_at
     ? Math.max(0, EDIT_WINDOW_MINUTES - (Date.now() - new Date(session.notes_submitted_at).getTime()) / 1000 / 60)
     : EDIT_WINDOW_MINUTES
@@ -199,7 +200,7 @@ export default function PtSessionNotesPage() {
       </div>
 
       {/* Last session badge */}
-      {lastSession && !pkgClosed && (
+      {lastSession && (!pkgClosed || isLastSessionFlag) && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
           <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
           <p className="text-sm text-red-700 font-medium">
@@ -286,7 +287,7 @@ export default function PtSessionNotesPage() {
         </div>
 
         {/* ── Renewal decision — last session only ── */}
-        {(lastSession || session.renewal_status) && !pkgClosed && (
+        {(lastSession || session.renewal_status) && (!pkgClosed || isLastSessionFlag) && (
           <div className="space-y-3 border border-gray-200 rounded-xl p-4">
             <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <RefreshCw className="w-4 h-4 text-red-600" />
