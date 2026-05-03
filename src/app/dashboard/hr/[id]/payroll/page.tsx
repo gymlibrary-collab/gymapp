@@ -62,6 +62,12 @@ export default function StaffPayrollDetailPage() {
 
   const loadData = async () => {
     setLoading(true)
+    // Guard — only business_ops can access payroll
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.push('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || me.role !== 'business_ops') { router.push('/dashboard'); return }
+
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
     setStaff(staffData)
 
@@ -89,7 +95,7 @@ export default function StaffPayrollDetailPage() {
         const d = new Date(r.shift_date)
         const key = `${d.getFullYear()}-${d.getMonth() + 1}`
         if (!grouped[key]) grouped[key] = { month: d.getMonth() + 1, year: d.getFullYear(), hours: 0, pay: 0, shifts: 0 }
-        if (r.status !== 'absent') { grouped[key].hours += r.hours_worked || 0; grouped[key].pay += r.gross_pay || 0; grouped[key].shifts++ }
+        if (r.status === 'completed') { grouped[key].hours += r.hours_worked || 0; grouped[key].pay += r.gross_pay || 0; grouped[key].shifts++ }
       })
       setRosterSummary(Object.values(grouped).sort((a, b) => b.year - a.year || b.month - a.month).slice(0, 3))
     }
@@ -143,6 +149,26 @@ export default function StaffPayrollDetailPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const isPartTime = staff?.employment_type === 'part_time'
 
+    // Issue 5: Hard block future month
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+    const isFuture = payslipForm.year > currentYear ||
+      (payslipForm.year === currentYear && payslipForm.month > currentMonth)
+    if (isFuture) {
+      setError(`Cannot generate a payslip for a future month (${payslipForm.month}/${payslipForm.year}). Wait until the month has ended.`)
+      setSaving(false); return
+    }
+
+    // Issue 2: Hard block if approved or paid payslip already exists
+    const { data: existing } = await supabase.from('payslips')
+      .select('id, status').eq('user_id', id as string)
+      .eq('month', payslipForm.month).eq('year', payslipForm.year).single()
+    if (existing && (existing.status === 'approved' || existing.status === 'paid')) {
+      setError(`A ${existing.status} payslip already exists for this month. Approved and paid payslips cannot be overwritten.`)
+      setSaving(false); return
+    }
+
     // Issue 2 fix: only include completed shifts for part-timers
     let totalHours = 0, totalPay = 0
     if (isPartTime) {
@@ -186,6 +212,12 @@ export default function StaffPayrollDetailPage() {
 
     if (err) { setError(err.message); setSaving(false); return }
     await loadData(); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
+  }
+
+  const handleDeletePayslip = async (payslipId: string) => {
+    if (!confirm('Delete this draft payslip? This cannot be undone.')) return
+    await supabase.from('payslips').delete().eq('id', payslipId).eq('status', 'draft')
+    await loadData(); showMsg('Draft payslip deleted')
   }
 
   const handlePayslipAction = async (payslipId: string, action: 'approved' | 'paid') => {
@@ -422,7 +454,7 @@ export default function StaffPayrollDetailPage() {
                 <p>Any bonuses recorded under the Bonuses section for this month will be automatically included in the payslip.</p>
               </div>
             )}
-            {isPartTime && <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">Payslip will be calculated from locked roster shifts for the selected month.</div>}
+            {isPartTime && <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">Payslip will be calculated from completed roster shifts for the selected month. Only shifts with status Completed are included.</div>}
             <div><label className="label">Notes</label><input className="input" value={payslipForm.notes} onChange={e => setPayslipForm(f => ({ ...f, notes: e.target.value }))} /></div>
             <div className="flex gap-2"><button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Generating...' : 'Generate Payslip'}</button><button type="button" onClick={() => setShowPayslipForm(false)} className="btn-secondary">Cancel</button></div>
           </form>
@@ -438,6 +470,7 @@ export default function StaffPayrollDetailPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', ps.status === 'paid' ? 'bg-green-100 text-green-700' : ps.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'badge-pending')}>{ps.status.charAt(0).toUpperCase() + ps.status.slice(1)}</span>
                   {ps.status === 'draft' && <button onClick={() => handlePayslipAction(ps.id, 'approved')} className="text-xs text-blue-600 hover:underline">Approve</button>}
+                  {ps.status === 'draft' && <button onClick={() => handleDeletePayslip(ps.id)} className="text-xs text-red-500 hover:underline">Delete</button>}
                   {ps.status === 'approved' && <button onClick={() => handlePayslipAction(ps.id, 'paid')} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
                   {ps.status !== 'draft' && <button onClick={() => downloadPayslipPdf(ps)} className="text-xs text-red-600 hover:underline flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>}
                 </div>
