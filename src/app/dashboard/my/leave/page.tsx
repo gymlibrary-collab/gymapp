@@ -48,11 +48,33 @@ export default function MyLeavePage() {
     setApplications(apps || [])
 
     const currentYear = new Date().getFullYear()
-    const taken = apps?.filter(a => a.status === 'approved' && new Date(a.start_date).getFullYear() === currentYear)
-      .reduce((s: number, a: any) => s + a.days_applied, 0) || 0
+
+    // Count only days falling within the current calendar year
+    // Handles cross-year leave by prorating days_applied proportionally
+    const countDaysInYear = (app: any, year: number) => {
+      const yearEnd = `${year}-12-31`
+      const yearStart = `${year}-01-01`
+      const start = app.start_date > yearStart ? app.start_date : yearStart
+      const end = app.end_date < yearEnd ? app.end_date : yearEnd
+      if (end < start) return 0
+      // Prorate days_applied proportionally
+      const appDays = (new Date(app.end_date).getTime() - new Date(app.start_date).getTime()) / 86400000 + 1
+      const inYearDays = (new Date(end).getTime() - new Date(start).getTime()) / 86400000 + 1
+      return appDays > 0 ? Math.round(app.days_applied * inYearDays / appDays) : 0
+    }
+
+    const taken = apps?.filter(a =>
+        a.status === 'approved' &&
+        a.start_date <= `${currentYear}-12-31` &&
+        a.end_date >= `${currentYear}-01-01`
+      ).reduce((s: number, a: any) => s + countDaysInYear(a, currentYear), 0) || 0
     setTakenDays(taken)
-    const pending = apps?.filter(a => a.status === 'pending' && new Date(a.start_date).getFullYear() === currentYear)
-      .reduce((s: number, a: any) => s + a.days_applied, 0) || 0
+
+    const pending = apps?.filter(a =>
+        a.status === 'pending' &&
+        a.start_date <= `${currentYear}-12-31` &&
+        a.end_date >= `${currentYear}-01-01`
+      ).reduce((s: number, a: any) => s + countDaysInYear(a, currentYear), 0) || 0
     setPendingDays(pending)
 
     // Load public holidays for leave day calculation
