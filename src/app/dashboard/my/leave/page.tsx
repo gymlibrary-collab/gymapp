@@ -78,9 +78,13 @@ export default function MyLeavePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const days = calcDays(form.start_date, form.end_date)
     if (days === 0) { setError('Invalid date range'); setSaving(false); return }
-    const entitlementDays = user?.leave_entitlement_days || 14
+    if (user?.leave_entitlement_days == null) {
+      setError('Your leave entitlement has not been configured. Please contact Business Operations before applying for leave.')
+      setSaving(false); return
+    }
+    const entitlementDays = user.leave_entitlement_days
     const availableBalance = Math.max(0, entitlementDays - takenDays - pendingDays)
-    if (availableBalance === 0) { setError('No leave balance remaining. Contact HR if you believe this is incorrect.'); setSaving(false); return }
+    if (availableBalance === 0) { setError('No leave balance remaining. Contact Business Operations if you believe this is incorrect.'); setSaving(false); return }
     if (days > availableBalance) { setError(`Insufficient leave balance. You have ${availableBalance} day${availableBalance !== 1 ? 's' : ''} available${pendingDays > 0 ? ` (${pendingDays} day${pendingDays !== 1 ? 's' : ''} pending approval)` : ''}.`); setSaving(false); return }
 
     // Check for overlapping pending or approved leave
@@ -113,9 +117,11 @@ export default function MyLeavePage() {
     await load(); showMsg('Application withdrawn')
   }
 
-  const entitlement = user?.leave_entitlement_days || 14
-  const balance = entitlement - takenDays                  // approved-only balance
-  const available = Math.max(0, entitlement - takenDays - pendingDays)  // clamped to 0
+  // If entitlement not set, treat as 0 to force escalation — do not use fallback 14
+  const entitlementNotSet = user != null && user.leave_entitlement_days == null
+  const entitlement = user?.leave_entitlement_days ?? 0
+  const balance = entitlementNotSet ? 0 : Math.max(0, entitlement - takenDays)
+  const available = entitlementNotSet ? 0 : Math.max(0, entitlement - takenDays - pendingDays)
   const days = calcDays(form.start_date, form.end_date)
 
   const recentDecisions = applications.filter(a => {
@@ -131,7 +137,11 @@ export default function MyLeavePage() {
     <div className="space-y-5 max-w-lg mx-auto">
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-gray-900">My Leave</h1><p className="text-sm text-gray-500">{new Date().getFullYear()} leave summary</p></div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Apply</button>
+        <button onClick={() => setShowForm(!showForm)} disabled={entitlementNotSet}
+          className="btn-primary flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          title={entitlementNotSet ? 'Leave entitlement not set — contact Business Ops' : undefined}>
+          <Plus className="w-4 h-4" /> Apply
+        </button>
       </div>
 
       {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
@@ -158,7 +168,7 @@ export default function MyLeavePage() {
       <div className="card p-4">
         <div className="grid grid-cols-2 gap-3 text-center" style={{gridTemplateColumns: "1fr 1fr"}}>
           <div className="bg-red-50 rounded-xl p-3">
-            <p className="text-2xl font-bold text-red-700">{entitlement}</p>
+            <p className="text-2xl font-bold text-red-700">{entitlementNotSet ? '—' : entitlement}</p>
             <p className="text-xs text-red-600 mt-1">Entitled</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
@@ -179,7 +189,12 @@ export default function MyLeavePage() {
         {pendingDays > 0 && (
           <p className="text-xs text-amber-600 text-center">Available after pending approved: <strong>{entitlement - takenDays - pendingDays}</strong> days</p>
         )}
-        <p className="text-xs text-gray-400 text-center mt-1">Excludes weekends & public holidays. Resets 1 Jan each year.</p>
+        {entitlementNotSet && (
+          <p className="text-xs text-red-600 text-center mt-2 font-medium">
+            Your leave entitlement has not been set. Please contact Business Operations to rectify this before applying for leave.
+          </p>
+        )}
+        <p className="text-xs text-gray-400 text-center mt-1">Excludes weekends & public holidays. Resets on 1 Jan — unused leave does not carry forward.</p>
       </div>
 
       {/* Apply form */}
