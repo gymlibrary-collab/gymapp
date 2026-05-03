@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
-import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar } from 'lucide-react'
+import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,12 @@ export default function PayrollPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [rosterTotals, setRosterTotals] = useState<Record<string, any>>({})
+  const [bulkMonth, setBulkMonth] = useState(new Date().getMonth() + 1)
+  const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
+  const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number} | null>(null)
+  const [showBulkForm, setShowBulkForm] = useState(false)
+  const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const supabase = createClient()
 
   useEffect(() => { load() }, [selectedMonth, selectedYear])
@@ -48,6 +54,9 @@ export default function PayrollPage() {
       totals[r.user_id].shifts += 1
     })
     setRosterTotals(totals)
+
+    const { data: brackets } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
+    setCpfBrackets(brackets || [])
     setLoading(false)
   }
 
@@ -57,6 +66,75 @@ export default function PayrollPage() {
     const matchType = filterType === 'all' || (s.employment_type || 'full_time') === filterType
     return matchSearch && matchType
   })
+
+  // CPF age bracket helper
+  const getAge = (dob: string | null) => {
+    if (!dob) return null
+    const today = new Date(); const birth = new Date(dob)
+    let age = today.getFullYear() - birth.getFullYear()
+    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--
+    return age
+  }
+
+  const getBracketRates = (dob: string | null) => {
+    const age = getAge(dob)
+    if (age === null) return { employee_rate: 20, employer_rate: 17 }
+    const bracket = cpfBrackets.find(b => age >= b.age_from && (b.age_to === null || age <= b.age_to))
+    return bracket ? { employee_rate: bracket.employee_rate, employer_rate: bracket.employer_rate } : { employee_rate: 20, employer_rate: 17 }
+  }
+
+  const handleBulkGenerate = async () => {
+    setBulkGenerating(true); setBulkResult(null)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const monthStart = `${bulkYear}-${String(bulkMonth).padStart(2, '0')}-01`
+    const monthEnd = new Date(bulkYear, bulkMonth, 0).toISOString().split('T')[0]
+
+    let generated = 0; let skipped = 0
+    for (const member of staffList) {
+      // Skip if payslip already exists for this month
+      const { data: existing } = await supabase.from('payslips')
+        .select('id').eq('user_id', member.id).eq('month', bulkMonth).eq('year', bulkYear).single()
+      if (existing) { skipped++; continue }
+
+      const isPartTime = member.employment_type === 'part_time'
+      let basicSalary = 0; let totalHours = 0
+
+      if (isPartTime) {
+        const { data: roster } = await supabase.from('duty_roster')
+          .select('hours_worked, gross_pay').eq('user_id', member.id)
+          .gte('shift_date', monthStart).lte('shift_date', monthEnd).eq('status', 'completed')
+        basicSalary = roster?.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0) || 0
+        totalHours = roster?.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0) || 0
+        if (basicSalary === 0) { skipped++; continue }
+      } else {
+        basicSalary = member.staff_payroll?.current_salary || 0
+        if (basicSalary === 0) { skipped++; continue }
+      }
+
+      // Pull bonuses recorded for this month
+      const { data: bonusData } = await supabase.from('staff_bonuses')
+        .select('amount').eq('user_id', member.id).eq('month', bulkMonth).eq('year', bulkYear)
+      const bonusAmt = bonusData?.reduce((s: number, b: any) => s + (b.amount || 0), 0) || 0
+
+      const isCpf = member.staff_payroll?.is_cpf_liable ?? true
+      const rates = getBracketRates(member.date_of_birth)
+
+      await supabase.from('payslips').upsert({
+        user_id: member.id, month: bulkMonth, year: bulkYear,
+        employment_type: member.employment_type || 'full_time',
+        basic_salary: basicSalary, bonus_amount: bonusAmt,
+        total_hours: isPartTime ? totalHours : null,
+        hourly_rate_used: isPartTime ? (member.hourly_rate || 0) : null,
+        is_cpf_liable: isCpf,
+        employee_cpf_rate: isCpf ? rates.employee_rate : 0,
+        employer_cpf_rate: isCpf ? rates.employer_rate : 0,
+        status: 'draft', generated_by: authUser?.id, generated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,month,year' })
+      generated++
+    }
+    setBulkResult({ generated, skipped }); setBulkGenerating(false)
+    load()
+  }
 
   const fullTimers = staffList.filter(s => (s.employment_type || 'full_time') === 'full_time')
   const partTimers = staffList.filter(s => s.employment_type === 'part_time')
@@ -86,6 +164,54 @@ export default function PayrollPage() {
           {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{getMonthName(i + 1)}</option>)}
         </select>
         <input className="input w-24" type="number" value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} />
+      </div>
+
+      {/* Bulk generate */}
+      <div className="card p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Bulk Payslip Generation</p>
+            <p className="text-xs text-gray-500">Generate payslips for all eligible staff in one step. Existing payslips are skipped.</p>
+          </div>
+          <button onClick={() => setShowBulkForm(!showBulkForm)} className="btn-secondary text-xs py-1.5">
+            {showBulkForm ? 'Cancel' : 'Bulk Generate'}
+          </button>
+        </div>
+        {showBulkForm && (
+          <div className="space-y-3 border-t border-gray-100 pt-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Month</label>
+                <select className="input" value={bulkMonth} onChange={e => setBulkMonth(parseInt(e.target.value))}>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Year</label>
+                <input className="input" type="number" value={bulkYear} onChange={e => setBulkYear(parseInt(e.target.value))} />
+              </div>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
+              <p className="font-medium">What will be generated:</p>
+              <p>· Full-time staff — basic salary + any bonuses recorded for this month</p>
+              <p>· Part-time staff — from locked roster shifts for this month</p>
+              <p>· CPF rates applied from age bracket table (based on date of birth)</p>
+              <p>· Staff with no salary set and part-timers with no shifts are skipped</p>
+            </div>
+            <button onClick={handleBulkGenerate} disabled={bulkGenerating}
+              className="btn-primary w-full disabled:opacity-50">
+              {bulkGenerating ? 'Generating payslips...' : `Generate All Payslips — ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} ${bulkYear}`}
+            </button>
+            {bulkResult && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                {bulkResult.generated} payslip{bulkResult.generated !== 1 ? 's' : ''} generated · {bulkResult.skipped} skipped (already exist or no data)
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary */}
@@ -139,7 +265,7 @@ export default function PayrollPage() {
           const roster = rosterTotals[member.id]
           const payroll = member.staff_payroll
           return (
-            <Link key={member.id} href={`/dashboard/staff-payroll/${member.id}`}
+            <Link key={member.id} href={`/dashboard/hr/${member.id}/payroll`}
               className="card p-4 flex items-center gap-3 hover:border-red-200 transition-colors block">
               <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
