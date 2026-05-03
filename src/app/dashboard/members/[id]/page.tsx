@@ -181,7 +181,7 @@ export default function MemberProfilePage() {
     await load()
     setSaving(false)
     setShowPkgForm(false)
-    setPkgForm({ template_id: '', total_price_sgd: '', notes: '', start_date: new Date().toISOString().split('T')[0], validity_days: '180' })
+    setPkgForm({ template_id: '', total_price_sgd: '', notes: '', start_date: new Date().toISOString().split('T')[0], validity_days: '180', secondary_member_id: '' })
   }
 
   // ── Derived state ─────────────────────────────────────────
