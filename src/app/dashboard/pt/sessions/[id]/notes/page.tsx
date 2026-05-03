@@ -266,7 +266,7 @@ export default function PtSessionNotesPage() {
           <span>{session.package?.package_name} · {session.gym?.name}</span>
           {session.package && (
             <span className="ml-auto text-xs text-gray-400">
-              Session {session.package.sessions_used + 1}/{session.package.total_sessions}
+              Session {session.package.sessions_used}/{session.package.total_sessions}
             </span>
           )}
         </div>
