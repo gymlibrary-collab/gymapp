@@ -15,6 +15,71 @@ import { cn } from '@/lib/utils'
 
 
 
+
+// Biz Ops action alerts: pending manager leave + public holidays setup prompt
+function BizOpsDashboardAlerts() {
+  const [pendingLeave, setPendingLeave] = useState(0)
+  const [holidaysSetUp, setHolidaysSetUp] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const load = async () => {
+      // Pending leave: managers awaiting biz ops approval
+      const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
+      const mgrIds = managers?.map((m: any) => m.id) || []
+      if (mgrIds.length > 0) {
+        const { count } = await supabase.from('leave_applications')
+          .select('id', { count: 'exact', head: true })
+          .in('user_id', mgrIds).eq('status', 'pending')
+        setPendingLeave(count || 0)
+      }
+
+      // Check if next year public holidays are set up (prompt from 15 Nov)
+      const now = new Date()
+      const isNovOrLater = now.getMonth() >= 10 && now.getDate() >= 15
+      if (isNovOrLater) {
+        const nextYear = now.getFullYear() + 1
+        const { count } = await supabase.from('public_holidays')
+          .select('id', { count: 'exact', head: true }).eq('year', nextYear)
+        setHolidaysSetUp((count || 0) > 0)
+      }
+    }
+    load()
+  }, [])
+
+  if (pendingLeave === 0 && holidaysSetUp) return null
+
+  return (
+    <div className="space-y-3">
+      {pendingLeave > 0 && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-800">
+              {pendingLeave} manager leave application{pendingLeave > 1 ? 's' : ''} awaiting your approval
+            </p>
+          </div>
+          <Link href="/dashboard/hr/leave" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
+        </div>
+      )}
+      {!holidaysSetUp && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">
+              Action required — {new Date().getFullYear() + 1} public holidays not yet configured
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Set up next year's public holidays so leave calculations remain accurate.
+            </p>
+          </div>
+          <Link href="/dashboard/config/public-holidays" className="btn-primary text-xs py-1.5 flex-shrink-0">Set Up</Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Per-gym operational activity for Business Ops dashboard
 function BizOpsGymActivity() {
   const [gyms, setGyms] = useState<any[]>([])
@@ -454,12 +519,25 @@ export default function DashboardPage() {
           setAtRiskMembers(atRiskWithReason)
         }
 
-        // Pending leave approvals
-        const { data: gymStaff } = await supabase.from('users').select('id').eq('manager_gym_id', gymId)
-        const staffIds = gymStaff?.map((s: any) => s.id) || []
-        if (staffIds.length > 0) {
+        // Pending leave approvals — full-time trainers + ops staff only (not part-timers)
+        const { data: opsStaffIds } = await supabase.from('users')
+          .select('id').eq('manager_gym_id', gymId).eq('role', 'staff')
+        const { data: gymTrainerIds } = await supabase.from('trainer_gyms')
+          .select('trainer_id').eq('gym_id', gymId)
+        const rawTrainerIds = gymTrainerIds?.map((t: any) => t.trainer_id) || []
+        let ftTrainerIds: string[] = []
+        if (rawTrainerIds.length > 0) {
+          const { data: ftOnly } = await supabase.from('users')
+            .select('id').in('id', rawTrainerIds).eq('employment_type', 'full_time')
+          ftTrainerIds = ftOnly?.map((t: any) => t.id) || []
+        }
+        const leaveStaffIds = [
+          ...(opsStaffIds?.map((s: any) => s.id) || []),
+          ...ftTrainerIds,
+        ]
+        if (leaveStaffIds.length > 0) {
           const { count: leavePending } = await supabase.from('leave_applications')
-            .select('id', { count: 'exact', head: true }).in('user_id', staffIds).eq('status', 'pending')
+            .select('id', { count: 'exact', head: true }).in('user_id', leaveStaffIds).eq('status', 'pending')
           setPendingLeave(leavePending || 0)
         }
       }
@@ -519,7 +597,7 @@ export default function DashboardPage() {
       </div>
       <div className="card p-4">
         <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
-        {[{ href: '/dashboard/admin/staff', l: 'Business Ops Staff', icon: Briefcase }, { href: '/dashboard/admin/settings', l: 'App Settings', icon: Settings }].map(({ href, l, icon: Icon }) => (
+        {[{ href: '/dashboard/admin/staff', l: 'Business Ops Staff', icon: Briefcase }, { href: '/dashboard/hr/leave', l: 'Leave Approvals', icon: Calendar }, { href: '/dashboard/admin/settings', l: 'App Settings', icon: Settings }].map(({ href, l, icon: Icon }) => (
           <Link key={href} href={href} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
             <Icon className="w-4 h-4 text-red-600 flex-shrink-0" /><span className="text-sm text-gray-700 flex-1">{l}</span><ChevronRight className="w-4 h-4 text-gray-400" />
           </Link>
@@ -620,6 +698,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Biz Ops: per-gym breakdown ── */}
+      {isBizOps && <BizOpsDashboardAlerts />}
       {isBizOps && <BizOpsGymBreakdown />}
       {/* ── Biz Ops: per-gym activity ── */}
       {isBizOps && <BizOpsGymActivity />}
