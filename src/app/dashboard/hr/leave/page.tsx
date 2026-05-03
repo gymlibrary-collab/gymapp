@@ -117,6 +117,21 @@ export default function LeaveManagementPage() {
     await supabase.from('leave_applications').update({
       status: 'approved', approver_id: authUser!.id, approved_at: new Date().toISOString(),
     }).eq('id', id)
+    // WhatsApp to applicant
+    const app = applications.find(a => a.id === id)
+    if (app) {
+      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
+      if (applicant?.phone) {
+        await supabase.from('whatsapp_queue').insert({
+          notification_type: 'manager_note_alert',
+          recipient_phone: applicant.phone,
+          recipient_name: applicant.full_name,
+          message: `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} application from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} (${app.days_applied} day${app.days_applied !== 1 ? 's' : ''}) has been APPROVED.`,
+          scheduled_for: new Date().toISOString(),
+          status: 'pending',
+        })
+      }
+    }
     await load(); showMsg('Leave approved')
   }
 
@@ -125,6 +140,21 @@ export default function LeaveManagementPage() {
     await supabase.from('leave_applications').update({
       status: 'rejected', rejection_reason: rejectReason,
     }).eq('id', rejectId)
+    // WhatsApp to applicant
+    const app = applications.find(a => a.id === rejectId)
+    if (app) {
+      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
+      if (applicant?.phone) {
+        await supabase.from('whatsapp_queue').insert({
+          notification_type: 'manager_note_alert',
+          recipient_phone: applicant.phone,
+          recipient_name: applicant.full_name,
+          message: `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} application from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} has been REJECTED. Reason: ${rejectReason}`,
+          scheduled_for: new Date().toISOString(),
+          status: 'pending',
+        })
+      }
+    }
     setRejectId(null); setRejectReason(''); await load(); showMsg('Leave rejected')
   }
 
@@ -136,10 +166,24 @@ export default function LeaveManagementPage() {
     <div className="space-y-5 max-w-2xl">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Leave Management</h1>
-        <p className="text-sm text-gray-500">Review and approve staff leave applications</p>
+        <p className="text-sm text-gray-500">
+          {user?.role === 'manager' && 'Approving leave for your gym's full-time trainers and operations staff'}
+          {user?.role === 'business_ops' && 'Approving leave for gym managers'}
+          {user?.role === 'admin' && 'Approving leave for Business Operations staff'}
+        </p>
       </div>
 
       {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
+
+      {/* Context banner */}
+      <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <p>
+          {user?.role === 'manager' && 'You are reviewing leave from your gym's full-time trainers and operations staff. Approved leave will be deducted from their annual entitlement.'}
+          {user?.role === 'business_ops' && 'You are reviewing leave from gym managers across all gym clubs. Manager leave goes to you for approval.'}
+          {user?.role === 'admin' && 'You are reviewing leave from Business Operations staff. Their leave escalates to you for approval.'}
+        </p>
+      </div>
 
       {rejectId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
