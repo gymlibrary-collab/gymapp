@@ -14,6 +14,137 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 
+
+// Per-gym operational activity for Business Ops dashboard
+function BizOpsGymActivity() {
+  const [gyms, setGyms] = useState<any[]>([])
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
+      const now = new Date()
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+      const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+      const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
+        const [
+          { data: todaySessions },
+          { count: pendingMemberships },
+          { count: pendingSessions },
+          { data: lowPkgs },
+          { data: expiringPkgs },
+        ] = await Promise.all([
+          supabase.from('sessions').select('scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
+            .eq('gym_id', g.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
+          supabase.from('gym_memberships').select('id', { count: 'exact', head: true })
+            .eq('gym_id', g.id).eq('sale_status', 'pending'),
+          supabase.from('sessions').select('id', { count: 'exact', head: true })
+            .eq('gym_id', g.id).eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false),
+          supabase.from('packages').select('package_name, sessions_used, total_sessions, member:members(full_name)')
+            .eq('gym_id', g.id).eq('status', 'active').filter('total_sessions - sessions_used', 'lte', 3).limit(5),
+          supabase.from('packages').select('package_name, end_date_calculated, member:members(full_name)')
+            .eq('gym_id', g.id).eq('status', 'active')
+            .lte('end_date_calculated', in14Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5),
+        ])
+
+        const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0)
+        return { ...g, todaySessions: todaySessions || [], pendingMemberships: pendingMemberships || 0, pendingSessions: pendingSessions || 0, lowPkgs: lowPkgs || [], expiringPkgs: expiringPkgs || [], totalAlerts }
+      }))
+
+      setGyms(enriched)
+    }
+    load()
+  }, [])
+
+  if (gyms.length === 0) return null
+
+  return (
+    <div className="space-y-3">
+      <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+        <Calendar className="w-4 h-4 text-red-600" /> Today's Activity by Gym Club
+      </h2>
+      {gyms.map(g => (
+        <div key={g.id} className="card">
+          <button onClick={() => setExpanded(expanded === g.id ? null : g.id)}
+            className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left">
+            <Building2 className="w-4 h-4 text-red-600 flex-shrink-0" />
+            <p className="text-sm font-medium text-gray-900 flex-1">{g.name}</p>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {g.totalAlerts > 0 && (
+                <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                  {g.totalAlerts} alert{g.totalAlerts !== 1 ? "s" : ""}
+                </span>
+              )}
+              <span className="text-xs text-gray-400">{g.todaySessions.length} sessions today</span>
+              {expanded === g.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            </div>
+          </button>
+
+          {expanded === g.id && (
+            <div className="border-t border-gray-100 divide-y divide-gray-100">
+              {/* Pending confirmations */}
+              {(g.pendingMemberships > 0 || g.pendingSessions > 0) && (
+                <div className="p-3 bg-amber-50">
+                  <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5" /> Pending Confirmations
+                  </p>
+                  <div className="flex gap-3 text-xs text-amber-700">
+                    {g.pendingMemberships > 0 && <span>{g.pendingMemberships} membership sale{g.pendingMemberships !== 1 ? "s" : ""}</span>}
+                    {g.pendingSessions > 0 && <span>{g.pendingSessions} PT session{g.pendingSessions !== 1 ? "s" : ""}</span>}
+                  </div>
+                </div>
+              )}
+
+              {/* Today's sessions */}
+              <div className="p-3">
+                <p className="text-xs font-semibold text-gray-600 mb-2">Today's PT Sessions ({g.todaySessions.length})</p>
+                {g.todaySessions.length === 0 ? (
+                  <p className="text-xs text-gray-400">No sessions scheduled today</p>
+                ) : (
+                  <div className="space-y-1">
+                    {g.todaySessions.map((s: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-500 w-12 flex-shrink-0">
+                          {new Date(s.scheduled_at).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        <span className="text-gray-900 font-medium">{s.member?.full_name}</span>
+                        <span className="text-gray-400">· {s.trainer?.full_name}</span>
+                        <span className={cn("ml-auto px-1.5 py-0.5 rounded text-xs font-medium",
+                          s.status === "completed" ? "bg-green-100 text-green-700" :
+                          s.status === "cancelled" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700")}>
+                          {s.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Expiry alerts */}
+              {(g.lowPkgs.length > 0 || g.expiringPkgs.length > 0) && (
+                <div className="p-3 bg-red-50">
+                  <p className="text-xs font-semibold text-red-800 mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Package Alerts
+                  </p>
+                  {g.lowPkgs.map((p: any, i: number) => (
+                    <p key={"low"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: {p.total_sessions - p.sessions_used} sessions left</p>
+                  ))}
+                  {g.expiringPkgs.map((p: any, i: number) => (
+                    <p key={"exp"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: expires {formatDate(p.end_date_calculated)}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Per-gym breakdown for Business Ops dashboard
 function BizOpsGymBreakdown() {
   const [gyms, setGyms] = useState<any[]>([])
@@ -337,6 +468,7 @@ export default function DashboardPage() {
   const todayStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })
   const isAdmin = user.role === 'admin'
   const isBizOps = user.role === 'business_ops'
+  const isStaff = user.role === 'staff'
   const isManager = user.role === 'manager' && !isActingAsTrainer
   const isTrainer = user.role === 'trainer' || isActingAsTrainer
   const totalPending = pendingMemberships + pendingSessions
@@ -478,6 +610,8 @@ export default function DashboardPage() {
 
       {/* ── Biz Ops: per-gym breakdown ── */}
       {isBizOps && <BizOpsGymBreakdown />}
+      {/* ── Biz Ops: per-gym activity ── */}
+      {isBizOps && <BizOpsGymActivity />}
 
       {/* ── Today's sessions ── */}
       <div className="card">
@@ -627,6 +761,16 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2">
             <Link href="/dashboard/members/new" className="btn-primary text-center text-sm">Register Member</Link>
             <Link href="/dashboard/pt/sessions/new" className="btn-secondary text-center text-sm">Schedule Session</Link>
+          </div>
+        </div>
+      )}
+      {/* ── Staff quick actions ── */}
+      {isStaff && (
+        <div className="card p-4">
+          <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/dashboard/membership/sales" className="btn-primary text-center text-sm">Log Membership Sale</Link>
+            <Link href="/dashboard/members" className="btn-secondary text-center text-sm">Member Lookup</Link>
           </div>
         </div>
       )}
