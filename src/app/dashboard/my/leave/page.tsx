@@ -17,6 +17,8 @@ export default function MyLeavePage() {
   const [user, setUser] = useState<any>(null)
   const [applications, setApplications] = useState<any[]>([])
   const [takenDays, setTakenDays] = useState(0)
+  const [pendingDays, setPendingDays] = useState(0)
+  const [holidays, setHolidays] = useState<string[]>([])
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -41,21 +43,31 @@ export default function MyLeavePage() {
       .order('created_at', { ascending: false })
     setApplications(apps || [])
 
-    const taken = apps?.filter(a => a.status === 'approved' && new Date(a.start_date).getFullYear() === new Date().getFullYear())
-      .reduce((s, a) => s + a.days_applied, 0) || 0
+    const currentYear = new Date().getFullYear()
+    const taken = apps?.filter(a => a.status === 'approved' && new Date(a.start_date).getFullYear() === currentYear)
+      .reduce((s: number, a: any) => s + a.days_applied, 0) || 0
     setTakenDays(taken)
+    const pending = apps?.filter(a => a.status === 'pending' && new Date(a.start_date).getFullYear() === currentYear)
+      .reduce((s: number, a: any) => s + a.days_applied, 0) || 0
+    setPendingDays(pending)
+
+    // Load public holidays for leave day calculation
+    const { data: ph } = await supabase.from('public_holidays')
+      .select('holiday_date').in('year', [currentYear, currentYear + 1])
+    setHolidays(ph?.map((h: any) => h.holiday_date) || [])
   }
 
   const calcDays = (start: string, end: string) => {
     if (!start || !end) return 0
     const s = new Date(start), e = new Date(end)
     if (e < s) return 0
-    // Count weekdays only
+    // Count weekdays excluding public holidays
     let days = 0
     const cur = new Date(s)
     while (cur <= e) {
       const day = cur.getDay()
-      if (day !== 0 && day !== 6) days++
+      const dateStr = cur.toISOString().split('T')[0]
+      if (day !== 0 && day !== 6 && !holidays.includes(dateStr)) days++
       cur.setDate(cur.getDate() + 1)
     }
     return days
@@ -66,8 +78,9 @@ export default function MyLeavePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const days = calcDays(form.start_date, form.end_date)
     if (days === 0) { setError('Invalid date range'); setSaving(false); return }
-    const balance = (user?.leave_entitlement_days || 14) - takenDays
-    if (days > balance) { setError(`Insufficient leave balance. You have ${balance} day${balance !== 1 ? 's' : ''} remaining.`); setSaving(false); return }
+    const approvedBalance = (user?.leave_entitlement_days || 14) - takenDays
+    const availableBalance = approvedBalance - pendingDays
+    if (days > availableBalance) { setError(`Insufficient leave balance. You have ${availableBalance} day${availableBalance !== 1 ? 's' : ''} available (${pendingDays > 0 ? `${pendingDays} day${pendingDays !== 1 ? 's' : ''} pending approval` : 'approved balance only'}).`); setSaving(false); return }
 
     const { error: err } = await supabase.from('leave_applications').insert({
       user_id: authUser!.id, leave_type: form.leave_type,
@@ -75,6 +88,7 @@ export default function MyLeavePage() {
       days_applied: days, reason: form.reason || null, status: 'pending',
     })
     if (err) { setError(err.message); setSaving(false); return }
+
     await load(); setShowForm(false); setForm({ leave_type: 'annual', start_date: '', end_date: '', reason: '' })
     setSaving(false); showMsg('Leave application submitted')
   }
@@ -86,7 +100,8 @@ export default function MyLeavePage() {
   }
 
   const entitlement = user?.leave_entitlement_days || 14
-  const balance = entitlement - takenDays
+  const available = entitlement - takenDays - pendingDays  // for submission check
+  const balance = entitlement - takenDays                  // approved-only balance
   const days = calcDays(form.start_date, form.end_date)
 
   const statusIcon = (s: string) => s === 'approved' ? <CheckCircle className="w-4 h-4 text-green-600" /> : s === 'pending' ? <Clock className="w-4 h-4 text-amber-500" /> : <XCircle className="w-4 h-4 text-red-500" />
@@ -102,21 +117,30 @@ export default function MyLeavePage() {
 
       {/* Balance card */}
       <div className="card p-4">
-        <div className="grid grid-cols-3 gap-3 text-center">
+        <div className="grid grid-cols-2 gap-3 text-center">
           <div className="bg-red-50 rounded-xl p-3">
             <p className="text-2xl font-bold text-red-700">{entitlement}</p>
             <p className="text-xs text-red-600 mt-1">Entitled</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
             <p className="text-2xl font-bold text-gray-700">{takenDays}</p>
-            <p className="text-xs text-gray-500 mt-1">Taken</p>
+            <p className="text-xs text-gray-500 mt-1">Approved & Taken</p>
           </div>
-          <div className={cn('rounded-xl p-3', balance < 3 ? 'bg-amber-50' : 'bg-green-50')}>
+          {pendingDays > 0 && (
+            <div className="bg-amber-50 rounded-xl p-3">
+              <p className="text-2xl font-bold text-amber-700">{pendingDays}</p>
+              <p className="text-xs text-amber-600 mt-1">Pending Approval</p>
+            </div>
+          )}
+          <div className={cn('rounded-xl p-3', pendingDays > 0 ? '' : 'col-span-2', balance < 3 ? 'bg-amber-50' : 'bg-green-50')}>
             <p className={cn('text-2xl font-bold', balance < 3 ? 'text-amber-700' : 'text-green-700')}>{balance}</p>
-            <p className={cn('text-xs mt-1', balance < 3 ? 'text-amber-600' : 'text-green-600')}>Remaining</p>
+            <p className={cn('text-xs mt-1', balance < 3 ? 'text-amber-600' : 'text-green-600')}>Current Balance</p>
           </div>
         </div>
-        <p className="text-xs text-gray-400 text-center mt-3">Weekdays only. Resets 1 Jan each year.</p>
+        {pendingDays > 0 && (
+          <p className="text-xs text-amber-600 text-center">Available after pending approved: <strong>{entitlement - takenDays - pendingDays}</strong> days</p>
+        )}
+        <p className="text-xs text-gray-400 text-center mt-1">Excludes weekends & public holidays. Resets 1 Jan each year.</p>
       </div>
 
       {/* Apply form */}
@@ -137,9 +161,9 @@ export default function MyLeavePage() {
           </div>
 
           {days > 0 && (
-            <div className={cn('rounded-lg p-3 text-sm font-medium text-center', days > balance ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>
-              {days} working day{days !== 1 ? 's' : ''}
-              {days > balance && ` — exceeds your balance of ${balance} days`}
+            <div className={cn('rounded-lg p-3 text-sm font-medium text-center', days > available ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>
+              {days} working day{days !== 1 ? 's' : ''} (excl. weekends & public holidays)
+              {days > available && ` — exceeds your available balance of ${available} days`}
             </div>
           )}
 
@@ -148,7 +172,7 @@ export default function MyLeavePage() {
           {error && <div className="flex items-center gap-2 text-xs text-red-600"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}</div>}
 
           <div className="flex gap-2">
-            <button type="submit" disabled={saving || days > balance} className="btn-primary flex-1 disabled:opacity-50">{saving ? 'Submitting...' : 'Submit Application'}</button>
+            <button type="submit" disabled={saving || days > available} className="btn-primary flex-1 disabled:opacity-50">{saving ? 'Submitting...' : 'Submit Application'}</button>
             <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
           </div>
         </form>
