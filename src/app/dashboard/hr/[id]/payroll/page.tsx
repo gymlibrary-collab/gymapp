@@ -112,14 +112,17 @@ export default function StaffPayrollDetailPage() {
     const logoUrl = (settings as any)?.payslip_logo_url || null
     const companyName = (settings as any)?.company_name || 'Gym Operations'
 
-    // Gym name: biz_ops use company name; others use their assigned gym
+    // Gym name resolution:
+    // - business_ops → company name (group level)
+    // - manager, ops staff (role='staff') → assigned gym via manager_gym_id
+    // - trainer or staff without manager_gym_id → primary gym via trainer_gyms
     let gymName = companyName
     if (staffData?.role === 'business_ops') {
       gymName = companyName
     } else if (staffData?.manager_gym_id) {
       const { data: gym } = await supabase.from('gyms').select('name').eq('id', staffData.manager_gym_id).single()
       if (gym) gymName = gym.name
-    } else if (staffData?.role === 'trainer') {
+    } else if (staffData?.role === 'trainer' || staffData?.role === 'staff') {
       const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name)').eq('trainer_id', staffData.id).eq('is_primary', true).single()
       if (tg && (tg as any).gyms) gymName = (tg as any).gyms.name
     }
