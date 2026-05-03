@@ -38,8 +38,8 @@ export default function MyLeavePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Part-timers are not eligible for leave — redirect to dashboard
-    if (!u || u.employment_type === 'part_time') { router.replace('/dashboard'); return }
+    // Part-timers and admin are not eligible for leave — redirect to dashboard
+    if (!u || u.employment_type === 'part_time' || u.role === 'admin') { router.replace('/dashboard'); return }
     setUser(u)
 
     const { data: apps } = await supabase.from('leave_applications')
@@ -63,14 +63,19 @@ export default function MyLeavePage() {
 
   const calcDays = (start: string, end: string) => {
     if (!start || !end) return 0
-    const s = new Date(start), e = new Date(end)
+    // Parse as local date to avoid UTC timezone off-by-one in SGT (UTC+8)
+    const [sy, sm, sd] = start.split('-').map(Number)
+    const [ey, em, ed] = end.split('-').map(Number)
+    const s = new Date(sy, sm - 1, sd)
+    const e = new Date(ey, em - 1, ed)
     if (e < s) return 0
     // Count weekdays excluding public holidays
     let days = 0
     const cur = new Date(s)
     while (cur <= e) {
       const day = cur.getDay()
-      const dateStr = cur.toISOString().split('T')[0]
+      // Build local date string without timezone conversion
+      const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
       if (day !== 0 && day !== 6 && !holidays.includes(dateStr)) days++
       cur.setDate(cur.getDate() + 1)
     }
