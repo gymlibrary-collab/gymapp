@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDateTime, formatSGD } from '@/lib/utils'
@@ -24,12 +25,16 @@ export default function PtSessionsPage() {
   const [rescheduleTime, setRescheduleTime] = useState('')
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
+  const router = useRouter()
   const { isActingAsTrainer } = useViewMode()
 
   const loadSessions = async () => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    // Business Ops does not need session-level visibility — operational
+    // detail is reviewed in person with each gym manager.
+    if (userData?.role === 'business_ops') { router.replace('/dashboard'); return }
     setUser(userData)
 
     let q = supabase.from('sessions')
