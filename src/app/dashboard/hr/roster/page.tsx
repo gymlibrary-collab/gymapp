@@ -52,11 +52,12 @@ export default function RosterPage() {
   useEffect(() => { loadData() }, [weekStart])
 
   const loadData = async () => {
-    // Route guard
+    // Route guard — manager only. Business Ops reviews part-timer schedules
+    // in person with each gym manager rather than micromanaging here.
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+    if (!me || me.role !== 'manager') { router.replace('/dashboard'); return }
 
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
     setCurrentUser(u)
