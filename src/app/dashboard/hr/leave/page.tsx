@@ -89,24 +89,39 @@ export default function LeaveManagementPage() {
       .in('id', staffIds).eq('is_archived', false)
 
     const currentYear = new Date().getFullYear()
-    // Approved leave days per staff
+
+    // Count only days falling within the current calendar year
+    // Handles cross-year leave (e.g. Dec 30 — Jan 3) by prorating days_applied
+    const countDaysInYear = (app: any, year: number) => {
+      const yearStart = `${year}-01-01`
+      const yearEnd = `${year}-12-31`
+      const start = app.start_date < yearStart ? yearStart : app.start_date
+      const end = app.end_date > yearEnd ? yearEnd : app.end_date
+      if (end < start) return 0
+      const appDays = (new Date(app.end_date).getTime() - new Date(app.start_date).getTime()) / 86400000 + 1
+      const inYearDays = (new Date(end).getTime() - new Date(start).getTime()) / 86400000 + 1
+      return appDays > 0 ? Math.round(app.days_applied * inYearDays / appDays) : 0
+    }
+
+    // Load leave applications overlapping the current year (not just starting in it)
     const { data: approvedLeave } = await supabase.from('leave_applications')
-      .select('user_id, days_applied')
+      .select('user_id, days_applied, start_date, end_date')
       .in('user_id', staffIds).eq('status', 'approved')
-      .gte('start_date', `${currentYear}-01-01`)
-    // Pending leave days per staff
+      .lte('start_date', `${currentYear}-12-31`)
+      .gte('end_date', `${currentYear}-01-01`)
     const { data: pendingLeave } = await supabase.from('leave_applications')
-      .select('user_id, days_applied')
+      .select('user_id, days_applied, start_date, end_date')
       .in('user_id', staffIds).eq('status', 'pending')
-      .gte('start_date', `${currentYear}-01-01`)
+      .lte('start_date', `${currentYear}-12-31`)
+      .gte('end_date', `${currentYear}-01-01`)
 
     const takenByStaff: Record<string, number> = {}
     approvedLeave?.forEach((l: any) => {
-      takenByStaff[l.user_id] = (takenByStaff[l.user_id] || 0) + l.days_applied
+      takenByStaff[l.user_id] = (takenByStaff[l.user_id] || 0) + countDaysInYear(l, currentYear)
     })
     const pendingByStaff: Record<string, number> = {}
     pendingLeave?.forEach((l: any) => {
-      pendingByStaff[l.user_id] = (pendingByStaff[l.user_id] || 0) + l.days_applied
+      pendingByStaff[l.user_id] = (pendingByStaff[l.user_id] || 0) + countDaysInYear(l, currentYear)
     })
 
     setStaffBalances(staff?.map(s => ({
