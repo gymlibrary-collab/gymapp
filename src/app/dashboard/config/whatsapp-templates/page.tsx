@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { CheckCircle, AlertCircle, ChevronDown, MessageSquare, Plus, Edit2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
