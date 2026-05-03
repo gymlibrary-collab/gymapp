@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD } from '@/lib/utils'
 import { Dumbbell, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle, Save } from 'lucide-react'
@@ -15,6 +16,7 @@ export default function TrainerCapacityPage() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => { load() }, [])
 
@@ -22,6 +24,9 @@ export default function TrainerCapacityPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    // Business Ops does not need trainer capacity visibility — this is
+    // reviewed in person with each gym manager.
+    if (u?.role === 'business_ops') { router.replace('/dashboard'); return }
     setUser(u)
 
     const now = new Date()
