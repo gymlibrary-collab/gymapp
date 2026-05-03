@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, X, AlertCircle } from 'lucide-react'
@@ -26,6 +27,7 @@ export default function MyLeavePage() {
   const [form, setForm] = useState({
     leave_type: 'annual', start_date: '', end_date: '', reason: '',
   })
+  const router = useRouter()
   const supabase = createClient()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
@@ -36,6 +38,8 @@ export default function MyLeavePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    // Part-timers are not eligible for leave — redirect to dashboard
+    if (!u || u.employment_type === 'part_time') { router.replace('/dashboard'); return }
     setUser(u)
 
     const { data: apps } = await supabase.from('leave_applications')
