@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { Upload, Save, CheckCircle, ImageIcon, Timer, Type } from 'lucide-react'
 
@@ -16,10 +17,17 @@ export default function AdminSettingsPage() {
   const [companyName, setCompanyName] = useState('Gym Operations Suite')
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
+  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     const load = async () => {
+    // Route guard
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || (me.role !== 'admin')) { router.replace('/dashboard'); return }
+
       const { data } = await supabase.from('app_settings')
         .select('login_logo_url, admin_sidebar_logo_url, auto_logout_minutes, app_name')
         .eq('id', 'global').single()
