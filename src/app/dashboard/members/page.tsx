@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDate } from '@/lib/utils'
@@ -15,6 +16,7 @@ export default function MembersPage() {
   const [statusFilter, setStatusFilter] = useState('active')
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const router = useRouter()
   const { isActingAsTrainer } = useViewMode()
 
   useEffect(() => {
@@ -22,6 +24,9 @@ export default function MembersPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // Business Ops does not have direct access to member records. They review
+      // membership activity via the Dashboard tile and the Membership Sales page.
+      if (userData?.role === 'business_ops') { router.replace('/dashboard'); return }
       setUser(userData)
 
       // Load members with their current active membership
