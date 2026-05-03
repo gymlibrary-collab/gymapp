@@ -149,14 +149,34 @@ export default function MyPayslipsPage() {
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
 
-    doc.setFontSize(20); doc.text('COMMISSION STATEMENT', 14, 22)
+    // Issue 2: Apply same branding as salary payslip
+    const { logoUrl, companyName, gymName } = payslipBranding
+    let yPos = 22
+
+    if (logoUrl) {
+      try {
+        const img = await fetch(logoUrl).then(r => r.blob()).then(b => new Promise<string>((res, rej) => {
+          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(b)
+        }))
+        doc.addImage(img, 'PNG', 14, 10, 20, 20)
+        doc.setFontSize(18); doc.setFont('helvetica', 'bold')
+        doc.text('COMMISSION STATEMENT', 38, 20)
+        yPos = 36
+      } catch { doc.setFontSize(18); doc.text('COMMISSION STATEMENT', 14, 22); yPos = 30 }
+    } else {
+      doc.setFontSize(18); doc.text('COMMISSION STATEMENT', 14, 22); yPos = 30
+    }
+
+    doc.setFont('helvetica', 'normal')
     doc.setFontSize(10); doc.setTextColor(100)
-    doc.text(`Period: ${payout.period_start} to ${payout.period_end}`, 14, 30)
+    doc.text(companyName, 14, yPos); yPos += 6
+    doc.text(gymName, 14, yPos); yPos += 6
+    doc.text(`Period: ${payout.period_start} to ${payout.period_end}`, 14, yPos); yPos += 10
     doc.setTextColor(0)
-    doc.text(`${user?.full_name} · ${payout.gym?.name}`, 14, 38)
+    doc.text(`${user?.full_name}`, 14, yPos); yPos += 6
 
     autoTable(doc, {
-      startY: 48,
+      startY: yPos + 2,
       head: [['Description', 'Count', 'Amount (SGD)']],
       body: [
         ['PT Package Sign-up Commissions', payout.pt_signups_count, formatSGD(payout.pt_signup_commission_sgd)],
@@ -215,16 +235,17 @@ export default function MyPayslipsPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-gray-900 text-sm">{getMonthName(slip.month)} {slip.year}</p>
                 <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
-                  <span>Basic: {formatSGD(slip.basic_salary)}</span>
+                  {slip.total_hours > 0
+                    ? <span>{slip.total_hours}h roster pay</span>
+                    : <span>Basic: {formatSGD(slip.basic_salary)}</span>
+                  }
                   {slip.bonus_amount > 0 && <span>Bonus: {formatSGD(slip.bonus_amount)}</span>}
                   <span className="font-medium text-gray-900">Net: {formatSGD(slip.net_salary)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                   {slip.status === 'paid'
                     ? <><CheckCircle className="w-3 h-3 text-green-600" /><span className="text-xs text-green-600">Paid</span></>
-                    : slip.status === 'approved'
-                    ? <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
-                    : <><Clock className="w-3 h-3 text-amber-500" /><span className="text-xs text-amber-500">Draft</span></>
+                    : <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
                   }
                 </div>
               </div>
