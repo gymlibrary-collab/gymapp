@@ -19,6 +19,7 @@ type NavItem = { href?: string; label: string; icon?: any; header?: boolean }
 const adminNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/admin/staff', label: 'Business Ops Staff', icon: Briefcase },
+  { href: '/dashboard/hr/leave', label: 'Leave Approvals', icon: CalendarDays },
   { href: '/dashboard/admin/settings', label: 'App Settings', icon: Settings },
 ]
 
