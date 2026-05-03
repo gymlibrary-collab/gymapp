@@ -31,7 +31,7 @@ export default function MembershipSalesPage() {
       .select('*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)')
       .order('created_at', { ascending: false })
 
-    if (userData.role === 'trainer' || (userData.role === 'manager' && userData.is_also_trainer)) {
+    if (userData.role === 'trainer' || userData.role === 'staff' || (userData.role === 'manager' && userData.is_also_trainer)) {
       q = q.eq('sold_by_user_id', authUser.id)
     } else if (userData.role === 'manager' && userData.manager_gym_id) {
       q = q.eq('gym_id', userData.manager_gym_id)
@@ -63,8 +63,8 @@ export default function MembershipSalesPage() {
   // - null/unknown sold_by role → default to biz_ops only (safe fallback)
   const sellerIsManager = (sale: any) => {
     const role = sale.sold_by?.role
-    // role = 'manager' covers both pure managers AND manager-trainer hybrids
-    // (manager-trainers have role='manager' with is_also_trainer=true in the DB)
+    // Manager (incl. manager-trainer) and above → biz ops confirms
+    // Trainer and staff → manager confirms
     return role === 'manager' || role === 'business_ops' || role === 'admin' || !role
   }
   const canConfirmSale = (sale: any) => {
