@@ -42,7 +42,8 @@ export default function MyGymPage() {
     setLogoPreview(URL.createObjectURL(file))
 
     const path = `gym-${gym.id}`
-    await supabase.storage.from('gym-logos').remove([path])
+    // Use upsert:true — no need to remove first, and remove() on a
+    // non-existent object triggers an RLS error when the row doesn't exist.
     const { error: uploadErr } = await supabase.storage.from('gym-logos').upload(path, file, {
       upsert: true, cacheControl: '0',
     })
