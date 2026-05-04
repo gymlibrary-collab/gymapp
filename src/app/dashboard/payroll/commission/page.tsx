@@ -247,7 +247,7 @@ export default function CommissionPayoutsPage() {
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
                         {item.pt_signups_count > 0 && <span>PT Signups: {formatSGD(item.pt_signup_commission_sgd)}</span>}
                         {item.pt_sessions_count > 0 && <span>PT Sessions: {formatSGD(item.pt_session_commission_sgd)}</span>}
-                        {item.membership_sales_count > 0 && <span>Memberships: {formatSGD(item.membership_commission_sgd)}</span>}
+                        {item.membership_sales_count > 0 && <span>Membership ({item.membership_sales_count} sales): {formatSGD(item.membership_commission_sgd)}</span>}
                       </div>
                     </div>
                     <p className="text-sm font-bold text-green-700 flex-shrink-0">{formatSGD(item.total_commission_sgd)}</p>
