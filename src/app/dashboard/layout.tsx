@@ -27,17 +27,17 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Operations', header: true },
   { href: '/dashboard/membership/sales', label: 'Membership Sales', icon: CreditCard },
+  { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
   { href: '/dashboard/pt/packages', label: 'PT Package Templates', icon: Package },
-  { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/config/commission', label: 'Commission Rates', icon: DollarSign },
-  { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
   { href: '/dashboard/config/public-holidays', label: 'Public Holidays', icon: CalendarDays },
   { href: '/dashboard/config/whatsapp-templates', label: 'WhatsApp Templates', icon: MessageSquare },
   { label: 'HR & Payroll', header: true },
   { href: '/dashboard/hr/staff', label: 'Staff Management', icon: Users },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/payroll', label: 'Monthly Payroll', icon: Banknote },
+  { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
   { label: 'Reports', header: true },
   { href: '/dashboard/reports', label: 'Summary Reports', icon: BarChart3 },
   { label: 'My Account', header: true },
@@ -58,17 +58,17 @@ const managerNav: NavItem[] = [
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/pt/capacity', label: 'Trainer Capacity', icon: TrendingUp },
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart3 },
-  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { label: 'My Account', header: true },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
+  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
 
 const trainerViewNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/members', label: 'My Members', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
-  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
-  // My Leave intentionally omitted — manager-trainers apply for leave from Manager View only
-  // to avoid duplicate applications and confusion about which role the leave is for
+  // My Account (My Leave + My Payslips) intentionally omitted in Trainer View —
+  // manager-trainers manage leave and payslips from Manager View only.
 ]
 
 const pureTrainerNav: NavItem[] = [
@@ -76,14 +76,16 @@ const pureTrainerNav: NavItem[] = [
   { href: '/dashboard/members', label: 'My Members', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
-  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { label: 'My Account', header: true },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
+  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
 
 const partTimerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/my/roster', label: 'My Roster', icon: CalendarDays },
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
+  { label: 'My Account', header: true },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
   // My Leave intentionally excluded — part-timers do not apply for leave in this system
 ]
@@ -93,8 +95,9 @@ const staffNav: NavItem[] = [
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { href: '/dashboard/members', label: 'Member Lookup', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
-  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { label: 'My Account', header: true },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
+  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
 
 const VIEW_KEY = 'gymapp_view_mode'
