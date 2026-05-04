@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { FileText, Download, CheckCircle } from 'lucide-react'
@@ -13,6 +14,7 @@ export default function MyPayslipsPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'salary' | 'commission'>('salary')
   const supabase = createClient()
+  const router = useRouter()
 
   // Branding state declared before useEffect so setPayslipBranding is in scope
   const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({
@@ -24,6 +26,8 @@ export default function MyPayslipsPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // Admin has no payroll record — redirect rather than show empty page
+      if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
       setUser(userData)
 
       // Load payslip branding
