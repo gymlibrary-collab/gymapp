@@ -235,3 +235,14 @@ export async function DELETE(request: Request) {
       archived_at: new Date().toISOString(), archived_by: user.id,
     }).eq('id', userId)
 
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+
+    await adminClient.auth.admin.updateUserById(userId, { ban_duration: '876600h' })
+    await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
+    await adminClient.from('users').update({ manager_gym_id: null }).eq('id', userId)
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
