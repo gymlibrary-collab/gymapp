@@ -23,21 +23,43 @@ export default function ReportsPage() {
       const monthStart = `${year}-${String(month).padStart(2,'0')}-01`
       const monthEnd = new Date(year, month, 0).toISOString().split('T')[0]
 
-      const { data: memSales } = await supabase.from('gym_memberships')
+      // Managers see only their gym's figures; Biz Ops sees all gyms.
+      const { data: meDetail } = await supabase.from('users').select('manager_gym_id').eq('id', authUser.id).single()
+      const gymId = me.role === 'manager' ? meDetail?.manager_gym_id : null
+
+      let memQ = supabase.from('gym_memberships')
         .select('price_sgd, commission_sgd').eq('sale_status','confirmed')
         .gte('created_at', monthStart).lte('created_at', monthEnd+'T23:59:59')
+      if (gymId) memQ = memQ.eq('gym_id', gymId)
+      const { data: memSales } = await memQ
 
-      const { data: ptSales } = await supabase.from('packages')
+      let ptQ = supabase.from('packages')
         .select('total_price_sgd, signup_commission_sgd')
         .gte('created_at', monthStart).lte('created_at', monthEnd+'T23:59:59')
+      if (gymId) ptQ = ptQ.eq('gym_id', gymId)
+      const { data: ptSales } = await ptQ
 
-      const { data: ptSessions } = await supabase.from('sessions')
+      let sessQ = supabase.from('sessions')
         .select('session_commission_sgd').eq('status','completed').eq('manager_confirmed',true)
         .gte('marked_complete_at', monthStart).lte('marked_complete_at', monthEnd+'T23:59:59')
+      if (gymId) sessQ = sessQ.eq('gym_id', gymId)
+      const { data: ptSessions } = await sessQ
 
-      const { data: payslips } = await supabase.from('payslips')
+      // Payslips: for manager scope to staff whose manager_gym_id matches
+      let staffIds: string[] | null = null
+      if (gymId) {
+        const { data: tgRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
+        const { data: staffRows } = await supabase.from('users').select('id').eq('manager_gym_id', gymId)
+        staffIds = Array.from(new Set([
+          ...(tgRows?.map((r: any) => r.trainer_id) || []),
+          ...(staffRows?.map((r: any) => r.id) || []),
+        ]))
+      }
+      let payQ = supabase.from('payslips')
         .select('gross_salary, employee_cpf_amount, employer_cpf_amount')
         .eq('month', month).eq('year', year).in('status', ['approved','paid'])
+      if (staffIds && staffIds.length > 0) payQ = payQ.in('user_id', staffIds)
+      const { data: payslips } = await payQ
 
       const memRevenue = memSales?.reduce((s,m) => s+(m.price_sgd||0), 0) || 0
       const memCommission = memSales?.reduce((s,m) => s+(m.commission_sgd||0), 0) || 0
