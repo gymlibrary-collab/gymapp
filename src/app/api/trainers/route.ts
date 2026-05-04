@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     })
     if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
-    const { employment_type, hourly_rate, membership_commission_pct, nric, nationality, leave_entitlement_days, address } = body
+    const { employment_type, hourly_rate, membership_commission_sgd, nric, nationality, leave_entitlement_days, address } = body
     const resolvedRole = role || 'trainer'
     const resolvedEmployment = employment_type || 'full_time'
     // Leave entitlement: null for roles excluded from the leave system (admin, part-timers).
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       hourly_rate: hourly_rate ? parseFloat(hourly_rate) : null,
       commission_signup_pct: parseFloat(commission_signup_pct) || 10,
       commission_session_pct: parseFloat(commission_session_pct) || 15,
-      membership_commission_pct: parseFloat(membership_commission_pct) || 5,
+      membership_commission_sgd: membership_commission_sgd ? parseFloat(membership_commission_sgd) : 0,
       nric: nric || null, nationality: nationality || null,
       address: address || null,
       leave_entitlement_days: resolvedLeaveEntitlement,
@@ -154,7 +154,7 @@ export async function PATCH(request: Request) {
       if (bodyEmploymentType !== undefined)      updatePayload.employment_type = bodyEmploymentType
       if (commission_signup_pct !== undefined)   updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
       if (commission_session_pct !== undefined)  updatePayload.commission_session_pct = parseFloat(commission_session_pct)
-      if (body.membership_commission_pct !== undefined) updatePayload.membership_commission_pct = parseFloat(body.membership_commission_pct)
+      if (body.membership_commission_sgd !== undefined) updatePayload.membership_commission_sgd = parseFloat(body.membership_commission_sgd)
       if (body.leave_entitlement_days !== undefined)    updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
       if (body.hourly_rate !== undefined)        updatePayload.hourly_rate = body.hourly_rate ? parseFloat(body.hourly_rate) : null
       if (body.nric !== undefined)               updatePayload.nric = body.nric || null
