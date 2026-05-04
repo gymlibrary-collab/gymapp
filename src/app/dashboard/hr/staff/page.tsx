@@ -421,7 +421,7 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
-        {isBizOps && <div><label className="label">NRIC / FIN</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>}
+        {isBizOps && <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>}
       </div>
       {isBizOps && (
         <div className="grid grid-cols-2 gap-3">
