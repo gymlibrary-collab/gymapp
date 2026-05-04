@@ -211,7 +211,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (user.role === 'admin') { nav = adminNav; portalLabel = 'Admin Portal' }
   else if (user.role === 'business_ops') { nav = bizOpsNav; portalLabel = 'Business Ops Portal' }
   else if (user.role === 'staff') { nav = staffNav; portalLabel = 'Operations Staff Portal' }
-  else if (user.role === 'trainer' && isPartTime) { nav = partTimerNav; portalLabel = 'Part-time Staff Portal' }
+  else if (user.role === 'staff' && isPartTime) { nav = partTimerNav; portalLabel = 'Part-time Staff Portal' }
   else if (user.role === 'trainer') { nav = pureTrainerNav; portalLabel = 'Trainer Portal' }
   else if (isManagerTrainer && viewMode === 'trainer') { nav = trainerViewNav; portalLabel = 'Trainer View' }
   else { nav = managerNav; portalLabel = isManagerTrainer ? 'Manager View' : 'Manager Portal' }
