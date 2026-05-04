@@ -22,7 +22,7 @@ interface BizOpsUser {
   created_at: string
 }
 
-const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '' }
+const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '', address: '' }
 
 export default function AdminStaffPage() {
   const [staff, setStaff] = useState<BizOpsUser[]>([])
@@ -76,6 +76,7 @@ export default function AdminStaffPage() {
       nationality: (user as any).nationality || '',
       date_of_birth: (user as any).date_of_birth || '',
       leave_entitlement_days: (user as any).leave_entitlement_days?.toString() || '',
+      address: (user as any).address || '',
     })
     setShowForm(true)
     setError('')
@@ -100,6 +101,7 @@ export default function AdminStaffPage() {
           nationality: (form as any).nationality || null,
           date_of_birth: (form as any).date_of_birth || null,
           leave_entitlement_days: (form as any).leave_entitlement_days || null,
+          address: (form as any).address || null,
         }),
       })
       const result = await res.json()
@@ -243,6 +245,12 @@ export default function AdminStaffPage() {
               <label className="label">Annual Leave Entitlement (days)</label>
               <input className="input" type="number" min="0" max="365" value={(form as any).leave_entitlement_days} onChange={set('leave_entitlement_days')} placeholder="e.g. 14" />
             </div>
+          </div>
+
+          <div>
+            <label className="label">Residential Address</label>
+            <input className="input" value={(form as any).address} onChange={set('address')}
+              placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
