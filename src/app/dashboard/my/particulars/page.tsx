@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import {
-  User, Phone, Shield, Globe, Calendar,
+  User, Phone, Shield, Globe, Calendar, MapPin,
   Save, CheckCircle, AlertCircle,
 } from 'lucide-react'
 
 export default function MyParticularsPage() {
   const [user, setUser] = useState<any>(null)
-  const [form, setForm] = useState({ phone: '' })
+  const [form, setForm] = useState({ phone: '', address: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
@@ -30,7 +30,7 @@ export default function MyParticularsPage() {
       // Admin has no personal HR record in this context
       if (u.role === 'admin') { router.replace('/dashboard'); return }
       setUser(u)
-      setForm({ phone: u.phone || '' })
+      setForm({ phone: u.phone || '', address: u.address || '' })
       setLoading(false)
     }
     load()
@@ -42,7 +42,7 @@ export default function MyParticularsPage() {
     const res = await fetch('/api/trainers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, phone: form.phone }),
+      body: JSON.stringify({ userId: user.id, phone: form.phone, address: form.address || null }),
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed to save'); setSaving(false); return }
@@ -137,6 +137,15 @@ export default function MyParticularsPage() {
             <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <input className="input flex-1" required type="tel" value={form.phone}
               onChange={set('phone')} placeholder="+65 9123 4567" />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Residential Address</label>
+          <div className="flex items-start gap-2">
+            <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0 mt-2.5" />
+            <input className="input flex-1" value={form.address}
+              onChange={set('address')} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
           </div>
         </div>
 
