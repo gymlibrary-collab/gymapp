@@ -225,7 +225,7 @@ export default function AdminStaffPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">NRIC / FIN</label>
+              <label className="label">NRIC / FIN / Passport</label>
               <input className="input" value={(form as any).nric} onChange={set('nric')} placeholder="e.g. S1234567A" />
             </div>
             <div>
