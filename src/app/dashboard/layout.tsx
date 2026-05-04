@@ -53,7 +53,7 @@ const managerNav: NavItem[] = [
   { label: 'Personal Training', header: true },
   { href: '/dashboard/pt/sessions', label: 'PT Schedule', icon: Calendar },
   { label: 'Operations', header: true },
-  { href: '/dashboard/hr/staff', label: 'My Trainers', icon: UserCheck },
+  { href: '/dashboard/hr/staff', label: 'My Staff', icon: UserCheck },
   { href: '/dashboard/hr/roster', label: 'Duty Roster', icon: CalendarDays },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/pt/capacity', label: 'Trainer Capacity', icon: TrendingUp },
