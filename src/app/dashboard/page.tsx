@@ -365,6 +365,7 @@ export default function DashboardPage() {
   // Manager/trainer shared state
   const [todaySessions, setTodaySessions] = useState<any[]>([])
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([])
+  const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
   const [pendingMemberships, setPendingMemberships] = useState(0)
   const [pendingSessions, setPendingSessions] = useState(0)
 
@@ -439,6 +440,28 @@ export default function DashboardPage() {
       else if (gymId) upQ = upQ.eq('gym_id', gymId)
       const { data: upData } = await upQ
       setUpcomingSessions(upData || [])
+
+      // ── Gym schedule (manager + trainer + staff): upcoming sessions ──
+      if (isManager || isTrainer || u.role === 'staff') {
+        let gymSchedQ = supabase.from('sessions')
+          .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(full_name)')
+          .eq('status', 'scheduled').gte('scheduled_at', now.toISOString())
+          .order('scheduled_at').limit(20)
+        if (isManager && gymId) {
+          // Manager: their assigned gym
+          gymSchedQ = gymSchedQ.eq('gym_id', gymId)
+        } else if (u.role === 'staff' && gymId) {
+          // Staff: their assigned gym
+          gymSchedQ = gymSchedQ.eq('gym_id', gymId)
+        } else if (isTrainer) {
+          // Trainer: all gyms they are assigned to
+          const { data: tgRows } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', authUser.id)
+          const gymIds = tgRows?.map((r: any) => r.gym_id) || []
+          if (gymIds.length > 0) gymSchedQ = gymSchedQ.in('gym_id', gymIds)
+        }
+        const { data: gymSchedData } = await gymSchedQ
+        setGymScheduleSessions(gymSchedData || [])
+      }
 
       // ── Stats ────────────────────────────────────────────
       let memberQ = supabase.from('members').select('id', { count: 'exact', head: true })
@@ -785,6 +808,48 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── Full Gym Schedule (trainer + staff) ── */}
+      {(isManager || isTrainer || isStaff) && (
+        <div className="card">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-red-600" /> Full Gym Schedule
+              {gymScheduleSessions.length > 0 && <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">{gymScheduleSessions.length}</span>}
+            </h2>
+            <span className="text-xs text-gray-400">Upcoming scheduled sessions</span>
+          </div>
+          {gymScheduleSessions.length === 0 ? (
+            <div className="p-6 text-center">
+              <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">No upcoming sessions scheduled</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {gymScheduleSessions.map((s: any) => {
+                const isOwn = s.trainer_id === user?.id
+                const dt = new Date(s.scheduled_at)
+                const dateStr = dt.toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })
+                const timeStr = dt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })
+                return (
+                  <div key={s.id} className={cn('flex items-center gap-3 p-4', isOwn && 'bg-red-50/30')}>
+                    <div className="text-center w-16 flex-shrink-0">
+                      <p className="text-xs text-gray-400">{dateStr}</p>
+                      <p className="text-sm font-bold text-gray-900">{timeStr}</p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{s.member?.full_name}</p>
+                      <p className="text-xs text-gray-400">{s.trainer?.full_name}{isOwn && ' (You)'}</p>
+                      {s.member?.phone && <p className="text-xs text-gray-400">{s.member.phone}</p>}
+                    </div>
+                    {isOwn && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium flex-shrink-0">Mine</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Manager alerts section ── */}
       {isManager && totalAlerts > 0 && (
