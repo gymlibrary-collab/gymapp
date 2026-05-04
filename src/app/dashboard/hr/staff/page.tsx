@@ -30,7 +30,7 @@ const roleBadge: Record<string, string> = {
 const emptyForm = {
   full_name: '', email: '', phone: '', role: 'trainer',
   employment_type: 'full_time', hourly_rate: '',
-  commission_signup_pct: '10', commission_session_pct: '15', membership_commission_pct: '5',
+  commission_signup_pct: '10', commission_session_pct: '15', membership_commission_sgd: '0',
   // gym_id: single-gym dropdown for full-timers (all roles)
   // gym_ids: multi-select checkboxes for part-time ops staff (rostered at any gym)
   gym_id: '', gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false,
@@ -138,7 +138,7 @@ export default function TrainersPage() {
       hourly_rate: member.hourly_rate?.toString() || '',
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
-      membership_commission_pct: member.membership_commission_pct?.toString() || '5',
+      membership_commission_sgd: member.membership_commission_sgd?.toString() || '0',
       // Full-timers (all roles): single assigned gym; part-time ops staff: multi-gym
       gym_id: member.employment_type !== 'part_time'
         ? (member.trainer_gyms?.[0]?.gym_id || member.manager_gym_id || '')
@@ -488,7 +488,7 @@ function CommissionFields({ form, setF }: { form: any; setF: any }) {
             <div><label className="label text-xs">PT Session %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_session_pct} onChange={e => setF((f: any) => ({ ...f, commission_session_pct: e.target.value }))} /></div>
           </>
         )}
-        <div><label className="label text-xs">Membership %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.membership_commission_pct} onChange={e => setF((f: any) => ({ ...f, membership_commission_pct: e.target.value }))} /></div>
+        <div><label className="label text-xs">Membership (SGD)</label><input className="input" type="number" min="0" step="0.01" value={form.membership_commission_sgd} onChange={e => setF((f: any) => ({ ...f, membership_commission_sgd: e.target.value }))} /></div>
       </div>
     </div>
   )
