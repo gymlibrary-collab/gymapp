@@ -120,6 +120,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(10)
   const [viewMode, setViewMode] = useState<ViewMode>('manager')
   const [initError, setInitError] = useState<string | null>(null)
+  const [appName, setAppName] = useState('GymApp')
 
   const router = useRouter()
   const pathname = usePathname()
@@ -187,7 +188,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes, app_name').eq('id', 'global').single()
         const mins = settings?.auto_logout_minutes || 10; logoutMinutesRef.current = mins; setAutoLogoutMinutes(mins)
         // Set browser tab title from configured app name
-        if (settings?.app_name) document.title = settings.app_name
+        if (settings?.app_name) setAppName(settings.app_name)
         if (u.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null); setGymName('Gym Library')
         } else if ((u.role === 'manager' || u.role === 'staff') && u.manager_gym_id) {
@@ -250,6 +251,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const { data: { subscription } } = supabase.auth.onAuthStateChange(event => { if (event === 'SIGNED_OUT') { stopAllTimers(); router.push('/') } })
     return () => subscription.unsubscribe()
   }, [])
+
+  // Update browser tab title on every navigation and whenever appName changes
+  useEffect(() => {
+    if (appName) document.title = appName
+  }, [appName, pathname])
 
   const switchView = (mode: ViewMode) => { sessionStorage.setItem(VIEW_KEY, mode); setViewMode(mode); setSidebarOpen(false) }
 
