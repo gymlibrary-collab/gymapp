@@ -30,7 +30,7 @@ export default function AdminGymsPage() {
           (s.trainer_gyms as any[])?.some((tg: any) => tg.gym_id === g.id)
         ).length || 0,
         partTimeTrainers: allStaff?.filter((s: any) =>
-          s.role === 'trainer' &&
+          s.role === 'staff' &&
           s.employment_type === 'part_time' &&
           (s.trainer_gyms as any[])?.some((tg: any) => tg.gym_id === g.id)
         ).length || 0,
