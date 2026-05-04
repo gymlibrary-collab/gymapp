@@ -51,10 +51,20 @@ export default function StaffPayrollDetailPage() {
     return age
   }
 
-  const getBracketRates = (brackets: any[], dob: string | null) => {
+  // Get CPF bracket rates effective for a specific payroll month.
+  // Uses effective_from to pick the most recent rates valid for that month —
+  // ensures Dec 2025 payslips use 2025 rates even if generated in Jan 2026.
+  const getBracketRates = (brackets: any[], dob: string | null, payrollYear: number, payrollMonth: number) => {
     const age = getAge(dob)
     if (age === null) return { employee_rate: 20, employer_rate: 17 }
-    const bracket = brackets.find((b: any) => age >= b.age_from && (b.age_to === null || age <= b.age_to))
+    // payroll date = first day of payroll month
+    const payrollDate = new Date(payrollYear, payrollMonth - 1, 1)
+    // Filter to brackets effective on or before payroll date, pick most recent per age group
+    const validBrackets = brackets
+      .filter((b: any) => !b.effective_from || new Date(b.effective_from) <= payrollDate)
+      .sort((a: any, b: any) => new Date(b.effective_from || 0).getTime() - new Date(a.effective_from || 0).getTime())
+    // Find matching age bracket
+    const bracket = validBrackets.find((b: any) => age >= b.age_from && (b.age_to === null || age <= b.age_to))
     return bracket
       ? { employee_rate: bracket.employee_rate, employer_rate: bracket.employer_rate }
       : { employee_rate: 20, employer_rate: 17 }
@@ -174,7 +184,7 @@ export default function StaffPayrollDetailPage() {
     const basicSalary = isPartTime ? null : (payroll?.current_salary || 0)
     const brackets = Array.isArray(cpfRates) ? cpfRates : []
     const hasDob = !!staff?.date_of_birth
-    const rates = getBracketRates(brackets, staff?.date_of_birth || null)
+    const rates = getBracketRates(brackets, staff?.date_of_birth || null, payslipForm.year, payslipForm.month)
     const isCpf = payroll?.is_cpf_liable ?? (isPartTime ? false : true)
     const bonusForMonth = bonuses.filter(b => b.month === payslipForm.month && b.year === payslipForm.year)
     const bonusAmt = bonusForMonth.reduce((s: number, b: any) => s + (b.amount || 0), 0)
@@ -185,64 +195,165 @@ export default function StaffPayrollDetailPage() {
     e.preventDefault(); setSaving(true); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const isPartTime = staff?.employment_type === 'part_time'
+    const pMonth = payslipForm.month; const pYear = payslipForm.year
 
-    // Issue 5: Hard block future month
+    // Block future months
     const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth() + 1
-    const isFuture = payslipForm.year > currentYear ||
-      (payslipForm.year === currentYear && payslipForm.month > currentMonth)
-    if (isFuture) {
-      setError(`Cannot generate a payslip for a future month (${payslipForm.month}/${payslipForm.year}). Wait until the month has ended.`)
-      setSaving(false); return
+    if (pYear > now.getFullYear() || (pYear === now.getFullYear() && pMonth > now.getMonth() + 1)) {
+      setError(`Cannot generate a payslip for a future month.`); setSaving(false); return
     }
 
-    // Issue 2: Hard block if approved or paid payslip already exists
+    // Block overwriting approved/paid payslips
     const { data: existing } = await supabase.from('payslips')
-      .select('id, status').eq('user_id', id as string)
-      .eq('month', payslipForm.month).eq('year', payslipForm.year).single()
+      .select('id, status').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear).single()
     if (existing && (existing.status === 'approved' || existing.status === 'paid')) {
-      setError(`A ${existing.status} payslip already exists for this month. Approved and paid payslips cannot be overwritten.`)
+      setError(`A ${existing.status} payslip already exists for this month and cannot be overwritten.`)
       setSaving(false); return
     }
 
-    // Issue 2 fix: only include completed shifts for part-timers
+    // ── Part-timer: sum completed roster shifts ───────────────
     let totalHours = 0, totalPay = 0
     if (isPartTime) {
-      const monthStart = `${payslipForm.year}-${String(payslipForm.month).padStart(2, '0')}-01`
-      const monthEnd = new Date(payslipForm.year, payslipForm.month, 0).toISOString().split('T')[0]
+      const monthStart = `${pYear}-${String(pMonth).padStart(2, '0')}-01`
+      const monthEnd = new Date(pYear, pMonth, 0).toISOString().split('T')[0]
       const { data: roster } = await supabase.from('duty_roster')
-        .select('hours_worked, gross_pay')
-        .eq('user_id', id)
-        .gte('shift_date', monthStart).lte('shift_date', monthEnd)
-        .eq('status', 'completed')  // completed shifts only, not scheduled or cancelled
+        .select('hours_worked, gross_pay').eq('user_id', id)
+        .gte('shift_date', monthStart).lte('shift_date', monthEnd).eq('status', 'completed')
       totalHours = roster?.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0) || 0
       totalPay = roster?.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0) || 0
     }
 
     const basicSalary = isPartTime ? totalPay : (payroll?.current_salary || 0)
-
-    // Issue 1 fix: auto-pull bonuses from staff_bonuses for this month
-    const { data: bonusRows } = await supabase.from('staff_bonuses')
-      .select('amount').eq('user_id', id as string)
-      .eq('month', payslipForm.month).eq('year', payslipForm.year)
-    const bonusAmt = bonusRows?.reduce((s: number, b: any) => s + (b.amount || 0), 0) || 0
-
     const isCpf = payroll?.is_cpf_liable ?? (isPartTime ? false : true)
 
-    // Issue 1 fix: use age-bracket rates from cpf_age_brackets
+    // ── Bonuses for this payslip month ────────────────────────
+    const { data: bonusRows } = await supabase.from('staff_bonuses')
+      .select('amount').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear)
+    const bonusAmt = bonusRows?.reduce((s: number, b: any) => s + (b.amount || 0), 0) || 0
+
+    // ── CPF ceiling config from commission_config ─────────────
+    const { data: cfgRows } = await supabase.from('commission_config')
+      .select('config_key, config_value')
+      .in('config_key', ['cpf_ow_ceiling', 'cpf_annual_ceiling'])
+    const cfg: Record<string, number> = {}
+    cfgRows?.forEach((r: any) => { cfg[r.config_key] = r.config_value })
+    const OW_CEILING = cfg['cpf_ow_ceiling'] ?? 8000
+    const ANNUAL_CEILING = cfg['cpf_annual_ceiling'] ?? 102000
+
+    // ── CPF rates: effective_from-aware bracket lookup ────────
     const brackets = Array.isArray(cpfRates) ? cpfRates : []
-    const rates = getBracketRates(brackets, staff?.date_of_birth || null)
+    const rates = getBracketRates(brackets, staff?.date_of_birth || null, pYear, pMonth)
+
+    // ── Age for low-income threshold check ────────────────────
+    const age = getAge(staff?.date_of_birth || null)
+
+    // ── YTD Ordinary Wages (prior approved/paid payslips this year) ──
+    const { data: ytdSlips } = await supabase.from('payslips')
+      .select('basic_salary, aw_subject_to_cpf, month')
+      .eq('user_id', id as string).eq('year', pYear)
+      .in('status', ['approved', 'paid'])
+      .neq('month', pMonth)
+    const ytdOWBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.basic_salary || 0), 0) || 0
+    const ytdAWCpfBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.aw_subject_to_cpf || 0), 0) || 0
+
+    // ── CPF Calculation ───────────────────────────────────────
+    let empCpf = 0, erCpf = 0
+    let cappedOW = 0, awSubject = 0
+    let empCpfAW = 0, erCpfAW = 0
+    let lowIncomeFlag = false
+
+    if (isCpf && basicSalary > 0) {
+      // Low-income threshold: age ≤55 earning ≤$50/month — no CPF required
+      if (age !== null && age <= 55 && basicSalary <= 50) {
+        lowIncomeFlag = true
+      } else {
+        // ── Ordinary Wages CPF ────────────────────────────────
+        // Check annual ceiling headroom for OW
+        const owHeadroom = Math.max(0, ANNUAL_CEILING - ytdOWBefore)
+        cappedOW = Math.min(basicSalary, OW_CEILING, owHeadroom)
+
+        const erCpfOW = Math.round(cappedOW * rates.employer_rate / 100)
+        const empCpfOW = Math.floor(cappedOW * rates.employee_rate / 100)
+
+        // ── Additional Wages CPF (bonus) ──────────────────────
+        if (bonusAmt > 0) {
+          // Projected OW = YTD OW already paid + (capped current month OW × remaining months)
+          const remainingMonths = 12 - pMonth + 1
+          const projectedOW = ytdOWBefore + (Math.min(basicSalary, OW_CEILING) * remainingMonths)
+          // AW ceiling = Annual ceiling - projected OW
+          const awCeiling = Math.max(0, ANNUAL_CEILING - projectedOW)
+          // AW already subjected to CPF this year
+          const awRemaining = Math.max(0, awCeiling - ytdAWCpfBefore)
+          awSubject = Math.min(bonusAmt, awRemaining)
+
+          if (awSubject > 0) {
+            erCpfAW = Math.round(awSubject * rates.employer_rate / 100)
+            empCpfAW = Math.floor(awSubject * rates.employee_rate / 100)
+          }
+        }
+
+        empCpf = empCpfOW + empCpfAW
+        erCpf = erCpfOW + erCpfAW
+      }
+    }
+
+    // ── December Year-End Re-calculation ────────────────────────
+    // If this is December, compare actual full-year OW against the
+    // projected OW used when any bonus was processed earlier in the year.
+    // Surface any CPF top-up or refund as an adjustment note.
+    let cpfAdjustmentAmount = 0
+    let cpfAdjustmentNote = ''
+    if (pMonth === 12 && isCpf && !lowIncomeFlag && ytdAWCpfBefore > 0) {
+      // Actual full-year OW = YTD before + December salary
+      const actualFullYearOW = ytdOWBefore + Math.min(basicSalary, OW_CEILING)
+      const cappedActualOW = Math.min(actualFullYearOW, OW_CEILING * 12)
+      const actualAWCeiling = Math.max(0, ANNUAL_CEILING - cappedActualOW)
+      const awVariance = actualAWCeiling - ytdAWCpfBefore
+      if (Math.abs(awVariance) >= 1) {
+        const erAdj = Math.round(Math.abs(awVariance) * rates.employer_rate / 100)
+        const empAdj = Math.floor(Math.abs(awVariance) * rates.employee_rate / 100)
+        const totalAdj = erAdj + empAdj
+        const direction = awVariance > 0 ? 'top-up' : 'refund'
+        cpfAdjustmentAmount = awVariance > 0 ? totalAdj : -totalAdj
+        cpfAdjustmentNote = `Year-end CPF AW adjustment (${direction}): ` +
+          `AW previously subjected to CPF: ${formatSGD(ytdAWCpfBefore)}. ` +
+          `Actual AW ceiling based on full-year OW: ${formatSGD(actualAWCeiling)}. ` +
+          `Variance: ${formatSGD(Math.abs(awVariance))}. ` +
+          `Employee ${direction}: ${formatSGD(empAdj)}. ` +
+          `Employer ${direction}: ${formatSGD(erAdj)}.`
+      }
+    }
+
+    const grossSalary = basicSalary + bonusAmt
+    const netSalary = grossSalary - empCpf
+    const totalEmployerCost = grossSalary + erCpf
 
     const { error: err } = await supabase.from('payslips').upsert({
-      user_id: id, month: payslipForm.month, year: payslipForm.year,
+      user_id: id, month: pMonth, year: pYear,
       employment_type: staff?.employment_type || 'full_time',
       basic_salary: basicSalary, bonus_amount: bonusAmt,
       total_hours: isPartTime ? totalHours : null,
       hourly_rate_used: isPartTime ? (staff?.hourly_rate || 0) : null,
       is_cpf_liable: isCpf,
-      employee_cpf_rate: isCpf ? rates.employee_rate : 0,
-      employer_cpf_rate: isCpf ? rates.employer_rate : 0,
+      employee_cpf_rate: rates.employee_rate,
+      employer_cpf_rate: rates.employer_rate,
+      // Computed CPF amounts (correct rounding + ceiling applied)
+      employee_cpf_amount: empCpf,
+      employer_cpf_amount: erCpf,
+      net_salary: netSalary,
+      total_employer_cost: totalEmployerCost,
+      // Audit trail
+      capped_ow: cappedOW,
+      aw_subject_to_cpf: awSubject,
+      employee_cpf_aw: empCpfAW,
+      employer_cpf_aw: erCpfAW,
+      ow_ceiling_used: OW_CEILING,
+      annual_ceiling_used: ANNUAL_CEILING,
+      ytd_ow_before: ytdOWBefore,
+      ytd_aw_cpf_before: ytdAWCpfBefore,
+      low_income_flag: lowIncomeFlag,
+      cpf_adjustment_amount: cpfAdjustmentAmount,
+      cpf_adjustment_note: cpfAdjustmentNote || null,
       notes: payslipForm.notes || null, status: 'draft',
       generated_by: authUser?.id, generated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,month,year' })
@@ -314,8 +425,19 @@ export default function StaffPayrollDetailPage() {
     if (slip.bonus_amount > 0) rows.push(['Bonus', formatSGD(slip.bonus_amount)])
     rows.push(['Gross Salary', formatSGD(slip.gross_salary)])
     rows.push(['', ''])
-    if (slip.is_cpf_liable) rows.push([`Employee CPF (${slip.employee_cpf_rate}%)`, `- ${formatSGD(slip.employee_cpf_amount)}`])
-    else rows.push(['CPF', 'Not applicable'])
+    if (slip.is_cpf_liable) {
+      if (slip.low_income_flag) {
+        rows.push(['CPF', 'Exempt (low income threshold)'])
+      } else {
+        rows.push([`Employee CPF - OW (${slip.employee_cpf_rate}% on ${formatSGD(slip.capped_ow ?? slip.basic_salary)})`, `- ${formatSGD(slip.employee_cpf_amount - (slip.employee_cpf_aw || 0))}`])
+        if ((slip.aw_subject_to_cpf || 0) > 0) {
+          rows.push([`Employee CPF - Bonus AW (${slip.employee_cpf_rate}% on ${formatSGD(slip.aw_subject_to_cpf)})`, `- ${formatSGD(slip.employee_cpf_aw || 0)}`])
+        }
+        if (slip.cpf_adjustment_amount && slip.cpf_adjustment_amount !== 0) {
+          rows.push([`Year-End CPF Adjustment`, `${slip.cpf_adjustment_amount > 0 ? '+' : ''}${formatSGD(slip.cpf_adjustment_amount)}`])
+        }
+      }
+    } else rows.push(['CPF', 'Not applicable'])
     rows.push(['', ''])
     rows.push(['Net Pay', formatSGD(slip.net_salary)])
 
@@ -325,7 +447,12 @@ export default function StaffPayrollDetailPage() {
       columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
     })
     const fy = (doc as any).lastAutoTable.finalY + 8
-    if (slip.is_cpf_liable) { doc.setFontSize(9); doc.setTextColor(100); doc.text(`Employer CPF (${slip.employer_cpf_rate}%): ${formatSGD(slip.employer_cpf_amount)}`, 14, fy) }
+    if (slip.is_cpf_liable && !slip.low_income_flag) {
+      doc.setFontSize(9); doc.setTextColor(100)
+      const erLine = `Employer CPF (${slip.employer_cpf_rate}%): ${formatSGD(slip.employer_cpf_amount)}` +
+        ((slip.aw_subject_to_cpf || 0) > 0 ? ` (OW: ${formatSGD(slip.employer_cpf_amount - (slip.employer_cpf_aw||0))} + Bonus AW: ${formatSGD(slip.employer_cpf_aw||0)})` : '')
+      doc.text(erLine, 14, fy)
+    }
     doc.save(`payslip_${staff?.full_name}_${getMonthName(slip.month)}_${slip.year}.pdf`)
   }
 
@@ -388,7 +515,7 @@ export default function StaffPayrollDetailPage() {
               <div className="bg-blue-50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold text-blue-700">
                   {payroll?.is_cpf_liable
-                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null).employee_rate}%`
+                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date().getFullYear(), new Date().getMonth() + 1).employee_rate}%`
                     : 'N/A'}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">Employee CPF</p>
@@ -396,7 +523,7 @@ export default function StaffPayrollDetailPage() {
               <div className="bg-red-50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold text-red-700">
                   {payroll?.is_cpf_liable
-                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null).employer_rate}%`
+                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date().getFullYear(), new Date().getMonth() + 1).employer_rate}%`
                     : 'N/A'}
                 </p>
                 <p className="text-xs text-red-600 mt-1">Employer CPF</p>
@@ -406,13 +533,18 @@ export default function StaffPayrollDetailPage() {
               <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
                 <div className="flex justify-between"><span>Gross Salary</span><span className="font-medium">{formatSGD(payroll.current_salary)}</span></div>
                 {(() => {
-                  const r = getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null)
+                  const now = new Date()
+                  const r = getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, now.getFullYear(), now.getMonth() + 1)
                   const sal = payroll.current_salary
+                  const cappedSal = Math.min(sal, 8000)
+                  const empCpfEst = Math.floor(cappedSal * r.employee_rate / 100)
+                  const erCpfEst = Math.round(cappedSal * r.employer_rate / 100)
                   return <>
-                    <div className="flex justify-between text-blue-600"><span>Employee CPF ({r.employee_rate}%)</span><span>- {formatSGD(sal * r.employee_rate / 100)}</span></div>
-                    <div className="flex justify-between font-medium text-gray-900 border-t border-gray-200 pt-1"><span>Net Take-home</span><span>{formatSGD(sal * (1 - r.employee_rate / 100))}</span></div>
-                    <div className="flex justify-between text-red-600 border-t border-gray-200 pt-1"><span>Employer CPF ({r.employer_rate}%)</span><span>+ {formatSGD(sal * r.employer_rate / 100)}</span></div>
-                    <div className="flex justify-between font-medium text-gray-900"><span>Total employer cost</span><span>{formatSGD(sal * (1 + r.employer_rate / 100))}</span></div>
+                    {sal > 8000 && <div className="flex justify-between text-amber-600"><span>OW Capped at $8,000</span><span className="font-medium">{formatSGD(cappedSal)}</span></div>}
+                    <div className="flex justify-between text-blue-600"><span>Employee CPF ({r.employee_rate}%)</span><span>- {formatSGD(empCpfEst)}</span></div>
+                    <div className="flex justify-between font-medium text-gray-900 border-t border-gray-200 pt-1"><span>Net Take-home</span><span>{formatSGD(sal - empCpfEst)}</span></div>
+                    <div className="flex justify-between text-red-600 border-t border-gray-200 pt-1"><span>Employer CPF ({r.employer_rate}%)</span><span>+ {formatSGD(erCpfEst)}</span></div>
+                    <div className="flex justify-between font-medium text-gray-900"><span>Total employer cost</span><span>{formatSGD(sal + erCpfEst)}</span></div>
                   </>
                 })()}
               </div>
@@ -543,22 +675,42 @@ export default function StaffPayrollDetailPage() {
                         </div>
                       )}
                       <div className="flex justify-between border-t border-gray-200 pt-1.5"><span className="text-gray-700">Gross</span><span className="font-semibold">{formatSGD((prev.basicSalary || 0) + prev.bonusAmt)}</span></div>
-                      {prev.isCpf && (
-                        <>
-                          <div className="flex justify-between text-blue-600">
-                            <span>Employee CPF ({prev.rates.employee_rate}%)</span>
-                            <span>- {formatSGD(((prev.basicSalary || 0) + prev.bonusAmt) * prev.rates.employee_rate / 100)}</span>
-                          </div>
-                          <div className="flex justify-between font-semibold border-t border-gray-200 pt-1.5">
-                            <span>Net Pay</span>
-                            <span>{formatSGD(((prev.basicSalary || 0) + prev.bonusAmt) * (1 - prev.rates.employee_rate / 100))}</span>
-                          </div>
-                          <div className="flex justify-between text-red-600 text-xs pt-0.5">
-                            <span>Employer CPF ({prev.rates.employer_rate}%)</span>
-                            <span>+ {formatSGD(((prev.basicSalary || 0) + prev.bonusAmt) * prev.rates.employer_rate / 100)}</span>
-                          </div>
-                        </>
-                      )}
+                      {prev.isCpf && (() => {
+                        const sal = prev.basicSalary || 0
+                        const cappedOWEst = Math.min(sal, 8000)
+                        const empCpfOWEst = Math.floor(cappedOWEst * prev.rates.employee_rate / 100)
+                        const erCpfOWEst = Math.round(cappedOWEst * prev.rates.employer_rate / 100)
+                        // AW estimate: rough ceiling = 102000 - (capped OW × 12 months)
+                        const roughAWCeiling = Math.max(0, 102000 - cappedOWEst * 12)
+                        const awEst = Math.min(prev.bonusAmt, roughAWCeiling)
+                        const empCpfAWEst = Math.floor(awEst * prev.rates.employee_rate / 100)
+                        const erCpfAWEst = Math.round(awEst * prev.rates.employer_rate / 100)
+                        const totalEmpCpf = empCpfOWEst + empCpfAWEst
+                        const totalErCpf = erCpfOWEst + erCpfAWEst
+                        return (
+                          <>
+                            {sal > 8000 && <div className="flex justify-between text-amber-600"><span className="italic">OW capped at $8,000</span><span>{formatSGD(cappedOWEst)}</span></div>}
+                            <div className="flex justify-between text-blue-600">
+                              <span>Employee CPF ({prev.rates.employee_rate}%){prev.bonusAmt > 0 ? ' OW + AW' : ''}</span>
+                              <span>- {formatSGD(totalEmpCpf)}</span>
+                            </div>
+                            <div className="flex justify-between font-semibold border-t border-gray-200 pt-1.5">
+                              <span>Est. Net Pay</span>
+                              <span>{formatSGD(sal + prev.bonusAmt - totalEmpCpf)}</span>
+                            </div>
+                            <div className="flex justify-between text-red-600 text-xs pt-0.5">
+                              <span>Employer CPF ({prev.rates.employer_rate}%){prev.bonusAmt > 0 ? ' OW + AW' : ''}</span>
+                              <span>+ {formatSGD(totalErCpf)}</span>
+                            </div>
+                            {prev.bonusAmt > 0 && awEst < prev.bonusAmt && (
+                              <div className="text-xs text-amber-600 mt-1 italic">
+                                Bonus CPF capped — AW ceiling estimated at {formatSGD(roughAWCeiling)}. Exact amount calculated at generation.
+                              </div>
+                            )}
+                            {payslipForm.month === 12 && <div className="text-xs text-amber-600 mt-1 italic">December: system will check for year-end CPF AW adjustment at generation.</div>}
+                          </>
+                        )
+                      })()}
                       {!prev.isCpf && (
                         <div className="flex justify-between font-semibold border-t border-gray-200 pt-1.5"><span>Net Pay</span><span>{formatSGD((prev.basicSalary || 0) + prev.bonusAmt)}</span></div>
                       )}
@@ -584,8 +736,18 @@ export default function StaffPayrollDetailPage() {
                   <div><p className="font-medium text-gray-900 text-sm">{getMonthName(ps.month)} {ps.year}</p><p className="text-xs text-gray-500">{ps.employment_type === 'part_time' ? `${ps.total_hours}h roster` : `Basic: ${formatSGD(ps.basic_salary)}`}{ps.bonus_amount > 0 && ` + ${formatSGD(ps.bonus_amount)}`}</p></div>
                   <div className="text-right"><p className="font-bold text-gray-900">{formatSGD(ps.net_salary)}</p><p className="text-xs text-gray-400">net pay</p></div>
                 </div>
+                {ps.cpf_adjustment_note && (
+                  <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2 text-xs text-amber-700">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Year-End CPF Adjustment</p>
+                      <p className="mt-0.5">{ps.cpf_adjustment_note}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', ps.status === 'paid' ? 'bg-green-100 text-green-700' : ps.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'badge-pending')}>{ps.status.charAt(0).toUpperCase() + ps.status.slice(1)}</span>
+                  {ps.low_income_flag && <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Low Income — No CPF</span>}
                   {ps.status === 'draft' && <button onClick={() => handlePayslipAction(ps.id, 'approved')} className="text-xs text-blue-600 hover:underline">Approve</button>}
                   {ps.status === 'draft' && <button onClick={() => handleDeletePayslip(ps.id)} className="text-xs text-red-500 hover:underline">Delete</button>}
                   {ps.status === 'approved' && <button onClick={() => handlePayslipAction(ps.id, 'paid')} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
