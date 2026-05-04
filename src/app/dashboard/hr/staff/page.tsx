@@ -31,7 +31,9 @@ const emptyForm = {
   full_name: '', email: '', phone: '', role: 'trainer',
   employment_type: 'full_time', hourly_rate: '',
   commission_signup_pct: '10', commission_session_pct: '15', membership_commission_pct: '5',
-  gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false,
+  // gym_id: single-gym dropdown for full-timers (all roles)
+  // gym_ids: multi-select checkboxes for part-time ops staff (rostered at any gym)
+  gym_id: '', gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false,
   date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '',
   nric: '', nationality: 'Singaporean',
   leave_entitlement_days: '14',
@@ -104,6 +106,10 @@ export default function TrainersPage() {
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
       membership_commission_pct: member.membership_commission_pct?.toString() || '5',
+      // Full-timers (all roles): single assigned gym; part-time ops staff: multi-gym
+      gym_id: member.employment_type !== 'part_time'
+        ? (member.trainer_gyms?.[0]?.gym_id || member.manager_gym_id || '')
+        : '',
       gym_ids: member.trainer_gyms?.map((tg: any) => tg.gym_id) || [],
       manager_gym_id: member.manager_gym_id || '',
       is_also_trainer: member.is_also_trainer || false,
@@ -287,16 +293,18 @@ export default function TrainersPage() {
               <EmploymentFields form={createForm} setF={setCreateForm} />
 
               {/* Gym assignment */}
-              {createForm.role === 'trainer' && (
+              {/* Full-timers: single gym dropdown. Part-time trainers: multi-gym checkboxes. */}
+              {createForm.employment_type === 'part_time' && (
                 <div>
                   <label className="label">Assign to Gym(s)</label>
+                  <p className="text-xs text-gray-400 mb-1.5">Part-time ops staff can be rostered at multiple gyms and paid from each.</p>
                   <div className="space-y-1.5">{gyms.map(g => <label key={g.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={createForm.gym_ids.includes(g.id)} onChange={() => toggleGym(g.id, 'create')} className="rounded border-gray-300 text-red-600" /><span className="text-sm text-gray-700">{g.name}</span></label>)}</div>
                 </div>
               )}
-              {(createForm.role === 'manager' || createForm.role === 'staff') && (
+              {(createForm.role !== 'admin' && createForm.role !== 'business_ops') && createForm.employment_type === 'full_time' && (
                 <>
-                  <div><label className="label">Assigned Gym *</label><select className="input" required value={createForm.manager_gym_id} onChange={e => setCreateForm(f => ({ ...f, manager_gym_id: e.target.value }))}><option value="">Select gym...</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
-                  <AlsoTrainerToggle value={createForm.is_also_trainer} onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))} />
+                  <div><label className="label">Assigned Gym *</label><select className="input" required value={createForm.gym_id} onChange={e => setCreateForm(f => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">Select gym...</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+                  {(createForm.role === 'manager' || createForm.role === 'staff') && <AlsoTrainerToggle value={createForm.is_also_trainer} onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))} />}
                 </>
               )}
 
@@ -327,13 +335,18 @@ export default function TrainersPage() {
                 </div>
               )}
 
-              {editForm.role === 'trainer' && !isSelf(editingUser) && (
-                <div><label className="label">Gym Assignments</label><div className="space-y-1.5">{gyms.map(g => <label key={g.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={(editForm as any).gym_ids.includes(g.id)} onChange={() => toggleGym(g.id, 'edit')} className="rounded border-gray-300 text-red-600" /><span className="text-sm text-gray-700">{g.name}</span></label>)}</div></div>
+              {/* Full-timers: single gym dropdown. Part-time trainers: multi-gym checkboxes. */}
+              {(editForm as any).employment_type === 'part_time' && !isSelf(editingUser) && (
+                <div>
+                  <label className="label">Gym Assignments</label>
+                  <p className="text-xs text-gray-400 mb-1.5">Part-time ops staff can be rostered at multiple gyms and paid from each.</p>
+                  <div className="space-y-1.5">{gyms.map(g => <label key={g.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={(editForm as any).gym_ids.includes(g.id)} onChange={() => toggleGym(g.id, 'edit')} className="rounded border-gray-300 text-red-600" /><span className="text-sm text-gray-700">{g.name}</span></label>)}</div>
+                </div>
               )}
-              {(editForm.role === 'manager' || editForm.role === 'staff') && !isSelf(editingUser) && (
+              {(editForm.role !== 'admin' && editForm.role !== 'business_ops') && (editForm as any).employment_type === 'full_time' && !isSelf(editingUser) && (
                 <>
-                  <div><label className="label">Assigned Gym</label><select className="input" value={(editForm as any).manager_gym_id} onChange={e => setEditForm((f: any) => ({ ...f, manager_gym_id: e.target.value }))}><option value="">— No gym assigned —</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
-                  <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />
+                  <div><label className="label">Assigned Gym</label><select className="input" value={(editForm as any).gym_id} onChange={e => setEditForm((f: any) => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">— No gym assigned —</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select></div>
+                  {(editForm.role === 'manager' || editForm.role === 'staff') && <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />}
                 </>
               )}
 
