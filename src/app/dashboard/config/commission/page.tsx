@@ -38,20 +38,19 @@ export default function CommissionConfigPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const now = new Date().toISOString()
 
-    await Promise.all([
-      supabase.from('commission_config').upsert({
-        config_key: 'membership_commission_pct',
-        config_value: parseFloat(membershipPct),
-        description: 'Default membership sale commission percentage for all staff',
-        updated_by: user?.id, updated_at: now,
-      }, { onConflict: 'config_key' }),
-      supabase.from('commission_config').upsert({
-        config_key: 'default_hourly_rate',
-        config_value: parseFloat(defaultHourlyRate),
-        description: 'Default hourly rate for part-time staff (SGD)',
-        updated_by: user?.id, updated_at: now,
-      }, { onConflict: 'config_key' }),
-    ])
+    // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
+    await supabase.from('commission_config').upsert({
+      config_key: 'membership_commission_pct',
+      config_value: parseFloat(membershipPct),
+      description: 'Default membership sale commission percentage for all staff',
+      updated_by: user?.id, updated_at: now,
+    }, { onConflict: 'config_key' })
+    await supabase.from('commission_config').upsert({
+      config_key: 'default_hourly_rate',
+      config_value: parseFloat(defaultHourlyRate),
+      description: 'Default hourly rate for part-time staff (SGD)',
+      updated_by: user?.id, updated_at: now,
+    }, { onConflict: 'config_key' })
 
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
