@@ -26,7 +26,8 @@ export default function MembersPage() {
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
       // Business Ops does not have direct access to member records. They review
       // membership activity via the Dashboard tile and the Membership Sales page.
-      if (userData?.role === 'business_ops') { router.replace('/dashboard'); return }
+      // Admin and Biz Ops do not access member records directly
+      if (!userData || ['business_ops', 'admin'].includes(userData.role)) { router.replace('/dashboard'); return }
       setUser(userData)
 
       // Load members with their current active membership
