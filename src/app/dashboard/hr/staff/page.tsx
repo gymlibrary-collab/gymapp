@@ -360,7 +360,8 @@ export default function TrainersPage() {
               <PersonalFields form={editForm} setF={setEditForm} />
               <EmploymentFields form={editForm} setF={setEditForm} />
 
-              {!isSelf(editingUser) && (
+              {/* Role and status changes are Biz Ops only — managers cannot change staff roles */}
+              {!isSelf(editingUser) && isBizOps && (
                 <div className="grid grid-cols-2 gap-3">
                   <div><label className="label">Role</label><select className="input" value={editForm.role} onChange={e => setEditForm((f: any) => ({ ...f, role: e.target.value }))}>{ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
                   <div><label className="label">Status</label><select className="input" value={(editForm as any).is_active ? 'active' : 'inactive'} onChange={e => setEditForm((f: any) => ({ ...f, is_active: e.target.value === 'active' }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
