@@ -46,7 +46,7 @@ export default function RegisterMemberPage() {
       const { data: typesData } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
       setMembershipTypes(typesData || [])
 
-      const { data: cfg } = await supabase.from('commission_config').select('config_value').eq('config_key', 'membership_commission_pct').single()
+      const { data: cfg } = await supabase.from('commission_config').select('config_value').eq('config_key', 'membership_commission_sgd').single()
       if (cfg) setCommissionPct(cfg.config_value)
 
       // Auto-select gym for manager
@@ -106,7 +106,8 @@ export default function RegisterMemberPage() {
       start_date: startDate.toISOString().split('T')[0],
       end_date: endDate.toISOString().split('T')[0],
       sold_by_user_id: authUser!.id,
-      commission_pct: commissionPct,
+      commission_pct: 0,
+      commission_sgd: commissionPct,
       sale_status: 'pending',
       notes: membershipForm.notes || null,
     })
