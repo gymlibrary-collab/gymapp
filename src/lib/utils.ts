@@ -84,3 +84,14 @@ export function formatWhatsAppReminder({
 
   return { clientMessage, trainerMessage }
 }
+
+export function getRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    admin: 'Admin',
+    business_ops: 'Business Ops',
+    manager: 'Manager',
+    trainer: 'Trainer',
+    staff: 'Staff',
+  }
+  return labels[role] ?? role
+}
