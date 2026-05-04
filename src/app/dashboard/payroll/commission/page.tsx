@@ -38,7 +38,7 @@ export default function CommissionPayoutsPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
 
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
     setCurrentUser(userData)
