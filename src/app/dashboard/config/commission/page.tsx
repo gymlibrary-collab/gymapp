@@ -27,7 +27,7 @@ export default function CommissionConfigPage() {
       const cfg: Record<string, any> = {}
       data?.forEach((c: any) => { cfg[c.config_key] = c })
       setConfig(cfg)
-      setMembershipPct(cfg['membership_commission_pct']?.config_value?.toString() || '5')
+      setMembershipPct(cfg['membership_commission_sgd']?.config_value?.toString() || '5')
       setDefaultHourlyRate(cfg['default_hourly_rate']?.config_value?.toString() || '12')
     }
     load()
@@ -40,9 +40,9 @@ export default function CommissionConfigPage() {
 
     // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
     await supabase.from('commission_config').upsert({
-      config_key: 'membership_commission_pct',
+      config_key: 'membership_commission_sgd',
       config_value: parseFloat(membershipPct),
-      description: 'Default membership sale commission percentage for all staff',
+      description: 'Fixed membership sale commission per sale (SGD)',
       updated_by: user?.id, updated_at: now,
     }, { onConflict: 'config_key' })
     await supabase.from('commission_config').upsert({
@@ -65,7 +65,7 @@ export default function CommissionConfigPage() {
 
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-        <p>These are default rates. Individual staff commission rates can be overridden in Staff Management. Part-timer hourly rates can be overridden when adding roster shifts.</p>
+        <p>Membership sale commission is a fixed SGD amount applied equally to all staff. PT commissions (sign-up and session) are percentage-based and can be overridden per staff member in Staff Management. Part-timer hourly rates can be overridden when adding roster shifts.</p>
       </div>
 
       <div className="card p-4 space-y-5">
@@ -74,12 +74,12 @@ export default function CommissionConfigPage() {
         </h2>
 
         <div>
-          <label className="label">Membership Sale Commission Rate (%)</label>
-          <input className="input" type="number" min="0" max="100" step="0.5"
+          <label className="label">Membership Sale Commission (SGD per sale)</label>
+          <input className="input" type="number" min="0" step="0.01"
             value={membershipPct} onChange={e => setMembershipPct(e.target.value)} />
           <p className="text-xs text-gray-400 mt-1">
-            Applied to all staff who log a confirmed gym membership sale.
-            At {membershipPct}%, a {formatSGD(120)} sale earns {formatSGD(120 * parseFloat(membershipPct || '0') / 100)} commission.
+            Fixed amount paid to staff per confirmed membership sale, regardless of sale price.
+            Every membership sold earns {formatSGD(parseFloat(membershipPct || '0'))} commission.
           </p>
         </div>
 
@@ -102,9 +102,9 @@ export default function CommissionConfigPage() {
         </button>
       </div>
 
-      {config['membership_commission_pct']?.updated_at && (
+      {config['membership_commission_sgd']?.updated_at && (
         <p className="text-xs text-gray-400 text-center">
-          Last updated: {new Date(config['membership_commission_pct'].updated_at).toLocaleDateString('en-SG')}
+          Last updated: {new Date(config['membership_commission_sgd'].updated_at).toLocaleDateString('en-SG')}
         </p>
       )}
     </div>
