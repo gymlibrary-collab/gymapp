@@ -34,7 +34,8 @@ export default function PtSessionsPage() {
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
     // Business Ops does not need session-level visibility — operational
     // detail is reviewed in person with each gym manager.
-    if (userData?.role === 'business_ops') { router.replace('/dashboard'); return }
+    // Block roles that should not access session list
+    if (!userData || ['business_ops', 'admin'].includes(userData.role)) { router.replace('/dashboard'); return }
     setUser(userData)
 
     let q = supabase.from('sessions')
