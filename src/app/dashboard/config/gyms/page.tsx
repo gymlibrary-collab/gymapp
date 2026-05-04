@@ -70,7 +70,8 @@ export default function GymManagementPage() {
 
   const uploadLogo = async (gymId: string, file: File): Promise<string | null> => {
     const path = `gym-${gymId}`
-    await supabase.storage.from('gym-logos').remove([path])
+    // Use upsert:true — no need to remove first, and remove() on a
+    // non-existent object triggers an RLS error when the row doesn't exist.
     const { error } = await supabase.storage.from('gym-logos').upload(path, file, {
       upsert: true, cacheControl: '0',
     })
