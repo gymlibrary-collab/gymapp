@@ -34,6 +34,10 @@ export default function RegisterMemberPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // Admin and Biz Ops cannot register members — they have no assigned gym context.
+      if (!userData || ['admin', 'business_ops'].includes(userData.role)) {
+        router.replace('/dashboard/members'); return
+      }
       setCurrentUser(userData)
 
       const { data: gymsData } = await supabase.from('gyms').select('*').eq('is_active', true).order('name')
