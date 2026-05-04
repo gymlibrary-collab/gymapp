@@ -76,10 +76,12 @@ export default function TrainersPage() {
     let activeQ = supabase.from('users')
       .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
       .eq('is_archived', false)
+      .not('role', 'in', '("admin","business_ops")')
 
     let archQ = supabase.from('users')
       .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
       .eq('is_archived', true)
+      .not('role', 'in', '("admin","business_ops")')
 
     if (isManager && gymId) {
       // Trainers assigned to this gym via trainer_gyms
