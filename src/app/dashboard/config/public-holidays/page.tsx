@@ -39,7 +39,9 @@ export default function PublicHolidaysPage() {
     e.preventDefault(); setSaving(true); setError('')
     const { data: { user } } = await supabase.auth.getUser()
     const { error: err } = await supabase.from('public_holidays').insert({
-      holiday_date: form.holiday_date, name: form.name, created_by: user?.id,
+      holiday_date: form.holiday_date,
+      name: form.name,
+      created_by: user?.id,
     })
     if (err) { setError(err.message); setSaving(false); return }
     await load(); setShowForm(false); setForm({ holiday_date: '', name: '' })
