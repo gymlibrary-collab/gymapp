@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
@@ -11,12 +12,17 @@ export default function MyRosterPage() {
   const [shifts, setShifts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     const load = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // Roster is only for part-time ops staff
+      if (!userData || !(userData.role === 'staff' && userData.employment_type === 'part_time')) {
+        router.replace('/dashboard'); return
+      }
       setUser(userData)
 
       const today = new Date().toISOString().split('T')[0]
