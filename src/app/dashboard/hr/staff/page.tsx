@@ -34,7 +34,7 @@ const emptyForm = {
   // gym_id: single-gym dropdown for full-timers (all roles)
   // gym_ids: multi-select checkboxes for part-time ops staff (rostered at any gym)
   gym_id: '', gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false,
-  date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '',
+  date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '', address: '',
   nric: '', nationality: 'Singaporean',
   leave_entitlement_days: '',
 }
@@ -150,6 +150,7 @@ export default function TrainersPage() {
       date_of_joining: member.date_of_joining || '',
       date_of_departure: member.date_of_departure || '',
       departure_reason: member.departure_reason || '',
+      address: member.address || '',
       nric: member.nric || '',
       leave_entitlement_days: member.leave_entitlement_days?.toString() || '',
       nationality: member.nationality || 'Singaporean',
@@ -446,6 +447,7 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
       {form.date_of_departure && (
         <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
       )}
+      <div><label className="label">Residential Address</label><input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" /></div>
     </>
   )
 }
