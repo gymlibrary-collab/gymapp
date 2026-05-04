@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD } from '@/lib/utils'
 import { Plus, Edit2, X, Save, CheckCircle, Layers, AlertCircle } from 'lucide-react'
@@ -15,12 +16,19 @@ export default function MembershipTypesPage() {
   const [error, setError] = useState('')
   const [form, setForm] = useState({ name: '', duration_days: '', price_sgd: '' })
   const supabase = createClient()
+  const router = useRouter()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
 
   useEffect(() => { load() }, [])
 
   const load = async () => {
+    // Route guard — Business Ops only
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || !['business_ops'].includes(me.role)) { router.replace('/dashboard'); return }
+
     const { data } = await supabase.from('membership_types').select('*').order('price_sgd')
     setTypes(data || [])
   }
