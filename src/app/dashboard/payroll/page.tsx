@@ -193,7 +193,7 @@ export default function PayrollPage() {
   const noSalary = fullTimers.filter(s => !s.staff_payroll?.current_salary).length
 
   const roleBadge: Record<string, string> = {
-    admin: 'bg-red-100 text-red-700', trainer: 'bg-green-100 text-green-700',
+    admin: 'bg-red-100 text-red-700', trainer: 'bg-teal-100 text-teal-700',
     manager: 'bg-yellow-100 text-yellow-800', business_ops: 'bg-purple-100 text-purple-700',
   }
 
