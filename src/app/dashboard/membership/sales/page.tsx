@@ -160,7 +160,7 @@ export default function MembershipSalesPage() {
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                     <span>{sale.membership_type_name} · {formatSGD(sale.price_sgd)}</span>
                     <span>{formatDate(sale.start_date)} → {formatDate(sale.end_date)}</span>
-                    {!isBizOps && <span className="text-green-600 font-medium">Commission: {formatSGD(sale.commission_sgd)} ({sale.commission_pct}%)</span>}
+                    {!isBizOps && <span className="text-green-600 font-medium">Commission: {formatSGD(sale.commission_sgd)}</span>}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">Sold by: {sale.sold_by?.full_name} · {sale.gym?.name}</p>
                   {sale.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Rejected: {sale.rejection_reason}</p>}
