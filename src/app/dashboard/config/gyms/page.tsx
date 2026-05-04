@@ -99,7 +99,7 @@ export default function GymManagementPage() {
       if (err) { setError(err.message); setSaving(false); return }
       // Upload logo if a new file was selected
       if (logoFile) {
-        if (logoFile.size > 1 * 1024 * 1024) { setError('Logo image exceeds 1MB. Please choose a smaller file.'); setSaving(false); return }
+        if (logoFile.size > 2 * 1024 * 1024) { setError('Logo image exceeds 2MB. Please choose a smaller file.'); setSaving(false); return }
         const logoUrl = await uploadLogo(editingGym.id, logoFile)
         if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', editingGym.id)
       }
@@ -109,7 +109,7 @@ export default function GymManagementPage() {
         .insert({ ...payload, is_active: true }).select('id').single()
       if (err) { setError(err.message); setSaving(false); return }
       if (logoFile && created?.id) {
-        if (logoFile.size > 1 * 1024 * 1024) { setError('Logo image exceeds 1MB. Please choose a smaller file.'); setSaving(false); return }
+        if (logoFile.size > 2 * 1024 * 1024) { setError('Logo image exceeds 2MB. Please choose a smaller file.'); setSaving(false); return }
         const logoUrl = await uploadLogo(created.id, logoFile)
         if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', created.id)
       }
@@ -238,7 +238,7 @@ export default function GymManagementPage() {
                     const f = e.target.files?.[0]
                     if (f) { setLogoFile(f); setLogoPreview(URL.createObjectURL(f)) }
                   }} />
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Transparent background recommended · Max 1MB</p>
+                <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Transparent background recommended · Max 2MB</p>
                 {logoPreview && <p className="text-xs text-green-600 mt-1">✓ Logo ready to upload</p>}
               </div>
             </div>
