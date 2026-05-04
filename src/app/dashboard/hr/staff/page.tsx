@@ -36,7 +36,7 @@ const emptyForm = {
   gym_id: '', gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false,
   date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '',
   nric: '', nationality: 'Singaporean',
-  leave_entitlement_days: '14',
+  leave_entitlement_days: '',
 }
 
 export default function TrainersPage() {
@@ -148,7 +148,7 @@ export default function TrainersPage() {
       date_of_departure: member.date_of_departure || '',
       departure_reason: member.departure_reason || '',
       nric: member.nric || '',
-      leave_entitlement_days: member.leave_entitlement_days?.toString() || '14',
+      leave_entitlement_days: member.leave_entitlement_days?.toString() || '',
       nationality: member.nationality || 'Singaporean',
     })
     setShowCreateForm(false); setError('')
