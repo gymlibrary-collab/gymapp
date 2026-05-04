@@ -36,6 +36,9 @@ export default function NewPtSessionPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // Only trainers and manager-trainers can schedule PT sessions
+      const canSchedule = userData?.role === 'trainer' || (userData?.role === 'manager' && userData?.is_also_trainer)
+      if (!userData || !canSchedule) { router.replace('/dashboard/pt/sessions'); return }
       setCurrentUser(userData)
 
       // Load members with active PT packages for this trainer
