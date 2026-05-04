@@ -26,6 +26,7 @@ const adminNav: NavItem[] = [
 const bizOpsNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Operations', header: true },
+  { href: '/dashboard/config/gyms', label: 'Gym Clubs', icon: Building2 },
   { href: '/dashboard/membership/sales', label: 'Membership Sales', icon: CreditCard },
   { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
