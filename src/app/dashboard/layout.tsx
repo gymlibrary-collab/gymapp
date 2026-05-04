@@ -125,14 +125,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const supabase = createClient()
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const logoutMinutesRef = useRef(10)
-  const countdownRef = useRef(60)
-  const isLoggedInRef = useRef(false)
+  const countdownTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const logoutMinutesRef   = useRef(10)
+  const isLoggedInRef      = useRef(false)
+  // Fix A: track last activity timestamp in a ref so Page Visibility checks use real wall-clock time
+  const lastActivityRef    = useRef<number>(Date.now())
+  // Fix B: record when the 60-second countdown actually started (wall-clock) so throttled
+  // intervals still know the real elapsed time
+  const countdownStartRef  = useRef<number>(0)
 
   const stopAllTimers = () => {
     if (inactivityTimerRef.current) { clearTimeout(inactivityTimerRef.current); inactivityTimerRef.current = null }
-    if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null }
+    if (countdownTimerRef.current)  { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null }
   }
 
   const performLogout = async (reason: 'timeout' | 'manual' = 'timeout') => {
@@ -141,19 +145,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const startCountdown = () => {
-    countdownRef.current = 60; setCountdown(60); setShowWarning(true)
+    // Fix B: record wall-clock start time instead of counting ticks
+    countdownStartRef.current = Date.now()
+    setCountdown(60); setShowWarning(true)
     countdownTimerRef.current = setInterval(() => {
-      countdownRef.current -= 1; setCountdown(countdownRef.current)
-      if (countdownRef.current <= 0) { stopAllTimers(); performLogout('timeout') }
-    }, 1000)
+      // Use actual elapsed time — works correctly even when the browser throttles the interval
+      const elapsed = Math.floor((Date.now() - countdownStartRef.current) / 1000)
+      const remaining = Math.max(0, 60 - elapsed)
+      setCountdown(remaining)
+      if (remaining <= 0) { stopAllTimers(); performLogout('timeout') }
+    }, 500) // poll at 500ms so display stays accurate even if some ticks are delayed
   }
 
   const startInactivityTimer = () => {
     stopAllTimers(); setShowWarning(false)
-    inactivityTimerRef.current = setTimeout(startCountdown, Math.max(logoutMinutesRef.current * 60 * 1000 - 60_000, 0))
+    lastActivityRef.current = Date.now()
+    inactivityTimerRef.current = setTimeout(
+      startCountdown,
+      Math.max(logoutMinutesRef.current * 60 * 1000 - 60_000, 0)
+    )
   }
 
-  const handleActivity = () => { if (!isLoggedInRef.current || countdownTimerRef.current) return; startInactivityTimer() }
+  const handleActivity = () => {
+    if (!isLoggedInRef.current || countdownTimerRef.current) return
+    startInactivityTimer()
+  }
 
   useEffect(() => {
     const init = async () => {
@@ -184,10 +200,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
         startInactivityTimer()
         ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handleActivity, { passive: true }))
+
+        // Fix A: Page Visibility API — check elapsed time when tab becomes visible again.
+        // Browsers throttle/freeze setTimeout and setInterval in background tabs, so the
+        // inactivity timer may never fire while the user is away. On visibility restore,
+        // we compare wall-clock elapsed time against the timeout threshold directly.
+        const handleVisibilityChange = () => {
+          if (!isLoggedInRef.current) return
+          if (document.visibilityState === 'visible') {
+            const elapsedMs = Date.now() - lastActivityRef.current
+            const timeoutMs = logoutMinutesRef.current * 60 * 1000
+            if (elapsedMs >= timeoutMs) {
+              // User was away longer than the full timeout — logout immediately
+              performLogout('timeout')
+            } else if (elapsedMs >= timeoutMs - 60_000) {
+              // User was away long enough to be in the warning window — start countdown
+              // with the remaining time already factored in via countdownStartRef
+              countdownStartRef.current = Date.now() - (elapsedMs - (timeoutMs - 60_000))
+              if (!countdownTimerRef.current) startCountdown()
+            } else {
+              // Not yet timed out — restart inactivity timer with remaining time
+              stopAllTimers(); setShowWarning(false)
+              const remainingMs = timeoutMs - 60_000 - elapsedMs
+              inactivityTimerRef.current = setTimeout(startCountdown, Math.max(remainingMs, 0))
+            }
+          } else {
+            // Tab is going hidden — record the timestamp
+            lastActivityRef.current = Date.now()
+          }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        // Store cleanup reference
+        ;(window as any).__gymapp_visibilityHandler = handleVisibilityChange
       } catch (e: any) { setInitError(e.message) }
     }
     init()
-    return () => { stopAllTimers(); ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handleActivity)); isLoggedInRef.current = false }
+    return () => {
+      stopAllTimers()
+      ACTIVITY_EVENTS.forEach(e => window.removeEventListener(e, handleActivity))
+      const vh = (window as any).__gymapp_visibilityHandler
+      if (vh) { document.removeEventListener('visibilitychange', vh); delete (window as any).__gymapp_visibilityHandler }
+      isLoggedInRef.current = false
+    }
   }, [])
 
   useEffect(() => {
