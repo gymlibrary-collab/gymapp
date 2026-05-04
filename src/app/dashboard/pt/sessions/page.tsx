@@ -49,11 +49,23 @@ export default function PtSessionsPage() {
     if (gymId) q = q.eq('gym_id', gymId)
     else if (isStaff && userData.manager_gym_id) q = q.eq('gym_id', userData.manager_gym_id)
     else if (userData.role === 'trainer') {
-      const { data: tg } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', authUser.id).eq('is_primary', true).single()
-      if (tg) q = q.eq('gym_id', (tg as any).gym_id)
+      if (viewFilter === 'mine') {
+        // My Sessions: own sessions only, all statuses, all assigned gyms
+        q = q.eq('trainer_id', authUser.id)
+      } else {
+        // Full Gym Schedule: all trainers' upcoming sessions across all assigned gyms
+        const { data: tgRows } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', authUser.id)
+        const gymIds = tgRows?.map((r: any) => r.gym_id) || []
+        if (gymIds.length > 0) q = q.in('gym_id', gymIds)
+        // Full gym schedule shows upcoming only for other trainers
+        q = q.eq('status', 'scheduled')
+      }
     }
 
-    if (viewFilter === 'mine' && isTrainer) q = q.eq('trainer_id', authUser.id)
+    // isActingAsTrainer (manager in trainer view): scope to own sessions or gym
+    if (isActingAsTrainer && gymId) {
+      if (viewFilter === 'mine') q = q.eq('trainer_id', authUser.id)
+    }
 
     const now = new Date().toISOString()
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
@@ -254,7 +266,9 @@ export default function PtSessionsPage() {
                   <div>
                     <p className="font-medium text-gray-900 text-sm">{session.member?.full_name}</p>
                     <p className="text-xs text-gray-500">{formatDateTime(session.scheduled_at)}</p>
-                    {!isTrainer && <p className="text-xs text-blue-600 mt-0.5">Trainer: {session.trainer?.full_name}</p>}
+                    {(!isTrainer || viewFilter === 'all') && session.trainer?.full_name && (
+                      <p className="text-xs text-blue-600 mt-0.5">Trainer: {session.trainer?.full_name}</p>
+                    )}
                     {session.rescheduled_from && <p className="text-xs text-amber-600 mt-0.5">↺ Rescheduled from {formatDateTime(session.rescheduled_from)}</p>}
                     {session.cancellation_reason && <p className="text-xs text-gray-400 mt-0.5">Cancelled: {session.cancellation_reason}</p>}
                     {session.package?.package_name && <p className="text-xs text-gray-400 mt-0.5">{session.package.package_name}</p>}
@@ -264,11 +278,13 @@ export default function PtSessionsPage() {
                   </span>
                 </div>
 
-                {session.performance_notes && (
+                {/* Performance notes: only show for own sessions */}
+                {isOwnSession && session.performance_notes && (
                   <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">{session.performance_notes}</p>
                 )}
 
-                {session.status === 'completed' && session.session_commission_sgd > 0 && (
+                {/* Commission: only show for own sessions */}
+                {isOwnSession && session.status === 'completed' && session.session_commission_sgd > 0 && (
                   <p className="text-xs text-green-600 font-medium">Commission: {formatSGD(session.session_commission_sgd)}</p>
                 )}
 
