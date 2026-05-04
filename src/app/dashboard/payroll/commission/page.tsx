@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatSGD, formatDate, getMonthName } from '@/lib/utils'
+import { formatSGD, formatDate, getMonthName , getRoleLabel } from '@/lib/utils'
 import {
   TrendingUp, Plus, CheckCircle, AlertCircle, X,
   Download, Users, DollarSign, Calendar, Search
@@ -225,7 +225,7 @@ export default function CommissionPayoutsPage() {
                     onChange={() => setGenForm(f => ({ ...f, user_ids: f.user_ids.includes(s.id) ? f.user_ids.filter(id => id !== s.id) : [...f.user_ids, s.id] }))}
                     className="rounded border-gray-300 text-red-600" />
                   <span className="text-sm text-gray-700">{s.full_name}</span>
-                  <span className="text-xs text-gray-400 ml-auto">{s.role}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{getRoleLabel(s.role)}</span>
                 </label>
               ))}
             </div>
