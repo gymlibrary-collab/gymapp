@@ -66,14 +66,44 @@ export default function TrainersPage() {
     }
     setCurrentUser(userData)
 
-    const { data: active } = await supabase.from('users')
+    // Biz Ops: sees all staff across all gyms (scoped by RLS).
+    // Manager: scoped to staff in their gym only — trainers via trainer_gyms,
+    //   full-time ops staff via manager_gym_id. Excludes admin and biz ops roles.
+    const isManager = userData.role === 'manager'
+    const gymId = userData.manager_gym_id
+
+    let activeQ = supabase.from('users')
       .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
-      .eq('is_archived', false).order('employment_type').order('role').order('full_name')
+      .eq('is_archived', false)
+
+    let archQ = supabase.from('users')
+      .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
+      .eq('is_archived', true)
+
+    if (isManager && gymId) {
+      // Trainers assigned to this gym via trainer_gyms
+      const { data: tgRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
+      const trainerIds = tgRows?.map((r: any) => r.trainer_id) || []
+
+      // Only roles a manager should see: trainer and staff (not admin/biz ops/other managers)
+      activeQ = activeQ.in('role', ['trainer', 'staff'])
+      archQ   = archQ.in('role', ['trainer', 'staff'])
+
+      if (trainerIds.length > 0) {
+        // Match trainers in this gym OR full-time ops staff assigned to this gym
+        activeQ = activeQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId}`)
+        archQ   = archQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId}`)
+      } else {
+        // No trainers in gym — show only full-time ops staff assigned here
+        activeQ = activeQ.eq('manager_gym_id', gymId)
+        archQ   = archQ.eq('manager_gym_id', gymId)
+      }
+    }
+
+    const { data: active } = await activeQ.order('employment_type').order('role').order('full_name')
     setStaff(active || [])
 
-    const { data: arch } = await supabase.from('users')
-      .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
-      .eq('is_archived', true).order('archived_at', { ascending: false })
+    const { data: arch } = await archQ.order('archived_at', { ascending: false })
     setArchived(arch || [])
 
     const { data: gymData } = await supabase.from('gyms').select('*').eq('is_active', true)
