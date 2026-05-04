@@ -41,8 +41,8 @@ export default function MyGymPage() {
     // Show preview immediately
     setLogoPreview(URL.createObjectURL(file))
 
-    if (file.size > 1 * 1024 * 1024) {
-      setError('Image exceeds 1MB. Please choose a smaller file.'); setUploading(false); return
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Image exceeds 2MB. Please choose a smaller file.'); setUploading(false); return
     }
 
     const path = `gym-${gym.id}`
@@ -113,7 +113,7 @@ export default function MyGymPage() {
             </label>
             <input id="gym-logo" type="file" accept="image/*" className="hidden"
               disabled={uploading} onChange={handleLogoChange} />
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Square image recommended · Max 1MB</p>
+            <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Square image recommended · Max 2MB</p>
           </div>
         </div>
 
