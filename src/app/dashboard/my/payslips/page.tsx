@@ -108,7 +108,7 @@ export default function MyPayslipsPage() {
     doc.text(`Name: ${user?.full_name}`, 14, yPos); yPos += 6
     doc.text(`Email: ${user?.email}`, 14, yPos); yPos += 6
     if (user?.date_of_joining) { doc.text(`Date of Joining: ${user.date_of_joining}`, 14, yPos); yPos += 6 }
-    if (user?.nric) { doc.text(`NRIC/FIN: ${user.nric}`, 14, yPos); yPos += 6 }
+    if (user?.nric) { doc.text(`NRIC/FIN/Passport: ${user.nric}`, 14, yPos); yPos += 6 }
     doc.setTextColor(0); yPos += 4
 
     const rows: any[] = []
