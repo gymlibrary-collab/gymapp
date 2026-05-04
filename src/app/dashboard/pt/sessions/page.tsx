@@ -46,8 +46,11 @@ export default function PtSessionsPage() {
     const isStaff = userData.role === 'staff'
     const gymId = userData.manager_gym_id
 
-    if (gymId) q = q.eq('gym_id', gymId)
-    else if (isStaff && userData.manager_gym_id) q = q.eq('gym_id', userData.manager_gym_id)
+    if (gymId && !isStaff) q = q.eq('gym_id', gymId)
+    else if (isStaff && userData.manager_gym_id) {
+      // Staff sees upcoming scheduled sessions at their gym only (for operational support)
+      q = q.eq('gym_id', userData.manager_gym_id).eq('status', 'scheduled')
+    }
     else if (userData.role === 'trainer') {
       if (viewFilter === 'mine') {
         // My Sessions: own sessions only, all statuses, all assigned gyms
@@ -82,6 +85,7 @@ export default function PtSessionsPage() {
 
   const isManager = user?.role === 'manager' && !isActingAsTrainer
   const isTrainer = user?.role === 'trainer' || isActingAsTrainer
+  const isStaff = user?.role === 'staff'
 
   const handleManagerConfirm = async (sessionId: string) => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -184,13 +188,16 @@ export default function PtSessionsPage() {
         </div>
       )}
 
-      <div className="flex gap-1 flex-wrap">
-        {[{ k: 'upcoming', l: 'Upcoming' }, { k: 'pending_confirm', l: 'Pending Confirm' }, { k: 'completed', l: 'Completed' }, { k: 'cancelled', l: 'Cancelled' }].map(({ k, l }) => (
-          <button key={k} onClick={() => setFilter(k)}
-            className={cn('px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
-              filter === k ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>{l}</button>
-        ))}
-      </div>
+      {/* Status filter tabs — hidden for staff (they see upcoming only) */}
+      {!isStaff && (
+        <div className="flex gap-1 flex-wrap">
+          {[{ k: 'upcoming', l: 'Upcoming' }, { k: 'pending_confirm', l: 'Pending Confirm' }, { k: 'completed', l: 'Completed' }, { k: 'cancelled', l: 'Cancelled' }].map(({ k, l }) => (
+            <button key={k} onClick={() => setFilter(k)}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors',
+                filter === k ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>{l}</button>
+          ))}
+        </div>
+      )}
 
       {/* Action modals */}
       {actionSession && actionType === 'cancel' && (
