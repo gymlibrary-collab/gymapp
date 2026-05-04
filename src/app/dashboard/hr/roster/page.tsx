@@ -52,16 +52,20 @@ export default function RosterPage() {
   useEffect(() => { loadData() }, [weekStart])
 
   const loadData = async () => {
-    // Route guard — manager only. Business Ops reviews part-timer schedules
-    // in person with each gym manager rather than micromanaging here.
+    // Route guard — manager (full access) or Biz Ops (read-only for payroll reconciliation).
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'manager') { router.replace('/dashboard'); return }
+    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
 
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
     setCurrentUser(u)
-    const gId = u.manager_gym_id || null
+    // Biz Ops has no assigned gym — default to first active gym for roster view
+    let gId = u.manager_gym_id || null
+    if (me.role === 'business_ops' && !gId) {
+      const { data: firstGym } = await supabase.from('gyms').select('id').eq('is_active', true).order('name').limit(1).single()
+      gId = firstGym?.id || null
+    }
     setGymId(gId)
 
     if (gId) {
@@ -201,8 +205,8 @@ export default function RosterPage() {
   }
 
   const handleDelete = async (entry: any) => {
-    if (entry.is_locked && currentUser?.role !== 'business_ops') {
-      setError('Shift is locked. Only Business Ops can delete it.'); return
+    if (entry.is_locked) {
+      setError('Shift is locked and cannot be deleted. Contact Business Ops to handle via payroll.'); return
     }
     if (!confirm('Delete this shift?')) return
     await supabase.from('duty_roster').delete().eq('id', entry.id)
@@ -222,12 +226,12 @@ export default function RosterPage() {
           <p className="text-sm text-gray-500">{gymName} · Part-time staff</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowPresetForm(!showPresetForm)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
+          {!isBizOps && <button onClick={() => setShowPresetForm(!showPresetForm)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
             <Settings className="w-3.5 h-3.5" /> Manage Shifts
-          </button>
-          <button onClick={() => setShowBulkForm(!showBulkForm)} className="btn-primary flex items-center gap-1.5">
+          </button>}
+          {!isBizOps && <button onClick={() => setShowBulkForm(!showBulkForm)} className="btn-primary flex items-center gap-1.5">
             <Plus className="w-4 h-4" /> Add Shifts
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -235,7 +239,7 @@ export default function RosterPage() {
       {error && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}<button onClick={() => setError('')} className="ml-auto"><X className="w-4 h-4" /></button></div>}
 
       {/* Preset manager */}
-      {showPresetForm && (
+      {showPresetForm && !isBizOps && (
         <div className="card p-4 space-y-4 border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 text-sm">Shift Time Presets</h2>
@@ -272,7 +276,7 @@ export default function RosterPage() {
       </div>
 
       {/* Bulk entry form */}
-      {showBulkForm && (
+      {showBulkForm && !isBizOps && (
         <form onSubmit={handleBulkSubmit} className="card p-4 space-y-4 border-red-200">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 text-sm">Add Shifts in Bulk</h2>
@@ -433,12 +437,12 @@ export default function RosterPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      {!entry.is_locked && (
+                      {!isBizOps && !entry.is_locked && (
                         <button onClick={() => handleLock(entry)} title="Lock" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg">
                           <Lock className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {(isBizOps || !entry.is_locked) && (
+                      {!isBizOps && !entry.is_locked && (
                         <button onClick={() => handleDelete(entry)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
