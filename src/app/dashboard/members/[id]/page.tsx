@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDate, formatSGD } from '@/lib/utils'
@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 
 export default function MemberProfilePage() {
   const { id } = useParams()
+  const router = useRouter()
   const [member, setMember] = useState<any>(null)
   const [memberships, setMemberships] = useState<any[]>([])
   const [ptPackages, setPtPackages] = useState<any[]>([])
@@ -55,6 +56,10 @@ export default function MemberProfilePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    // Admin and Biz Ops do not have access to individual member records.
+    if (!userData || ['admin', 'business_ops'].includes(userData.role)) {
+      router.replace('/dashboard'); return
+    }
     setCurrentUser(userData)
 
     const { data: m } = await supabase.from('members').select('*, gym:gyms(name)').eq('id', id).single()
