@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { Building2, Users, UserCheck, Dumbbell, MapPin, Maximize2, Calendar } from 'lucide-react'
@@ -10,9 +11,15 @@ export default function AdminGymsPage() {
   const [gyms, setGyms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const router = useRouter()
 
   useEffect(() => {
     const load = async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) { router.replace('/dashboard'); return }
+      const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+      if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
+
       const { data: gymsData } = await supabase
         .from('gyms').select('*').order('name')
 
