@@ -28,7 +28,7 @@ export default function CpfPage() {
   const [submissions, setSubmissions] = useState<any[]>([])
   const [preview, setPreview] = useState<any>(null)
   const [editingBracket, setEditingBracket] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState({ employee_rate: 0, employer_rate: 0 })
+  const [editValues, setEditValues] = useState({ employee_rate: 0, employer_rate: 0, effective_from: '' })
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [generating, setGenerating] = useState(false)
@@ -85,6 +85,7 @@ export default function CpfPage() {
     await supabase.from('cpf_age_brackets').update({
       employee_rate: editValues.employee_rate,
       employer_rate: editValues.employer_rate,
+      effective_from: editValues.effective_from || null,
       updated_by: user?.id, updated_at: new Date().toISOString(),
     }).eq('id', id)
     await load(); setEditingBracket(null); setSaving(false); showMsg('CPF rate updated')
@@ -184,20 +185,21 @@ export default function CpfPage() {
                     <div><label className="label text-xs">Employee CPF %</label><input className="input" type="number" step="0.1" value={editValues.employee_rate} onChange={e => setEditValues(v => ({ ...v, employee_rate: parseFloat(e.target.value) }))} /></div>
                     <div><label className="label text-xs">Employer CPF %</label><input className="input" type="number" step="0.1" value={editValues.employer_rate} onChange={e => setEditValues(v => ({ ...v, employer_rate: parseFloat(e.target.value) }))} /></div>
                   </div>
+                  <div><label className="label text-xs">Effective From</label><input className="input" type="date" value={editValues.effective_from} onChange={e => setEditValues(v => ({ ...v, effective_from: e.target.value }))} /></div>
                   <div className="flex gap-2"><button onClick={() => handleSaveBracket(b.id)} disabled={saving} className="btn-primary text-xs py-1.5"><Save className="w-3.5 h-3.5 mr-1" />Save</button><button onClick={() => setEditingBracket(null)} className="btn-secondary text-xs py-1.5">Cancel</button></div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{b.label}</p>
-                    <p className="text-xs text-gray-500">Age {b.age_from}{b.age_to ? `–${b.age_to}` : '+'}</p>
+                    {b.effective_from && <p className="text-xs text-gray-400">Effective {b.effective_from.split('T')[0]}</p>}
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <div className="text-center"><p className="font-bold text-blue-700">{b.employee_rate}%</p><p className="text-xs text-gray-400">Employee</p></div>
                     <div className="text-center"><p className="font-bold text-red-700">{b.employer_rate}%</p><p className="text-xs text-gray-400">Employer</p></div>
                     <div className="text-center"><p className="font-bold text-gray-900">{b.employee_rate + b.employer_rate}%</p><p className="text-xs text-gray-400">Total</p></div>
                   </div>
-                  <button onClick={() => { setEditingBracket(b.id); setEditValues({ employee_rate: b.employee_rate, employer_rate: b.employer_rate }) }}
+                  <button onClick={() => { setEditingBracket(b.id); setEditValues({ employee_rate: b.employee_rate, employer_rate: b.employer_rate, effective_from: b.effective_from ? b.effective_from.split('T')[0] : '' }) }}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
                     <Edit2 className="w-4 h-4" />
                   </button>
