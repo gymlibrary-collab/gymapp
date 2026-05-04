@@ -10,7 +10,7 @@ import {
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
   FileText, Banknote, X, Building2, UserCheck, Clock,
   Calculator, Briefcase, CreditCard, CalendarDays, Receipt,
-  TrendingUp, Layers, UserMinus, MessageSquare
+  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -42,8 +42,9 @@ const bizOpsNav: NavItem[] = [
   { label: 'Reports', header: true },
   { href: '/dashboard/reports', label: 'Summary Reports', icon: BarChart3 },
   { label: 'My Account', header: true },
-  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
+  { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
 
 const managerNav: NavItem[] = [
@@ -61,6 +62,7 @@ const managerNav: NavItem[] = [
   { href: '/dashboard/pt/capacity', label: 'Trainer Capacity', icon: TrendingUp },
   { href: '/dashboard/reports', label: 'Reports', icon: BarChart3 },
   { label: 'My Account', header: true },
+  { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
@@ -79,6 +81,7 @@ const pureTrainerNav: NavItem[] = [
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { label: 'My Account', header: true },
+  { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
@@ -88,6 +91,7 @@ const partTimerNav: NavItem[] = [
   { href: '/dashboard/my/roster', label: 'My Roster', icon: CalendarDays },
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { label: 'My Account', header: true },
+  { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
   // My Leave intentionally excluded — part-timers do not apply for leave in this system
 ]
@@ -98,6 +102,7 @@ const staffNav: NavItem[] = [
   { href: '/dashboard/members', label: 'Member Lookup', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
   { label: 'My Account', header: true },
+  { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
 ]
