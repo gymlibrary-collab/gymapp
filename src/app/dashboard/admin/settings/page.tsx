@@ -44,6 +44,7 @@ export default function AdminSettingsPage() {
   }, [])
 
   const uploadLogo = async (file: File, bucket: string, path: string) => {
+    if (file.size > 1 * 1024 * 1024) { alert('Image exceeds 1MB. Please choose a smaller file.'); return null }
     await supabase.storage.from(bucket).remove([path])
     const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, cacheControl: '0' })
     if (error) return null
@@ -97,7 +98,7 @@ export default function AdminSettingsPage() {
           </label>
           <input id={id} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) onChange(f) }} />
-          <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG. Transparent background recommended.</p>
+          <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Transparent background recommended · Max 1MB</p>
           {preview && <p className="text-xs text-green-600 mt-1">✓ Image loaded</p>}
         </div>
       </div>
