@@ -44,6 +44,9 @@ export default function PtSessionNotesPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // Only trainers and managers can view session notes
+      const canView = userData?.role === 'trainer' || userData?.role === 'manager'
+      if (!userData || !canView) { router.replace('/dashboard'); return }
       setCurrentUser(userData)
       const { data } = await supabase.from('sessions')
         .select('*, member:members(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
