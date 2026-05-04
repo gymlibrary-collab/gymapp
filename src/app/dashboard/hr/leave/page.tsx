@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate } from '@/lib/utils'
+import { formatDate , getRoleLabel } from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucide-react'
 import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
@@ -278,7 +278,7 @@ export default function LeaveManagementPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900">{s.full_name}</p>
-                  <p className="text-xs text-gray-400 capitalize">{s.role}</p>
+                  <p className="text-xs text-gray-400">{getRoleLabel(s.role)}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className={cn('text-sm font-bold', s.balance < 0 ? 'text-red-700' : s.balance < 3 ? 'text-red-600' : 'text-gray-900')}>
