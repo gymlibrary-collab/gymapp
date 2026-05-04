@@ -100,13 +100,16 @@ export async function PATCH(request: Request) {
     const isSelf       = userId === user.id
     const isBizOps     = currentUser?.role === 'business_ops'
     const isManager    = currentUser?.role === 'manager'
+    const isAdmin      = currentUser?.role === 'admin'
 
     // ── Access guard ─────────────────────────────────────────
     // Business Ops: full access to all staff records across all gyms.
+    // Admin: basic fields only (name, email, phone, status) — used by admin/staff page
+    //   to manage Biz Ops accounts.
     // Manager: can edit trainers assigned to their own gym (commission only).
     // Any user: can edit their own record (basic details only — see payload below).
     // Everyone else: forbidden.
-    if (!isBizOps && !isSelf) {
+    if (!isBizOps && !isSelf && !isAdmin) {
       if (isManager) {
         const { data: gymCheck } = await serverClient
           .from('trainer_gyms').select('trainer_id')
@@ -161,6 +164,13 @@ export async function PATCH(request: Request) {
       // manager_gym_id: written for all roles so the DB stays consistent
       // with the gym dropdown selection regardless of role
       if (manager_gym_id !== undefined)          updatePayload.manager_gym_id = manager_gym_id || null
+    }
+
+    // Admin: basic fields + active status only — used for managing Biz Ops accounts.
+    // Gym assignment and role changes remain Biz Ops only.
+    if (isAdmin) {
+      if (is_active !== undefined) updatePayload.is_active = is_active
+      if (body.date_of_joining !== undefined) updatePayload.date_of_joining = body.date_of_joining || null
     }
 
     // Manager: can update commission rates for trainers in their gym
