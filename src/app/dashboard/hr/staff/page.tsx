@@ -115,6 +115,8 @@ export default function TrainersPage() {
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
 
+  // (sub-components defined at module level below)
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
     const res = await fetch('/api/trainers', {
@@ -200,93 +202,7 @@ export default function TrainersPage() {
   if (filterRole !== 'all') filteredStaff = filteredStaff.filter(s => s.role === filterRole)
   if (filterType !== 'all') filteredStaff = filteredStaff.filter(s => (s.employment_type || 'full_time') === filterType)
 
-  const AlsoTrainerToggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
-    <div className={cn('flex items-start gap-3 p-3 rounded-lg border cursor-pointer', value ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300')}
-      onClick={() => onChange(!value)}>
-      <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5', value ? 'border-red-500 bg-red-500' : 'border-gray-300')}>
-        {value && <CheckCircle className="w-3.5 h-3.5 text-white" />}
-      </div>
-      <div>
-        <p className="text-sm font-medium text-gray-900">Also acts as a Trainer</p>
-        <p className="text-xs text-gray-500 mt-0.5">Can manage own members, schedule sessions and earn trainer commissions.</p>
-      </div>
-    </div>
-  )
 
-  // Shared fields for create/edit
-  const PersonalFields = ({ form, setF }: { form: any; setF: any }) => (
-    <>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
-        <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
-        {isBizOps && <div><label className="label">NRIC / FIN</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>}
-      </div>
-      {isBizOps && (
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="label">Nationality</label><input className="input" value={form.nationality} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
-          <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
-        <div><label className="label">Date of Departure</label><input className="input" type="date" value={form.date_of_departure} onChange={e => setF((f: any) => ({ ...f, date_of_departure: e.target.value }))} /></div>
-      </div>
-      {isBizOps && (
-        <div>
-          <label className="label">Annual Leave Entitlement (days) *</label>
-          <input className="input" type="number" required min="0" max="365"
-            value={form.leave_entitlement_days}
-            onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
-            placeholder="e.g. 14" />
-          <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
-        </div>
-      )}
-      {form.date_of_departure && (
-        <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
-      )}
-    </>
-  )
-
-  const EmploymentFields = ({ form, setF }: { form: any; setF: any }) => (
-    <>
-      <div>
-        <label className="label">Employment Type *</label>
-        <div className="flex gap-2">
-          {['full_time', 'part_time'].map(et => (
-            <label key={et} className={cn('flex-1 flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors',
-              form.employment_type === et ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300')}>
-              <input type="radio" checked={form.employment_type === et} onChange={() => setF((f: any) => ({ ...f, employment_type: et }))} />
-              <div>
-                <p className="text-sm font-medium text-gray-900">{et === 'full_time' ? 'Full Time' : 'Part Time'}</p>
-                <p className="text-xs text-gray-400">{et === 'full_time' ? 'Fixed monthly salary' : 'Hourly rate per shift'}</p>
-              </div>
-            </label>
-          ))}
-        </div>
-      </div>
-      {form.employment_type === 'part_time' && isBizOps && (
-        <div><label className="label">Hourly Rate (SGD)</label><input className="input" type="number" min="0" step="0.50" value={form.hourly_rate} onChange={e => setF((f: any) => ({ ...f, hourly_rate: e.target.value }))} placeholder="e.g. 12.00" /></div>
-      )}
-    </>
-  )
-
-  const CommissionFields = ({ form, setF }: { form: any; setF: any }) => (
-    <div className="space-y-3">
-      <p className="text-xs font-medium text-gray-700">Commission Rates</p>
-      <div className="grid grid-cols-3 gap-2">
-        {(form.role === 'trainer' || (form.role === 'manager' && form.is_also_trainer)) && (
-          <>
-            <div><label className="label text-xs">PT Sign-up %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_signup_pct} onChange={e => setF((f: any) => ({ ...f, commission_signup_pct: e.target.value }))} /></div>
-            <div><label className="label text-xs">PT Session %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_session_pct} onChange={e => setF((f: any) => ({ ...f, commission_session_pct: e.target.value }))} /></div>
-          </>
-        )}
-        <div><label className="label text-xs">Membership %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.membership_commission_pct} onChange={e => setF((f: any) => ({ ...f, membership_commission_pct: e.target.value }))} /></div>
-      </div>
-    </div>
-  )
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -311,9 +227,9 @@ export default function TrainersPage() {
             <form onSubmit={handleCreate} className="card p-4 space-y-4 border-red-200">
               <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Add New Staff Member</h2><button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
-              {/* Role */}
+              {/* Role — Biz Ops cannot create admin or business_ops accounts */}
               <div className="grid grid-cols-2 gap-2">
-                {ALL_ROLES.map(r => (
+                {ALL_ROLES.filter(r => isBizOps ? !['admin', 'business_ops'].includes(r.value) : true).map(r => (
                   <label key={r.value} className={cn('flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors', createForm.role === r.value ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300')}>
                     <input type="radio" name="create_role" value={r.value} checked={createForm.role === r.value} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))} className="mt-0.5 flex-shrink-0" />
                     <div><p className="text-xs font-medium text-gray-900">{r.label}</p><p className="text-xs text-gray-400">{r.description}</p></div>
@@ -321,8 +237,8 @@ export default function TrainersPage() {
                 ))}
               </div>
 
-              <PersonalFields form={createForm} setF={setCreateForm} />
-              <EmploymentFields form={createForm} setF={setCreateForm} />
+              <PersonalFields form={createForm} setF={setCreateForm} isBizOps={isBizOps} />
+              <EmploymentFields form={createForm} setF={setCreateForm} isBizOps={isBizOps} />
 
               {/* Gym assignment */}
               {/* Full-timers: single gym dropdown. Part-time trainers: multi-gym checkboxes. */}
@@ -357,13 +273,13 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
               </div>
 
-              <PersonalFields form={editForm} setF={setEditForm} />
-              <EmploymentFields form={editForm} setF={setEditForm} />
+              <PersonalFields form={editForm} setF={setEditForm} isBizOps={isBizOps} />
+              <EmploymentFields form={editForm} setF={setEditForm} isBizOps={isBizOps} />
 
               {/* Role and status changes are Biz Ops only — managers cannot change staff roles */}
               {!isSelf(editingUser) && isBizOps && (
                 <div className="grid grid-cols-2 gap-3">
-                  <div><label className="label">Role</label><select className="input" value={editForm.role} onChange={e => setEditForm((f: any) => ({ ...f, role: e.target.value }))}>{ALL_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
+                  <div><label className="label">Role</label><select className="input" value={editForm.role} onChange={e => setEditForm((f: any) => ({ ...f, role: e.target.value }))}>{ALL_ROLES.filter(r => isBizOps ? !['admin', 'business_ops'].includes(r.value) : true).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
                   <div><label className="label">Status</label><select className="input" value={(editForm as any).is_active ? 'active' : 'inactive'} onChange={e => setEditForm((f: any) => ({ ...f, is_active: e.target.value === 'active' }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
                 </div>
               )}
@@ -472,6 +388,106 @@ export default function TrainersPage() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Stable sub-components (module level) ─────────────────────────────────────
+// Defined OUTSIDE the page component so React reuses the same reference across
+// renders. Inline definitions cause inputs to unmount/remount on every state
+// change, kicking the cursor out after each keystroke.
+
+function AlsoTrainerToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className={cn('flex items-start gap-3 p-3 rounded-lg border cursor-pointer', value ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300')}
+      onClick={() => onChange(!value)}>
+      <div className={cn('w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5', value ? 'border-red-500 bg-red-500' : 'border-gray-300')}>
+        {value && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-gray-900">Also acts as a Trainer</p>
+        <p className="text-xs text-gray-500 mt-0.5">Can manage own members, schedule sessions and earn trainer commissions.</p>
+      </div>
+    </div>
+  )
+}
+
+function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizOps: boolean }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
+        <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
+        {isBizOps && <div><label className="label">NRIC / FIN</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>}
+      </div>
+      {isBizOps && (
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className="label">Nationality</label><input className="input" value={form.nationality} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
+          <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
+        <div><label className="label">Date of Departure</label><input className="input" type="date" value={form.date_of_departure} onChange={e => setF((f: any) => ({ ...f, date_of_departure: e.target.value }))} /></div>
+      </div>
+      {isBizOps && (
+        <div>
+          <label className="label">Annual Leave Entitlement (days) *</label>
+          <input className="input" type="number" required min="0" max="365"
+            value={form.leave_entitlement_days}
+            onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
+            placeholder="e.g. 14" />
+          <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
+        </div>
+      )}
+      {form.date_of_departure && (
+        <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
+      )}
+    </>
+  )
+}
+
+function EmploymentFields({ form, setF, isBizOps }: { form: any; setF: any; isBizOps: boolean }) {
+  return (
+    <>
+      <div>
+        <label className="label">Employment Type *</label>
+        <div className="flex gap-2">
+          {['full_time', 'part_time'].map(et => (
+            <label key={et} className={cn('flex-1 flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors',
+              form.employment_type === et ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300')}>
+              <input type="radio" checked={form.employment_type === et} onChange={() => setF((f: any) => ({ ...f, employment_type: et }))} />
+              <div>
+                <p className="text-sm font-medium text-gray-900">{et === 'full_time' ? 'Full Time' : 'Part Time'}</p>
+                <p className="text-xs text-gray-400">{et === 'full_time' ? 'Fixed monthly salary' : 'Hourly rate per shift'}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+      {form.employment_type === 'part_time' && isBizOps && (
+        <div><label className="label">Hourly Rate (SGD)</label><input className="input" type="number" min="0" step="0.50" value={form.hourly_rate} onChange={e => setF((f: any) => ({ ...f, hourly_rate: e.target.value }))} placeholder="e.g. 12.00" /></div>
+      )}
+    </>
+  )
+}
+
+function CommissionFields({ form, setF }: { form: any; setF: any }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-gray-700">Commission Rates</p>
+      <div className="grid grid-cols-3 gap-2">
+        {(form.role === 'trainer' || (form.role === 'manager' && form.is_also_trainer)) && (
+          <>
+            <div><label className="label text-xs">PT Sign-up %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_signup_pct} onChange={e => setF((f: any) => ({ ...f, commission_signup_pct: e.target.value }))} /></div>
+            <div><label className="label text-xs">PT Session %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_session_pct} onChange={e => setF((f: any) => ({ ...f, commission_session_pct: e.target.value }))} /></div>
+          </>
+        )}
+        <div><label className="label text-xs">Membership %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.membership_commission_pct} onChange={e => setF((f: any) => ({ ...f, membership_commission_pct: e.target.value }))} /></div>
+      </div>
     </div>
   )
 }
