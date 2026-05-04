@@ -88,17 +88,25 @@ export async function PATCH(request: Request) {
       .from('users').select('role, manager_gym_id').eq('id', user.id).single()
 
     const body = await request.json()
-    const { userId, full_name, email, phone, role, is_active, date_of_birth, date_of_joining, date_of_departure, departure_reason,
+    const {
+      userId, full_name, email, phone, role, is_active,
+      date_of_birth, date_of_joining, date_of_departure, departure_reason,
       commission_signup_pct, commission_session_pct,
       gym_ids, gym_id, manager_gym_id, reset_login, is_also_trainer,
-      employment_type: bodyEmploymentType } = body
+      employment_type: bodyEmploymentType,
+    } = body
 
     const adminClient = createAdminClient()
-    const isSelf = userId === user.id
-    const isAdmin = currentUser?.role === 'admin'
-    const isManager = currentUser?.role === 'manager'
+    const isSelf       = userId === user.id
+    const isBizOps     = currentUser?.role === 'business_ops'
+    const isManager    = currentUser?.role === 'manager'
 
-    if (!isAdmin && !isSelf) {
+    // ── Access guard ─────────────────────────────────────────
+    // Business Ops: full access to all staff records across all gyms.
+    // Manager: can edit trainers assigned to their own gym (commission only).
+    // Any user: can edit their own record (basic details only — see payload below).
+    // Everyone else: forbidden.
+    if (!isBizOps && !isSelf) {
       if (isManager) {
         const { data: gymCheck } = await serverClient
           .from('trainer_gyms').select('trainer_id')
@@ -109,7 +117,7 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Update auth
+    // ── Auth update (email / display name) ───────────────────
     const authUpdates: any = {}
     if (email) authUpdates.email = email
     if (full_name) authUpdates.user_metadata = { full_name }
@@ -125,38 +133,40 @@ export async function PATCH(request: Request) {
       }
     }
 
-    // Build update payload
+    // ── User record update ───────────────────────────────────
     const updatePayload: any = {}
-    if (full_name !== undefined) updatePayload.full_name = full_name
-    if (email !== undefined) updatePayload.email = email
-    if (phone !== undefined) updatePayload.phone = phone || null
 
-    // Admin and Biz Ops have full write access to staff records.
-    const isBizOpsUser = currentUser?.role === 'business_ops'
-    if (isAdmin || isBizOpsUser) {
-      if (role !== undefined) updatePayload.role = role
-      if (is_active !== undefined) updatePayload.is_active = is_active
-      if (commission_signup_pct !== undefined) updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
-      if (commission_session_pct !== undefined) updatePayload.commission_session_pct = parseFloat(commission_session_pct)
+    // Fields any user can update on their own record
+    if (full_name !== undefined) updatePayload.full_name = full_name
+    if (email !== undefined)     updatePayload.email = email
+    if (phone !== undefined)     updatePayload.phone = phone || null
+
+    // Business Ops: full staff record management
+    if (isBizOps) {
+      if (role !== undefined)                    updatePayload.role = role
+      if (is_active !== undefined)               updatePayload.is_active = is_active
+      if (is_also_trainer !== undefined)         updatePayload.is_also_trainer = is_also_trainer
+      if (bodyEmploymentType !== undefined)      updatePayload.employment_type = bodyEmploymentType
+      if (commission_signup_pct !== undefined)   updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
+      if (commission_session_pct !== undefined)  updatePayload.commission_session_pct = parseFloat(commission_session_pct)
       if (body.membership_commission_pct !== undefined) updatePayload.membership_commission_pct = parseFloat(body.membership_commission_pct)
-      if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
-      if (is_also_trainer !== undefined) updatePayload.is_also_trainer = is_also_trainer
-      if (role === 'manager' || manager_gym_id !== undefined) {
-        updatePayload.manager_gym_id = manager_gym_id || null
-      }
-      if (bodyEmploymentType !== undefined) updatePayload.employment_type = bodyEmploymentType
-      if (body.hourly_rate !== undefined) updatePayload.hourly_rate = body.hourly_rate ? parseFloat(body.hourly_rate) : null
-      if (body.nric !== undefined) updatePayload.nric = body.nric || null
-      if (body.nationality !== undefined) updatePayload.nationality = body.nationality || null
-      if (body.date_of_birth !== undefined) updatePayload.date_of_birth = body.date_of_birth || null
-      if (body.date_of_joining !== undefined) updatePayload.date_of_joining = body.date_of_joining || null
-      if (body.date_of_departure !== undefined) updatePayload.date_of_departure = body.date_of_departure || null
-      if (body.departure_reason !== undefined) updatePayload.departure_reason = body.departure_reason || null
+      if (body.leave_entitlement_days !== undefined)    updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
+      if (body.hourly_rate !== undefined)        updatePayload.hourly_rate = body.hourly_rate ? parseFloat(body.hourly_rate) : null
+      if (body.nric !== undefined)               updatePayload.nric = body.nric || null
+      if (body.nationality !== undefined)        updatePayload.nationality = body.nationality || null
+      if (body.date_of_birth !== undefined)      updatePayload.date_of_birth = body.date_of_birth || null
+      if (body.date_of_joining !== undefined)    updatePayload.date_of_joining = body.date_of_joining || null
+      if (body.date_of_departure !== undefined)  updatePayload.date_of_departure = body.date_of_departure || null
+      if (body.departure_reason !== undefined)   updatePayload.departure_reason = body.departure_reason || null
+      // manager_gym_id: written for all roles so the DB stays consistent
+      // with the gym dropdown selection regardless of role
+      if (manager_gym_id !== undefined)          updatePayload.manager_gym_id = manager_gym_id || null
     }
 
+    // Manager: can update commission rates for trainers in their gym
     if (isManager) {
-      if (commission_signup_pct !== undefined) updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
-      if (commission_session_pct !== undefined) updatePayload.commission_session_pct = parseFloat(commission_session_pct)
+      if (commission_signup_pct !== undefined)   updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
+      if (commission_session_pct !== undefined)  updatePayload.commission_session_pct = parseFloat(commission_session_pct)
     }
 
     if (Object.keys(updatePayload).length > 0) {
@@ -164,34 +174,35 @@ export async function PATCH(request: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Update gym assignments for trainers and manager-trainers.
-    // Full-timers (all roles): gym_id (single) — dropdown selection.
-    // Part-time trainers: gym_ids (array) — multi-gym checkbox selection.
-    const hasGymChange = gym_id !== undefined || gym_ids !== undefined || manager_gym_id !== undefined
-    if ((isAdmin || isBizOpsUser) && hasGymChange) {
-      const targetRole = role ?? (await adminClient.from('users').select('role, employment_type').eq('id', userId).single()).data?.role
-      const targetEmployment = bodyEmploymentType ?? (await adminClient.from('users').select('employment_type').eq('id', userId).single()).data?.employment_type
+    // ── Gym assignment (Business Ops only) ───────────────────
+    // Full-time staff (all roles): gym_id single dropdown → one trainer_gyms row.
+    // Part-time ops staff: gym_ids multi-select → multiple trainer_gyms rows
+    //   (they can be rostered at any gym and paid per gym per month).
+    if (isBizOps && (gym_id !== undefined || gym_ids !== undefined)) {
+      // Resolve the target staff member's employment type from the form body
+      // (always sent) so we don't need a second DB round-trip.
+      const targetEmployment = bodyEmploymentType
+        ?? (await adminClient.from('users').select('employment_type').eq('id', userId).single()).data?.employment_type
 
       let idsToAssign: string[] = []
-      if (targetRole === 'manager' && manager_gym_id) {
-        idsToAssign = [manager_gym_id]
-      } else if (targetEmployment === 'part_time' && gym_ids !== undefined) {
-        // Part-time ops staff: multi-gym from checkboxes (rostered at any gym)
+      if (targetEmployment === 'part_time' && gym_ids !== undefined) {
+        // Part-time ops staff: multi-gym from checkboxes
         idsToAssign = gym_ids
       } else if (gym_id) {
-        // Full-timers (trainer, staff, manager): single gym from dropdown
+        // Full-time staff: single gym from dropdown
         idsToAssign = [gym_id]
       }
 
-      if (idsToAssign.length > 0 || gym_ids?.length === 0) {
-        await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
-        if (idsToAssign.length > 0) {
-          await adminClient.from('trainer_gyms').insert(
-            idsToAssign.map((gymId: string, idx: number) => ({
-              trainer_id: userId, gym_id: gymId, is_primary: idx === 0,
-            }))
-          )
-        }
+      // Always delete existing assignments first (clean slate), then re-insert.
+      // Handles reassignment, unassignment (idsToAssign empty), and initial assignment.
+      await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
+      if (idsToAssign.length > 0) {
+        const { error: gymErr } = await adminClient.from('trainer_gyms').insert(
+          idsToAssign.map((gymId: string, idx: number) => ({
+            trainer_id: userId, gym_id: gymId, is_primary: idx === 0,
+          }))
+        )
+        if (gymErr) return NextResponse.json({ error: `Gym assignment failed: ${gymErr.message}` }, { status: 400 })
       }
     }
 
@@ -224,14 +235,3 @@ export async function DELETE(request: Request) {
       archived_at: new Date().toISOString(), archived_by: user.id,
     }).eq('id', userId)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-    await adminClient.auth.admin.updateUserById(userId, { ban_duration: '876600h' })
-    await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
-    await adminClient.from('users').update({ manager_gym_id: null }).eq('id', userId)
-
-    return NextResponse.json({ success: true })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
-  }
-}
