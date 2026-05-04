@@ -117,6 +117,14 @@ export default function MyParticularsPage() {
             <p className="text-sm text-gray-900">{user.date_of_birth ? formatDate(user.date_of_birth) : <span className="italic text-gray-400">Not set</span>}</p>
           </div>
         </div>
+
+        <div className="flex items-start gap-3">
+          <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-gray-400">Date of Joining</p>
+            <p className="text-sm text-gray-900">{user.date_of_joining ? formatDate(user.date_of_joining) : <span className="italic text-gray-400">Not set</span>}</p>
+          </div>
+        </div>
       </div>
 
       {/* Editable contact details */}
