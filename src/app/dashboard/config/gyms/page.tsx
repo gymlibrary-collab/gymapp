@@ -87,26 +87,26 @@ export default function GymManagementPage() {
     const payload: any = {
       name: form.name.trim(),
       address: form.address.trim() || null,
-      size_sqft: form.size_sqft ? parseInt(form.size_sqft) : null,
+      size_sqft: form.size_sqft ? parseFloat(form.size_sqft) : null,
       date_opened: form.date_opened || null,
       is_active: form.is_active,
     }
 
     if (editingGym) {
-      const { data: updated, error: err } = await supabase.from('gyms')
-        .update(payload).eq('id', editingGym.id).select().single()
+      const { error: err } = await supabase.from('gyms')
+        .update(payload).eq('id', editingGym.id)
       if (err) { setError(err.message); setSaving(false); return }
       // Upload logo if a new file was selected
-      if (logoFile && updated) {
-        const logoUrl = await uploadLogo(updated.id, logoFile)
-        if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', updated.id)
+      if (logoFile) {
+        const logoUrl = await uploadLogo(editingGym.id, logoFile)
+        if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', editingGym.id)
       }
       showMsg('Gym updated')
     } else {
       const { data: created, error: err } = await supabase.from('gyms')
-        .insert({ ...payload, is_active: true }).select().single()
+        .insert({ ...payload, is_active: true }).select('id').single()
       if (err) { setError(err.message); setSaving(false); return }
-      if (logoFile && created) {
+      if (logoFile && created?.id) {
         const logoUrl = await uploadLogo(created.id, logoFile)
         if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', created.id)
       }
@@ -200,8 +200,8 @@ export default function GymManagementPage() {
               <label className="label flex items-center gap-1.5">
                 <Maximize2 className="w-3.5 h-3.5 text-gray-400" /> Size (sq ft)
               </label>
-              <input className="input" type="number" min="0" value={form.size_sqft}
-                onChange={set('size_sqft')} placeholder="e.g. 3000" />
+              <input className="input" type="number" min="0" step="0.01" value={form.size_sqft}
+                onChange={set('size_sqft')} placeholder="e.g. 3000.00" />
             </div>
             <div>
               <label className="label flex items-center gap-1.5">
@@ -314,7 +314,7 @@ export default function GymManagementPage() {
                   <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-gray-400">
                     {gym.size_sqft && (
                       <span className="flex items-center gap-1">
-                        <Maximize2 className="w-3 h-3" /> {gym.size_sqft.toLocaleString()} sq ft
+                        <Maximize2 className="w-3 h-3" /> {gym.size_sqft.toLocaleString('en-SG', { maximumFractionDigits: 2 })} sq ft
                       </span>
                     )}
                     {gym.date_opened && (
