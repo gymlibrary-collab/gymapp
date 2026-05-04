@@ -184,8 +184,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const saved = sessionStorage.getItem(VIEW_KEY) as ViewMode | null
           setViewMode(saved || 'manager')
         }
-        const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes').eq('id', 'global').single()
+        const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes, app_name').eq('id', 'global').single()
         const mins = settings?.auto_logout_minutes || 10; logoutMinutesRef.current = mins; setAutoLogoutMinutes(mins)
+        // Set browser tab title from configured app name
+        if (settings?.app_name) document.title = settings.app_name
         if (u.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null); setGymName('Gym Library')
         } else if ((u.role === 'manager' || u.role === 'staff') && u.manager_gym_id) {
