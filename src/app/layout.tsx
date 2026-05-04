@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'GymApp — Trainer Management',
-  description: 'Personal trainer and client management platform',
+  title: 'GymApp',
+  description: 'Gym staff and operations management platform',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
