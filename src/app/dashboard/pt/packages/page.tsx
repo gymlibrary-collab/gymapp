@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
 import {
@@ -37,12 +38,19 @@ export default function PackagesPage() {
   const [editingPkg, setEditingPkg] = useState<PackageTemplate | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const supabase = createClient()
+  const router = useRouter()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
 
   useEffect(() => { loadPackages() }, [])
 
   const loadPackages = async () => {
+    // Route guard — Business Ops only
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { router.replace('/dashboard'); return }
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || !['business_ops'].includes(me.role)) { router.replace('/dashboard'); return }
+
     const { data: active } = await supabase.from('package_templates')
       .select('*').eq('is_archived', false).order('effective_from', { ascending: false })
     const { data: arch } = await supabase.from('package_templates')
