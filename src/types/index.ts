@@ -21,7 +21,7 @@ export interface User {
   manager_gym_id?: string; is_active: boolean; is_archived: boolean
   archived_at?: string; is_also_trainer?: boolean
   commission_signup_pct: number; commission_session_pct: number
-  membership_commission_pct: number; hourly_rate?: number
+  membership_commission_sgd: number; hourly_rate?: number
   date_of_birth?: string; date_of_joining?: string
   date_of_departure?: string; departure_reason?: string
   nric?: string; nationality?: string; created_at: string
