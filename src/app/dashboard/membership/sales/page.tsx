@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { Search, CheckCircle, XCircle, Clock, CreditCard, AlertCircle, X } from 'lucide-react'
@@ -16,6 +17,7 @@ export default function MembershipSalesPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [success, setSuccess] = useState('')
   const supabase = createClient()
+  const router = useRouter()
 
   const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
 
