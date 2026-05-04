@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate, formatSGD, getMonthName } from '@/lib/utils'
+import { formatDate, formatSGD, getMonthName , getRoleLabel } from '@/lib/utils'
 import {
   ArrowLeft, DollarSign, Plus, TrendingUp, FileText,
   CheckCircle, AlertCircle, Save, X, ChevronDown, ChevronUp,
@@ -539,7 +539,7 @@ export default function StaffPayrollDetailPage() {
         <Link href="/dashboard/payroll" className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft className="w-4 h-4 text-gray-600" /></Link>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">{staff.full_name}</h1>
-          <p className="text-sm text-gray-500 capitalize">{staff.role} · {isPartTime ? 'Part-time' : 'Full-time'} · {staff.email}</p>
+          <p className="text-sm text-gray-500">{getRoleLabel(staff.role)} · {isPartTime ? 'Part-time' : 'Full-time'} · {staff.email}</p>
         </div>
         <div className={cn('text-xs px-2.5 py-1 rounded-full font-medium', payroll?.is_cpf_liable ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
           {payroll?.is_cpf_liable ? 'CPF Liable' : 'No CPF'}
