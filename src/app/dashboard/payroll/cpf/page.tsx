@@ -46,11 +46,16 @@ export default function CpfPage() {
     setSubmissions(subs || [])
   }
 
-  const getBracket = (dob: string | null) => {
+  const getBracket = (dob: string | null, payrollYear: number, payrollMonth: number) => {
     if (!dob) return null
     const age = getAge(dob)
     if (age === null) return null
-    return brackets.find(b => age >= b.age_from && (b.age_to === null || age <= b.age_to))
+    const payrollDate = new Date(payrollYear, payrollMonth - 1, 1)
+    // Pick most recent bracket effective on or before payroll month
+    const valid = [...brackets]
+      .filter(b => !b.effective_from || new Date(b.effective_from) <= payrollDate)
+      .sort((a, b) => new Date(b.effective_from || 0).getTime() - new Date(a.effective_from || 0).getTime())
+    return valid.find(b => age >= b.age_from && (b.age_to === null || age <= b.age_to)) || null
   }
 
   const handleSaveBracket = async (id: string) => {
@@ -77,19 +82,36 @@ export default function CpfPage() {
       .in('status', ['approved', 'paid'])
       .eq('is_cpf_liable', true)
 
+    // Load CPF ceiling config
+    const { data: cfgRows } = await supabase.from('commission_config')
+      .select('config_key, config_value').in('config_key', ['cpf_ow_ceiling', 'cpf_annual_ceiling'])
+    const cfg: Record<string, number> = {}
+    cfgRows?.forEach((r: any) => { cfg[r.config_key] = r.config_value })
+    const OW_CEILING = cfg['cpf_ow_ceiling'] ?? 8000
+
     const rows = (payslips || []).map((p: any) => {
-      const bracket = getBracket(p.user?.date_of_birth)
+      const bracket = getBracket(p.user?.date_of_birth, selectedYear, selectedMonth)
       const empRate = bracket?.employee_rate ?? p.employee_cpf_rate ?? 20
       const erRate = bracket?.employer_rate ?? p.employer_cpf_rate ?? 17
+      // Use stored capped_ow if available (payslip already calculated correctly),
+      // otherwise apply OW ceiling to basic_salary for the preview estimate.
+      const cappedOW = p.capped_ow ?? Math.min(p.basic_salary || 0, OW_CEILING)
+      const awSubject = p.aw_subject_to_cpf ?? 0
+      const erCpfOW = Math.round(cappedOW * erRate / 100)
+      const empCpfOW = Math.floor(cappedOW * empRate / 100)
+      const erCpfAW = Math.round(awSubject * erRate / 100)
+      const empCpfAW = Math.floor(awSubject * empRate / 100)
+      const empCpf = empCpfOW + empCpfAW
+      const erCpf = erCpfOW + erCpfAW
       const gross = p.gross_salary || 0
-      const empCpf = Math.round(gross * empRate / 100 * 100) / 100
-      const erCpf = Math.round(gross * erRate / 100 * 100) / 100
       return {
         name: p.user?.full_name, nric: p.user?.nric,
         age: p.user?.date_of_birth ? getAge(p.user.date_of_birth) : null,
         bracket: bracket?.label || 'Unknown',
         gross, empRate, erRate, empCpf, erCpf,
         totalCpf: empCpf + erCpf,
+        cappedOW, awSubject,
+        lowIncomeFlag: p.low_income_flag || false,
       }
     })
 
