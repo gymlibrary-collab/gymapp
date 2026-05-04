@@ -26,7 +26,8 @@ export default function TrainerCapacityPage() {
     const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
     // Business Ops does not need trainer capacity visibility — this is
     // reviewed in person with each gym manager.
-    if (u?.role === 'business_ops') { router.replace('/dashboard'); return }
+    // Trainer capacity is a manager-only operational view
+    if (!u || (u.role !== 'manager')) { router.replace('/dashboard'); return }
     setUser(u)
 
     const now = new Date()
