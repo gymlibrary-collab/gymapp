@@ -313,7 +313,7 @@ export default function TrainersPage() {
 
           {/* Filters */}
           <div className="flex gap-1 flex-wrap">
-            {[{ key: 'all', label: `All (${staff.length})` }, { key: 'admin', label: `Admin (${staff.filter(s => s.role === 'admin').length})` }, { key: 'business_ops', label: `Biz Ops (${staff.filter(s => s.role === 'business_ops').length})` }, { key: 'manager', label: `Manager (${staff.filter(s => s.role === 'manager').length})` }, { key: 'trainer', label: `Trainer (${staff.filter(s => s.role === 'trainer').length})` },
+            {[{ key: 'all', label: `All (${staff.length})` }, { key: 'manager', label: `Manager (${staff.filter(s => s.role === 'manager').length})` }, { key: 'trainer', label: `Trainer (${staff.filter(s => s.role === 'trainer').length})` },
               { key: 'staff', label: `Ops Staff (${staff.filter(s => s.role === 'staff').length})` }].map(({ key, label }) => (
               <button key={key} onClick={() => setFilterRole(key)} className={cn('px-3 py-1.5 rounded-lg text-xs font-medium transition-colors', filterRole === key ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>{label}</button>
             ))}
