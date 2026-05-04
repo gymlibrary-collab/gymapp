@@ -107,20 +107,16 @@ export default function PayrollPage() {
     const monthEnd = new Date(bulkYear, bulkMonth, 0).toISOString().split('T')[0]
     const allUserIds = staffList.map(m => m.id)
 
-    // Issue 5: Batch-load everything upfront before the loop
-    const [existingRes, rosterRes, bonusRes] = await Promise.all([
-      // Existing payslips for this month
-      supabase.from('payslips').select('user_id')
-        .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear),
-      // Completed roster shifts for all part-timers this month (Issue 2: completed only)
-      supabase.from('duty_roster').select('user_id, hours_worked, gross_pay')
-        .in('user_id', allUserIds)
-        .gte('shift_date', monthStart).lte('shift_date', monthEnd)
-        .eq('status', 'completed'),
-      // Bonuses for all staff this month
-      supabase.from('staff_bonuses').select('user_id, amount')
-        .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear),
-    ])
+    // Batch-load everything upfront before the loop.
+    // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
+    const existingRes = await supabase.from('payslips').select('user_id')
+      .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
+    const rosterRes = await supabase.from('duty_roster').select('user_id, hours_worked, gross_pay')
+      .in('user_id', allUserIds)
+      .gte('shift_date', monthStart).lte('shift_date', monthEnd)
+      .eq('status', 'completed')
+    const bonusRes = await supabase.from('staff_bonuses').select('user_id, amount')
+      .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
 
     // Build lookup maps
     const existingSet = new Set(existingRes.data?.map((p: any) => p.user_id) || [])
