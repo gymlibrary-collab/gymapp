@@ -45,7 +45,7 @@ export default function AdminSettingsPage() {
 
   const uploadLogo = async (file: File, bucket: string, path: string) => {
     if (file.size > 2 * 1024 * 1024) { alert('Image exceeds 2MB. Please choose a smaller file.'); return null }
-    await supabase.storage.from(bucket).remove([path])
+    // upsert:true overwrites any existing file — no need to remove first
     const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, cacheControl: '0' })
     if (error) return null
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
