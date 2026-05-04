@@ -61,7 +61,8 @@ export default function TrainersPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.push('/dashboard'); return }
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    if (!userData || !['manager', 'business_ops', 'admin'].includes(userData.role)) {
+    // admin manages Biz Ops accounts via admin/staff — not this page
+    if (!userData || !['manager', 'business_ops'].includes(userData.role)) {
       router.push('/dashboard'); return
     }
     setCurrentUser(userData)
@@ -192,6 +193,7 @@ export default function TrainersPage() {
 
   const isSelf = (m: any) => m.id === currentUser?.id
   const isBizOps = currentUser?.role === 'business_ops'
+  const isManagerRole = currentUser?.role === 'manager'
 
   // Filter
   let filteredStaff = tab === 'active' ? staff : archived
@@ -265,7 +267,7 @@ export default function TrainersPage() {
           ))}
         </div>
       </div>
-      {form.employment_type === 'part_time' && (
+      {form.employment_type === 'part_time' && isBizOps && (
         <div><label className="label">Hourly Rate (SGD)</label><input className="input" type="number" min="0" step="0.50" value={form.hourly_rate} onChange={e => setF((f: any) => ({ ...f, hourly_rate: e.target.value }))} placeholder="e.g. 12.00" /></div>
       )}
     </>
@@ -338,7 +340,7 @@ export default function TrainersPage() {
                 </>
               )}
 
-              <CommissionFields form={createForm} setF={setCreateForm} />
+              {isBizOps && <CommissionFields form={createForm} setF={setCreateForm} />}
 
               <div className="flex gap-2">
                 <button type="submit" disabled={saving} className="btn-primary flex-1 disabled:opacity-50">{saving ? 'Creating...' : 'Create Account'}</button>
@@ -380,7 +382,7 @@ export default function TrainersPage() {
                 </>
               )}
 
-              <CommissionFields form={editForm} setF={setEditForm} />
+              {isBizOps && <CommissionFields form={editForm} setF={setEditForm} />}
 
               <div className="flex gap-2">
                 <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50"><Save className="w-4 h-4" />{saving ? 'Saving...' : 'Save Changes'}</button>
@@ -427,7 +429,7 @@ export default function TrainersPage() {
                       <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
                       {member.phone ? <p className="text-xs text-gray-400">{member.phone}</p> : <p className="text-xs text-amber-500">⚠ Phone not set</p>}
                       <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
-                      {member.employment_type === 'part_time' && member.hourly_rate && (
+                      {isBizOps && member.employment_type === 'part_time' && member.hourly_rate && (
                         <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
                       )}
                       {member.date_of_joining && <p className="text-xs text-gray-400 mt-0.5">Joined: {formatDate(member.date_of_joining)}</p>}
