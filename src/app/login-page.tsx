@@ -25,6 +25,8 @@ export default function LoginPage() {
         setAuthError('Your account has been disabled. Contact your admin.')
       } else if (err === 'auth_failed') {
         setAuthError('Login failed. Please try again.')
+      } else if (err === 'no_code') {
+        setAuthError('Login could not be completed. Please try signing in again.')
       }
     }
 
