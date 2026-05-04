@@ -15,6 +15,14 @@ function getAge(dob: string) {
   return age
 }
 
+function getAgeAsOf(dob: string | null, refDate: Date): number | null {
+  if (!dob) return null
+  const birth = new Date(dob)
+  let age = refDate.getFullYear() - birth.getFullYear()
+  if (refDate.getMonth() < birth.getMonth() || (refDate.getMonth() === birth.getMonth() && refDate.getDate() < birth.getDate())) age--
+  return age
+}
+
 export default function CpfPage() {
   const [brackets, setBrackets] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
@@ -48,14 +56,27 @@ export default function CpfPage() {
 
   const getBracket = (dob: string | null, payrollYear: number, payrollMonth: number) => {
     if (!dob) return null
-    const age = getAge(dob)
-    if (age === null) return null
+    // Last day of payroll month — CPF reference date
+    const lastDayOfMonth = new Date(payrollYear, payrollMonth, 0)
     const payrollDate = new Date(payrollYear, payrollMonth - 1, 1)
-    // Pick most recent bracket effective on or before payroll month
-    const valid = [...brackets]
+    // Filter to brackets effective on or before the payroll month start
+    const sorted = [...brackets]
       .filter(b => !b.effective_from || new Date(b.effective_from) <= payrollDate)
-      .sort((a, b) => new Date(b.effective_from || 0).getTime() - new Date(a.effective_from || 0).getTime())
-    return valid.find(b => age >= b.age_from && (b.age_to === null || age <= b.age_to)) || null
+      .sort((a: any, b: any) => (a.age_from ?? 0) - (b.age_from ?? 0))
+    if (sorted.length === 0) return null
+    // Birthday-passed bracket logic: staff moves to next bracket the day AFTER
+    // their birthday at the current bracket's upper age boundary.
+    const birth = new Date(dob)
+    let bracketIndex = 0
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const upperAge = sorted[i].age_to
+      if (upperAge === null) break
+      try {
+        const birthdayAtUpper = new Date(birth.getFullYear() + upperAge, birth.getMonth(), birth.getDate())
+        if (lastDayOfMonth > birthdayAtUpper) { bracketIndex = i + 1 } else { break }
+      } catch { break }
+    }
+    return sorted[bracketIndex] || null
   }
 
   const handleSaveBracket = async (id: string) => {
