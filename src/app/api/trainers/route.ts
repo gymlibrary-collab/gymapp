@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     })
     if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
-    const { employment_type, hourly_rate, membership_commission_pct, nric, nationality, leave_entitlement_days } = body
+    const { employment_type, hourly_rate, membership_commission_pct, nric, nationality, leave_entitlement_days, address } = body
     const resolvedRole = role || 'trainer'
     const resolvedEmployment = employment_type || 'full_time'
     // Leave entitlement: null for roles excluded from the leave system (admin, part-timers).
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       commission_session_pct: parseFloat(commission_session_pct) || 15,
       membership_commission_pct: parseFloat(membership_commission_pct) || 5,
       nric: nric || null, nationality: nationality || null,
+      address: address || null,
       leave_entitlement_days: resolvedLeaveEntitlement,
     }
     if (role === 'manager' && manager_gym_id) userPayload.manager_gym_id = manager_gym_id
@@ -143,6 +144,7 @@ export async function PATCH(request: Request) {
     if (full_name !== undefined) updatePayload.full_name = full_name
     if (email !== undefined)     updatePayload.email = email
     if (phone !== undefined)     updatePayload.phone = phone || null
+    if (body.address !== undefined) updatePayload.address = body.address || null
 
     // Business Ops: full staff record management
     if (isBizOps) {
@@ -157,6 +159,7 @@ export async function PATCH(request: Request) {
       if (body.hourly_rate !== undefined)        updatePayload.hourly_rate = body.hourly_rate ? parseFloat(body.hourly_rate) : null
       if (body.nric !== undefined)               updatePayload.nric = body.nric || null
       if (body.nationality !== undefined)        updatePayload.nationality = body.nationality || null
+      if (body.address !== undefined)            updatePayload.address = body.address || null
       if (body.date_of_birth !== undefined)      updatePayload.date_of_birth = body.date_of_birth || null
       if (body.date_of_joining !== undefined)    updatePayload.date_of_joining = body.date_of_joining || null
       if (body.date_of_departure !== undefined)  updatePayload.date_of_departure = body.date_of_departure || null
@@ -173,6 +176,7 @@ export async function PATCH(request: Request) {
       if (body.date_of_joining !== undefined)        updatePayload.date_of_joining = body.date_of_joining || null
       if (body.nric !== undefined)                   updatePayload.nric = body.nric || null
       if (body.nationality !== undefined)            updatePayload.nationality = body.nationality || null
+      if (body.address !== undefined)                updatePayload.address = body.address || null
       if (body.date_of_birth !== undefined)          updatePayload.date_of_birth = body.date_of_birth || null
       if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = body.leave_entitlement_days ? parseInt(body.leave_entitlement_days) : null
     }
