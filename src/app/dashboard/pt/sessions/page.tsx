@@ -16,7 +16,6 @@ export default function PtSessionsPage() {
   const [user, setUser] = useState<any>(null)
   const [sessions, setSessions] = useState<any[]>([])
   const [filter, setFilter] = useState('upcoming')
-  const [viewFilter, setViewFilter] = useState<'mine' | 'all'>('mine')
   const [loading, setLoading] = useState(true)
   const [actionSession, setActionSession] = useState<any>(null)
   const [actionType, setActionType] = useState<'cancel' | 'reschedule' | 'complete' | null>(null)
@@ -52,23 +51,12 @@ export default function PtSessionsPage() {
       q = q.eq('gym_id', userData.manager_gym_id).eq('status', 'scheduled')
     }
     else if (userData.role === 'trainer') {
-      if (viewFilter === 'mine') {
-        // My Sessions: own sessions only, all statuses, all assigned gyms
-        q = q.eq('trainer_id', authUser.id)
-      } else {
-        // Full Gym Schedule: all trainers' upcoming sessions across all assigned gyms
-        const { data: tgRows } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', authUser.id)
-        const gymIds = tgRows?.map((r: any) => r.gym_id) || []
-        if (gymIds.length > 0) q = q.in('gym_id', gymIds)
-        // Full gym schedule shows upcoming only for other trainers
-        q = q.eq('status', 'scheduled')
-      }
+      // My Sessions: own sessions only, all statuses, all assigned gyms
+      q = q.eq('trainer_id', authUser.id)
     }
 
-    // isActingAsTrainer (manager in trainer view): scope to own sessions or gym
-    if (isActingAsTrainer && gymId) {
-      if (viewFilter === 'mine') q = q.eq('trainer_id', authUser.id)
-    }
+    // isActingAsTrainer (manager in trainer view): always own sessions
+    if (isActingAsTrainer) q = q.eq('trainer_id', authUser.id)
 
     const now = new Date().toISOString()
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
@@ -81,7 +69,7 @@ export default function PtSessionsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { loadSessions() }, [filter, viewFilter, isActingAsTrainer])
+  useEffect(() => { loadSessions() }, [filter, isActingAsTrainer])
 
   const isManager = user?.role === 'manager' && !isActingAsTrainer
   const isTrainer = user?.role === 'trainer' || isActingAsTrainer
@@ -177,16 +165,11 @@ export default function PtSessionsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div><h1 className="text-xl font-bold text-gray-900">PT Sessions</h1><p className="text-sm text-gray-500">{sessions.length} sessions</p></div>
+        <div><h1 className="text-xl font-bold text-gray-900">{isTrainer ? 'My Sessions' : 'PT Sessions'}</h1><p className="text-sm text-gray-500">{sessions.length} sessions</p></div>
         {isTrainer && user?.role !== 'staff' && <Link href="/dashboard/pt/sessions/new" className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Schedule</Link>}
       </div>
 
-      {isTrainer && (
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-          <button onClick={() => setViewFilter('mine')} className={cn('flex-1 py-1.5 rounded-md text-xs font-medium transition-colors', viewFilter === 'mine' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600')}>My Sessions</button>
-          <button onClick={() => setViewFilter('all')} className={cn('flex-1 py-1.5 rounded-md text-xs font-medium transition-colors', viewFilter === 'all' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600')}>Full Gym Schedule</button>
-        </div>
-      )}
+
 
       {/* Status filter tabs — hidden for staff (they see upcoming only) */}
       {!isStaff && (
@@ -273,7 +256,7 @@ export default function PtSessionsPage() {
                   <div>
                     <p className="font-medium text-gray-900 text-sm">{session.member?.full_name}</p>
                     <p className="text-xs text-gray-500">{formatDateTime(session.scheduled_at)}</p>
-                    {(!isTrainer || viewFilter === 'all') && session.trainer?.full_name && (
+                    {(!isTrainer) && session.trainer?.full_name && (
                       <p className="text-xs text-blue-600 mt-0.5">Trainer: {session.trainer?.full_name}</p>
                     )}
                     {session.rescheduled_from && <p className="text-xs text-amber-600 mt-0.5">↺ Rescheduled from {formatDateTime(session.rescheduled_from)}</p>}
