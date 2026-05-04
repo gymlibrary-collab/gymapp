@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -8,12 +9,12 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (!code) {
-    // No code — redirect to login with error
     return NextResponse.redirect(`${origin}/?error=no_code`)
   }
 
   const cookieStore = await cookies()
 
+  // Session client — anon key + cookies for exchanging the OAuth code
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -40,15 +41,23 @@ export async function GET(request: Request) {
 
   const user = data.session.user
 
-  // Check if user exists in the users table
-  const { data: userRecord } = await supabase
+  // Use service role client for the users lookup — bypasses RLS entirely.
+  // This is correct for a server-side auth check: we need to verify the user
+  // exists regardless of their role or RLS policy state.
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { data: userRecord } = await adminClient
     .from('users')
     .select('id, is_archived, is_active')
     .eq('id', user.id)
     .single()
 
-  // User not found in users table — they logged in with Google
-  // but haven't been added as staff yet
+  // User not found in users table — logged in with Google
+  // but hasn't been added as staff yet
   if (!userRecord) {
     await supabase.auth.signOut()
     return NextResponse.redirect(`${origin}/?error=not_authorised`)
