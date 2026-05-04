@@ -59,8 +59,10 @@ export async function POST(request: Request) {
     if (userError) return NextResponse.json({ error: userError.message }, { status: 400 })
 
     // Assign trainer gyms — also for manager-trainers
+    // Part-time ops staff (role='staff', employment_type='part_time') also need
+    // trainer_gyms entries so the roster page can filter available staff by gym.
     const finalGymIds = role === 'manager' && manager_gym_id ? [manager_gym_id]
-      : role === 'trainer' ? gymIdsToAssign : []
+      : (role === 'trainer' || (role === 'staff' && resolvedEmployment === 'part_time')) ? gymIdsToAssign : []
 
     if (finalGymIds.length > 0) {
       await adminClient.from('trainer_gyms').insert(
@@ -88,7 +90,8 @@ export async function PATCH(request: Request) {
     const body = await request.json()
     const { userId, full_name, email, phone, role, is_active, date_of_birth, date_of_joining, date_of_departure, departure_reason,
       commission_signup_pct, commission_session_pct,
-      gym_ids, manager_gym_id, reset_login, is_also_trainer } = body
+      gym_ids, gym_id, manager_gym_id, reset_login, is_also_trainer,
+      employment_type: bodyEmploymentType } = body
 
     const adminClient = createAdminClient()
     const isSelf = userId === user.id
@@ -128,25 +131,32 @@ export async function PATCH(request: Request) {
     if (email !== undefined) updatePayload.email = email
     if (phone !== undefined) updatePayload.phone = phone || null
 
-    if (isAdmin) {
+    // Admin and Biz Ops have full write access to staff records.
+    const isBizOpsUser = currentUser?.role === 'business_ops'
+    if (isAdmin || isBizOpsUser) {
       if (role !== undefined) updatePayload.role = role
       if (is_active !== undefined) updatePayload.is_active = is_active
       if (commission_signup_pct !== undefined) updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
       if (commission_session_pct !== undefined) updatePayload.commission_session_pct = parseFloat(commission_session_pct)
+      if (body.membership_commission_pct !== undefined) updatePayload.membership_commission_pct = parseFloat(body.membership_commission_pct)
       if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
       if (is_also_trainer !== undefined) updatePayload.is_also_trainer = is_also_trainer
       if (role === 'manager' || manager_gym_id !== undefined) {
         updatePayload.manager_gym_id = manager_gym_id || null
       }
+      if (bodyEmploymentType !== undefined) updatePayload.employment_type = bodyEmploymentType
+      if (body.hourly_rate !== undefined) updatePayload.hourly_rate = body.hourly_rate ? parseFloat(body.hourly_rate) : null
+      if (body.nric !== undefined) updatePayload.nric = body.nric || null
+      if (body.nationality !== undefined) updatePayload.nationality = body.nationality || null
+      if (body.date_of_birth !== undefined) updatePayload.date_of_birth = body.date_of_birth || null
+      if (body.date_of_joining !== undefined) updatePayload.date_of_joining = body.date_of_joining || null
+      if (body.date_of_departure !== undefined) updatePayload.date_of_departure = body.date_of_departure || null
+      if (body.departure_reason !== undefined) updatePayload.departure_reason = body.departure_reason || null
     }
 
     if (isManager) {
       if (commission_signup_pct !== undefined) updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
       if (commission_session_pct !== undefined) updatePayload.commission_session_pct = parseFloat(commission_session_pct)
-    }
-    // Biz Ops can update leave entitlement
-    if (currentUser?.role === 'business_ops') {
-      if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = parseInt(body.leave_entitlement_days)
     }
 
     if (Object.keys(updatePayload).length > 0) {
@@ -154,17 +164,34 @@ export async function PATCH(request: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Update gym assignments for trainers and manager-trainers
-    if (isAdmin && (role === 'trainer' || role === 'manager') && gym_ids !== undefined) {
-      await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
-      const idsToAssign = role === 'manager' && manager_gym_id ? [manager_gym_id]
-        : role === 'trainer' ? gym_ids : []
-      if (idsToAssign.length > 0) {
-        await adminClient.from('trainer_gyms').insert(
-          idsToAssign.map((gymId: string, idx: number) => ({
-            trainer_id: userId, gym_id: gymId, is_primary: idx === 0,
-          }))
-        )
+    // Update gym assignments for trainers and manager-trainers.
+    // Full-timers (all roles): gym_id (single) — dropdown selection.
+    // Part-time trainers: gym_ids (array) — multi-gym checkbox selection.
+    const hasGymChange = gym_id !== undefined || gym_ids !== undefined || manager_gym_id !== undefined
+    if ((isAdmin || isBizOpsUser) && hasGymChange) {
+      const targetRole = role ?? (await adminClient.from('users').select('role, employment_type').eq('id', userId).single()).data?.role
+      const targetEmployment = bodyEmploymentType ?? (await adminClient.from('users').select('employment_type').eq('id', userId).single()).data?.employment_type
+
+      let idsToAssign: string[] = []
+      if (targetRole === 'manager' && manager_gym_id) {
+        idsToAssign = [manager_gym_id]
+      } else if (targetEmployment === 'part_time' && gym_ids !== undefined) {
+        // Part-time ops staff: multi-gym from checkboxes (rostered at any gym)
+        idsToAssign = gym_ids
+      } else if (gym_id) {
+        // Full-timers (trainer, staff, manager): single gym from dropdown
+        idsToAssign = [gym_id]
+      }
+
+      if (idsToAssign.length > 0 || gym_ids?.length === 0) {
+        await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
+        if (idsToAssign.length > 0) {
+          await adminClient.from('trainer_gyms').insert(
+            idsToAssign.map((gymId: string, idx: number) => ({
+              trainer_id: userId, gym_id: gymId, is_primary: idx === 0,
+            }))
+          )
+        }
       }
     }
 
