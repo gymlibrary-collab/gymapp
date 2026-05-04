@@ -25,6 +25,8 @@ export default function MembershipSalesPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    // Admin does not manage membership sales
+    if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
     setUser(userData)
 
     let q = supabase.from('gym_memberships')
@@ -76,6 +78,9 @@ export default function MembershipSalesPage() {
   const canConfirmAny = sales.some(s => canConfirmSale(s))
   const pendingCount = sales.filter(s => s.sale_status === 'pending').length
   const confirmedTotal = sales.filter(s => s.sale_status === 'confirmed').reduce((sum, s) => sum + (s.commission_sgd || 0), 0)
+  // Biz Ops sees sales activity but not the commission figures — those belong
+  // in the payroll workflow, not the sales view.
+  const isBizOps = user?.role === 'business_ops'
 
   const filtered = sales.filter(s => {
     const member = s.member
@@ -97,13 +102,15 @@ export default function MembershipSalesPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Membership Sales</h1>
-        <p className="text-sm text-gray-500">Gym membership sales confirmation and commission tracking</p>
+        <p className="text-sm text-gray-500">{isBizOps ? 'Gym membership sales activity across all clubs' : 'Gym membership sales confirmation and commission tracking'}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className={cn('grid gap-3', isBizOps ? 'grid-cols-2' : 'grid-cols-3')}>
         <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Total Sales</p><p className="text-2xl font-bold text-gray-900">{sales.length}</p></div>
         <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Pending Review</p><p className="text-2xl font-bold text-amber-600">{pendingCount}</p></div>
-        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Confirmed Commission</p><p className="text-lg font-bold text-green-700">{formatSGD(confirmedTotal)}</p></div>
+        {!isBizOps && (
+          <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Confirmed Commission</p><p className="text-lg font-bold text-green-700">{formatSGD(confirmedTotal)}</p></div>
+        )}
       </div>
 
       {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
@@ -143,15 +150,15 @@ export default function MembershipSalesPage() {
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-sm">{sale.member?.full_name}</p>
-                    {sale.member?.membership_number && <span className="text-xs text-gray-400">#{sale.member.membership_number}</span>}
+                    <p className="font-semibold text-gray-900 text-sm">{isBizOps ? (sale.member?.membership_number ? `Member #${sale.member.membership_number}` : 'Member') : sale.member?.full_name}</p>
+                    {!isBizOps && sale.member?.membership_number && <span className="text-xs text-gray-400">#{sale.member.membership_number}</span>}
                     <span className={statusBadge(sale.sale_status)}>{sale.sale_status}</span>
                   </div>
                   <p className="text-xs text-gray-500">{sale.member?.phone}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                     <span>{sale.membership_type_name} · {formatSGD(sale.price_sgd)}</span>
                     <span>{formatDate(sale.start_date)} → {formatDate(sale.end_date)}</span>
-                    <span className="text-green-600 font-medium">Commission: {formatSGD(sale.commission_sgd)} ({sale.commission_pct}%)</span>
+                    {!isBizOps && <span className="text-green-600 font-medium">Commission: {formatSGD(sale.commission_sgd)} ({sale.commission_pct}%)</span>}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">Sold by: {sale.sold_by?.full_name} · {sale.gym?.name}</p>
                   {sale.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Rejected: {sale.rejection_reason}</p>}
