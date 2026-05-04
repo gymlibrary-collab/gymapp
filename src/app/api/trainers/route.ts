@@ -166,11 +166,15 @@ export async function PATCH(request: Request) {
       if (manager_gym_id !== undefined)          updatePayload.manager_gym_id = manager_gym_id || null
     }
 
-    // Admin: basic fields + active status only — used for managing Biz Ops accounts.
+    // Admin: basic fields for managing Biz Ops accounts.
     // Gym assignment and role changes remain Biz Ops only.
     if (isAdmin) {
-      if (is_active !== undefined) updatePayload.is_active = is_active
-      if (body.date_of_joining !== undefined) updatePayload.date_of_joining = body.date_of_joining || null
+      if (is_active !== undefined)                   updatePayload.is_active = is_active
+      if (body.date_of_joining !== undefined)        updatePayload.date_of_joining = body.date_of_joining || null
+      if (body.nric !== undefined)                   updatePayload.nric = body.nric || null
+      if (body.nationality !== undefined)            updatePayload.nationality = body.nationality || null
+      if (body.date_of_birth !== undefined)          updatePayload.date_of_birth = body.date_of_birth || null
+      if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = body.leave_entitlement_days ? parseInt(body.leave_entitlement_days) : null
     }
 
     // Manager: can update commission rates for trainers in their gym
