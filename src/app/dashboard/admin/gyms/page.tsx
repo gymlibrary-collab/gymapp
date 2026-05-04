@@ -97,7 +97,7 @@ export default function AdminGymsPage() {
                   <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-gray-400">
                     {gym.size_sqft && (
                       <span className="flex items-center gap-1">
-                        <Maximize2 className="w-3 h-3" /> {gym.size_sqft.toLocaleString()} sq ft
+                        <Maximize2 className="w-3 h-3" /> {gym.size_sqft.toLocaleString('en-SG', { maximumFractionDigits: 2 })} sq ft
                       </span>
                     )}
                     {gym.date_opened && (
