@@ -22,7 +22,7 @@ interface BizOpsUser {
   created_at: string
 }
 
-const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '' }
+const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '' }
 
 export default function AdminStaffPage() {
   const [staff, setStaff] = useState<BizOpsUser[]>([])
@@ -72,6 +72,10 @@ export default function AdminStaffPage() {
       email: user.email,
       phone: user.phone || '',
       date_of_joining: user.date_of_joining || '',
+      nric: (user as any).nric || '',
+      nationality: (user as any).nationality || '',
+      date_of_birth: (user as any).date_of_birth || '',
+      leave_entitlement_days: (user as any).leave_entitlement_days?.toString() || '',
     })
     setShowForm(true)
     setError('')
@@ -92,6 +96,10 @@ export default function AdminStaffPage() {
           email: form.email,
           phone: form.phone,
           date_of_joining: form.date_of_joining,
+          nric: (form as any).nric || null,
+          nationality: (form as any).nationality || null,
+          date_of_birth: (form as any).date_of_birth || null,
+          leave_entitlement_days: (form as any).leave_entitlement_days || null,
         }),
       })
       const result = await res.json()
@@ -212,6 +220,28 @@ export default function AdminStaffPage() {
               <label className="label">Date of Joining</label>
               <input className="input" type="date" value={form.date_of_joining}
                 onChange={set('date_of_joining')} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">NRIC / FIN</label>
+              <input className="input" value={(form as any).nric} onChange={set('nric')} placeholder="e.g. S1234567A" />
+            </div>
+            <div>
+              <label className="label">Nationality</label>
+              <input className="input" value={(form as any).nationality} onChange={set('nationality')} placeholder="e.g. Singaporean" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Date of Birth</label>
+              <input className="input" type="date" value={(form as any).date_of_birth} onChange={set('date_of_birth')} />
+            </div>
+            <div>
+              <label className="label">Annual Leave Entitlement (days)</label>
+              <input className="input" type="number" min="0" max="365" value={(form as any).leave_entitlement_days} onChange={set('leave_entitlement_days')} placeholder="e.g. 14" />
             </div>
           </div>
 
