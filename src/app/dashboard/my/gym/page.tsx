@@ -41,6 +41,10 @@ export default function MyGymPage() {
     // Show preview immediately
     setLogoPreview(URL.createObjectURL(file))
 
+    if (file.size > 1 * 1024 * 1024) {
+      setError('Image exceeds 1MB. Please choose a smaller file.'); setUploading(false); return
+    }
+
     const path = `gym-${gym.id}`
     // Use upsert:true — no need to remove first, and remove() on a
     // non-existent object triggers an RLS error when the row doesn't exist.
@@ -109,7 +113,7 @@ export default function MyGymPage() {
             </label>
             <input id="gym-logo" type="file" accept="image/*" className="hidden"
               disabled={uploading} onChange={handleLogoChange} />
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Square image recommended</p>
+            <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Square image recommended · Max 1MB</p>
           </div>
         </div>
 
