@@ -7,6 +7,7 @@ import { formatSGD } from '@/lib/utils'
 import { Dumbbell, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function TrainerCapacityPage() {
   const [user, setUser] = useState<any>(null)
@@ -125,7 +126,7 @@ export default function TrainerCapacityPage() {
         <p className="text-sm text-gray-500">{trainers.length} trainer{trainers.length !== 1 ? 's' : ''} · {monthName} {now.getFullYear()}</p>
       </div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
+      <StatusBanner success={success} />
 
       {trainers.length === 0 ? (
         <div className="card p-8 text-center"><Dumbbell className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No trainers assigned to your gym</p></div>
