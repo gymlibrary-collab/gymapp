@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate, formatSGD, getMonthName , getRoleLabel } from '@/lib/utils'
+import { formatDate, formatSGD, getMonthName, getRoleLabel } from '@/lib/utils'
+import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
 import {
   ArrowLeft, DollarSign, Plus, TrendingUp, FileText,
   CheckCircle, AlertCircle, Save, X, ChevronDown, ChevronUp,
@@ -461,28 +462,12 @@ export default function StaffPayrollDetailPage() {
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
     const isPartTime = slip.employment_type === 'part_time'
-    const { logoUrl, companyName, gymName } = payslipBranding
-    let yPos = 22
-
-    // Issue 4: Branding — logo + company/gym name
-    if (logoUrl) {
-      try {
-        const img = await fetch(logoUrl).then(r => r.blob()).then(b => new Promise<string>((res, rej) => {
-          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(b)
-        }))
-        doc.addImage(img as string, 'PNG', 14, 10, 20, 20)
-        doc.setFontSize(18); doc.setFont('helvetica', 'bold')
-        doc.text('PAYSLIP', 38, 20)
-        yPos = 36
-      } catch { doc.setFontSize(18); doc.text('PAYSLIP', 14, 22); yPos = 30 }
-    } else {
-      doc.setFontSize(18); doc.text('PAYSLIP', 14, 22); yPos = 30
-    }
+    // Resolve gym logo from payslipBranding
+    let yPos = await addLogoHeader(doc, payslipBranding.logoUrl, 'PAYSLIP')
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10); doc.setTextColor(100)
-    doc.text(companyName, 14, yPos); yPos += 6
-    doc.text(gymName, 14, yPos); yPos += 6
+    doc.text(payslipBranding.gymName, 14, yPos); yPos += 6
     doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos); yPos += 10
     doc.setTextColor(0)
     doc.text(`${staff?.full_name} · ${isPartTime ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
@@ -513,11 +498,7 @@ export default function StaffPayrollDetailPage() {
     rows.push(['', ''])
     rows.push(['Net Pay', formatSGD(slip.net_salary)])
 
-    autoTable(doc, {
-      startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows,
-      headStyles: { fillColor: [220, 38, 38] },
-      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-    })
+    autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
     const fy = (doc as any).lastAutoTable.finalY + 8
     if (slip.is_cpf_liable && !slip.low_income_flag) {
       doc.setFontSize(9); doc.setTextColor(100)
