@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 import {
   User, Phone, Shield, Globe, Calendar, MapPin,
   Save, CheckCircle, AlertCircle,
@@ -14,12 +15,10 @@ export default function MyParticularsPage() {
   const [form, setForm] = useState({ phone: '', address: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => {
     const load = async () => {
