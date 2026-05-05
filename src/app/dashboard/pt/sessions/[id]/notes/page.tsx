@@ -9,6 +9,7 @@ import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock, Refre
 import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { StatusBanner } from '@/components/StatusBanner'
 
 const EDIT_WINDOW_MINUTES = 30
 
