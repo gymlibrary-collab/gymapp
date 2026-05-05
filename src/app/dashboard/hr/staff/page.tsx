@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate, formatDateTime, formatSGD, getRoleLabel } from '@/lib/utils'
+import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass } from '@/lib/utils'
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
   Edit2, Trash2, X, Save, CheckCircle, AlertCircle, Archive,
@@ -18,14 +18,6 @@ const ALL_ROLES = [
   { value: 'trainer', label: 'Trainer', description: 'Manage own members and sessions' },
   { value: 'staff', label: 'Operations Staff', description: 'Sales, member lookup, schedule view' },
 ]
-
-const roleBadge: Record<string, string> = {
-  admin: 'bg-red-100 text-red-700',
-  trainer: 'bg-teal-100 text-teal-700',
-  manager: 'bg-yellow-100 text-yellow-800',
-  business_ops: 'bg-purple-100 text-purple-700',
-  staff: 'bg-blue-100 text-blue-700',
-}
 
 const emptyForm = {
   full_name: '', email: '', phone: '', role: 'trainer',
@@ -351,7 +343,7 @@ export default function TrainersPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-900 text-sm">{member.full_name}</p>
                         {isSelf(member) && <span className="text-xs text-red-600 font-medium">(You)</span>}
-                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadge[member.role] || 'bg-gray-100 text-gray-600')}>
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
                           {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
                         </span>
                         <span className={member.employment_type === 'part_time' ? 'bg-blue-100 text-blue-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-gray-100 text-gray-600 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
@@ -391,7 +383,7 @@ export default function TrainersPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-700 text-sm">{member.full_name}</p>
-                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadge[member.role] || 'bg-gray-100 text-gray-600')}>{getRoleLabel(member.role)}</span>
+                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>{getRoleLabel(member.role)}</span>
                     <span className="badge-danger">Archived</span>
                   </div>
                   <p className="text-xs text-gray-500">{member.email}</p>
