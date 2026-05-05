@@ -15,6 +15,7 @@ export default function NewPtSessionPage() {
   const [packages, setPackages] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [doubleBookingWarning, setDoubleBookingWarning] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -70,6 +71,29 @@ export default function NewPtSessionPage() {
   // When member changes, filter packages to that member
   const memberPackages = packages.filter(p => p.member_id === form.member_id)
 
+  // Re-check double booking when date/time/duration changes
+  useEffect(() => {
+    if (!form.scheduled_at_date || !currentUser) return
+    const checkOverlap = async () => {
+      const scheduledAt = new Date(`${form.scheduled_at_date}T${form.scheduled_at_time}:00`)
+      const sessionEnd = new Date(scheduledAt.getTime() + parseInt(form.duration_minutes) * 60000)
+      const { data: existing } = await supabase.from('sessions')
+        .select('id, scheduled_at, duration_minutes, member:members(full_name)')
+        .eq('trainer_id', currentUser.id).eq('status', 'scheduled')
+        .gte('scheduled_at', new Date(scheduledAt.getTime() - 120 * 60000).toISOString())
+        .lte('scheduled_at', sessionEnd.toISOString())
+      const overlap = existing?.find((s: any) => {
+        const sStart = new Date(s.scheduled_at)
+        const sEnd = new Date(sStart.getTime() + (s.duration_minutes || 60) * 60000)
+        return scheduledAt < sEnd && sessionEnd > sStart
+      })
+      setDoubleBookingWarning(overlap
+        ? `You already have a session with ${(overlap as any).member?.full_name || 'another member'} at this time. You can still proceed.`
+        : '')
+    }
+    checkOverlap()
+  }, [form.scheduled_at_date, form.scheduled_at_time, form.duration_minutes, currentUser])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.member_id || !form.package_id || !form.scheduled_at_date) {
@@ -87,6 +111,27 @@ export default function NewPtSessionPage() {
     // Check expiry
     if (pkg?.end_date_calculated && new Date(pkg.end_date_calculated) < new Date()) {
       setError('This package has expired'); setSaving(false); return
+    }
+
+    // Check for trainer double-booking at the same time
+    const sessionStart = scheduledAt
+    const sessionEnd = new Date(scheduledAt.getTime() + parseInt(form.duration_minutes) * 60000)
+    const { data: existingSessions } = await supabase.from('sessions')
+      .select('id, scheduled_at, duration_minutes, member:members(full_name)')
+      .eq('trainer_id', currentUser.id)
+      .eq('status', 'scheduled')
+      .gte('scheduled_at', new Date(sessionStart.getTime() - 120 * 60000).toISOString())
+      .lte('scheduled_at', new Date(sessionEnd.getTime()).toISOString())
+    const overlap = existingSessions?.find((s: any) => {
+      const sStart = new Date(s.scheduled_at)
+      const sEnd = new Date(sStart.getTime() + (s.duration_minutes || 60) * 60000)
+      return sessionStart < sEnd && sessionEnd > sStart
+    })
+    if (overlap) {
+      const overlapMember = (overlap as any).member?.full_name || 'another member'
+      setDoubleBookingWarning(`You already have a session with ${overlapMember} at this time. You can still proceed.`)
+    } else {
+      setDoubleBookingWarning('')
     }
 
     const isPkgShared = (pkg as any)?.is_shared
@@ -248,6 +293,12 @@ export default function NewPtSessionPage() {
           <Calendar className="w-4 h-4 flex-shrink-0 mt-0.5" />
           A WhatsApp reminder will be sent to you 24 hours before the session.
         </div>
+
+        {doubleBookingWarning && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />{doubleBookingWarning}
+          </div>
+        )}
 
         <div className="flex gap-2">
           <button type="submit" disabled={saving} className="btn-primary flex-1 disabled:opacity-50">
