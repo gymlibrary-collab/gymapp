@@ -16,10 +16,8 @@ export default function MyPayslipsPage() {
   const supabase = createClient()
   const router = useRouter()
 
-  // Branding state declared before useEffect so setPayslipBranding is in scope
-  const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({
-    logoUrl: null, companyName: 'Gym Operations Suite', gymName: 'Gym Operations Suite'
-  })
+  const [selectedMonth, setSelectedMonth] = useState<string>('') // 'YYYY-MM' format
+  const [gymsMap, setGymsMap] = useState<Record<string, any>>({}) // gymId -> gym object
 
   useEffect(() => {
     const load = async () => {
@@ -30,33 +28,23 @@ export default function MyPayslipsPage() {
       if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
       setUser(userData)
 
-      // Load payslip branding
-      const { data: settings } = await supabase.from('app_settings')
-        .select('payslip_logo_url, company_name').eq('id', 'global').single()
-      const payslipLogoUrl = (settings as any)?.payslip_logo_url || null
-      const companyName = (settings as any)?.company_name || 'Gym Operations Suite'
+      // Load gyms map for logo lookup
+      const { data: gymsData } = await supabase.from('gyms').select('id, name, logo_url')
+      const map: Record<string, any> = {}
+      gymsData?.forEach((g: any) => { map[g.id] = g })
+      setGymsMap(map)
 
-      // Get gym name for this user
-      let gymName = companyName
-      if (userData.manager_gym_id) {
-        const { data: gym } = await supabase.from('gyms').select('name').eq('id', userData.manager_gym_id).single()
-        if (gym) gymName = gym.name
-      } else if (userData.role === 'trainer') {
-        const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name)').eq('trainer_id', authUser.id).eq('is_primary', true).single()
-        if (tg && (tg as any).gyms) gymName = (tg as any).gyms.name
-      }
-      setPayslipBranding({ logoUrl: payslipLogoUrl, companyName, gymName })
-
-      // Load last 13 months of salary payslips
-      const cutoff = new Date()
-      cutoff.setMonth(cutoff.getMonth() - 13)
-
+      // Load last 13 months of salary payslips (with gym_id)
       const { data: slips } = await supabase.from('payslips')
         .select('*').eq('user_id', authUser.id)
-        .in('status', ['approved', 'paid'])  // drafts not visible to staff
+        .in('status', ['approved', 'paid'])
         .order('year', { ascending: false }).order('month', { ascending: false })
-        .limit(13)
+        .limit(26) // more records to account for part-timers with multiple gyms per month
       setPayslips(slips || [])
+      // Default to most recent month
+      if (slips && slips.length > 0) {
+        setSelectedMonth(`${slips[0].year}-${String(slips[0].month).padStart(2, '0')}`)
+      }
 
       // Load commission payouts — approved and paid only (drafts not visible to staff)
       const { data: payouts } = await supabase.from('commission_payouts')
@@ -77,17 +65,30 @@ export default function MyPayslipsPage() {
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
 
-    const { logoUrl, companyName, gymName } = payslipBranding
+    // Resolve gym for this payslip
+    const gym = slip.gym_id ? gymsMap[slip.gym_id] : null
+    const gymName = gym?.name || 'Gym Library'
+    const logoUrl = gym?.logo_url || null
     let yPos = 22
 
-    // Logo
+    // Logo — rectangular support: max height 25mm, width auto
     if (logoUrl) {
       try {
-        const img = await fetch(logoUrl).then(r => r.blob()).then(b => new Promise<string>((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(b) }))
-        doc.addImage(img, 'PNG', 14, 10, 20, 20)
+        const imgBlob = await fetch(logoUrl).then(r => r.blob())
+        const imgDataUrl = await new Promise<string>((res, rej) => {
+          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(imgBlob)
+        })
+        // Determine natural dimensions
+        const imgEl = new Image()
+        await new Promise<void>(r => { imgEl.onload = () => r(); imgEl.src = imgDataUrl })
+        const maxH = 25; const maxW = 60
+        let w = (imgEl.width / imgEl.height) * maxH
+        if (w > maxW) { w = maxW }
+        const h = maxH
+        doc.addImage(imgDataUrl, 'PNG', 14, 8, w, h)
         doc.setFontSize(18); doc.setFont('helvetica', 'bold')
-        doc.text('PAYSLIP', 38, 20)
-        yPos = 36
+        doc.text('PAYSLIP', 14 + w + 4, 20)
+        yPos = 38
       } catch { doc.setFontSize(20); doc.text('PAYSLIP', 14, 22); yPos = 30 }
     } else {
       doc.setFontSize(20); doc.text('PAYSLIP', 14, 22); yPos = 30
@@ -95,8 +96,6 @@ export default function MyPayslipsPage() {
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11); doc.setTextColor(100)
-    doc.text(companyName, 14, yPos)
-    yPos += 6
     doc.text(gymName, 14, yPos)
     yPos += 6
     doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos)
@@ -153,19 +152,27 @@ export default function MyPayslipsPage() {
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
 
-    // Issue 2: Apply same branding as salary payslip
-    const { logoUrl, companyName, gymName } = payslipBranding
+    // Use gym logo from payout if available
+    const gym = payout.gym_id ? gymsMap[payout.gym_id] : Object.values(gymsMap)[0]
+    const gymName = gym?.name || 'Gym Library'
+    const logoUrl = (gym as any)?.logo_url || null
     let yPos = 22
 
     if (logoUrl) {
       try {
-        const img = await fetch(logoUrl).then(r => r.blob()).then(b => new Promise<string>((res, rej) => {
-          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(b)
-        }))
-        doc.addImage(img, 'PNG', 14, 10, 20, 20)
-        doc.setFontSize(18); doc.setFont('helvetica', 'bold')
-        doc.text('COMMISSION STATEMENT', 38, 20)
-        yPos = 36
+        const imgBlob = await fetch(logoUrl).then(r => r.blob())
+        const imgDataUrl = await new Promise<string>((res, rej) => {
+          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(imgBlob)
+        })
+        const imgEl = new Image()
+        await new Promise<void>(r => { imgEl.onload = () => r(); imgEl.src = imgDataUrl })
+        const maxH = 25; const maxW = 60
+        let w = (imgEl.width / imgEl.height) * maxH
+        if (w > maxW) w = maxW
+        doc.addImage(imgDataUrl, 'PNG', 14, 8, w, maxH)
+        doc.setFontSize(16); doc.setFont('helvetica', 'bold')
+        doc.text('COMMISSION STATEMENT', 14 + w + 4, 20)
+        yPos = 38
       } catch { doc.setFontSize(18); doc.text('COMMISSION STATEMENT', 14, 22); yPos = 30 }
     } else {
       doc.setFontSize(18); doc.text('COMMISSION STATEMENT', 14, 22); yPos = 30
@@ -173,7 +180,6 @@ export default function MyPayslipsPage() {
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10); doc.setTextColor(100)
-    doc.text(companyName, 14, yPos); yPos += 6
     doc.text(gymName, 14, yPos); yPos += 6
     doc.text(`Period: ${payout.period_start} to ${payout.period_end}`, 14, yPos); yPos += 10
     doc.setTextColor(0)
@@ -225,42 +231,73 @@ export default function MyPayslipsPage() {
       </div>
 
       {activeTab === 'salary' && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {payslips.length === 0 ? (
             <div className="card p-8 text-center">
               <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 text-sm">No payslips yet</p>
             </div>
-          ) : payslips.map(slip => (
-            <div key={slip.id} className="card p-4 flex items-center gap-4">
-              <div className="bg-red-50 p-2.5 rounded-lg flex-shrink-0">
-                <FileText className="w-5 h-5 text-red-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm">{getMonthName(slip.month)} {slip.year}</p>
-                <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
-                  {slip.total_hours > 0
-                    ? <span>{slip.total_hours}h roster pay</span>
-                    : <span>Basic: {formatSGD(slip.basic_salary)}</span>
-                  }
-                  {slip.bonus_amount > 0 && <span>Bonus: {formatSGD(slip.bonus_amount)}</span>}
-                  <span className="font-medium text-gray-900">Net: {formatSGD(slip.net_salary)}</span>
+          ) : (() => {
+            // Build unique months list
+            const months = Array.from(new Set(payslips.map(s => `${s.year}-${String(s.month).padStart(2, '0')}`)))
+              .sort((a, b) => b.localeCompare(a))
+            const activeMonth = selectedMonth || months[0] || ''
+            const [selYear, selMon] = activeMonth.split('-').map(Number)
+            const monthSlips = payslips.filter(s => s.year === selYear && s.month === selMon)
+            return (
+              <>
+                {/* Month selector */}
+                <div>
+                  <label className="label">Select Month</label>
+                  <select className="input" value={activeMonth} onChange={e => setSelectedMonth(e.target.value)}>
+                    {months.map(m => {
+                      const [y, mo] = m.split('-').map(Number)
+                      return <option key={m} value={m}>{getMonthName(mo)} {y}</option>
+                    })}
+                  </select>
                 </div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  {slip.status === 'paid'
-                    ? <><CheckCircle className="w-3 h-3 text-green-600" /><span className="text-xs text-green-600">Paid</span></>
-                    : <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
-                  }
-                </div>
-              </div>
-              {slip.status !== 'draft' && (
-                <button onClick={() => downloadPayslip(slip)}
-                  className="btn-secondary text-xs py-1.5 flex items-center gap-1 flex-shrink-0">
-                  <Download className="w-3.5 h-3.5" /> PDF
-                </button>
-              )}
-            </div>
-          ))}
+                {/* Payslips for selected month */}
+                {monthSlips.length === 0 ? (
+                  <div className="card p-6 text-center text-sm text-gray-400">No payslips for this month</div>
+                ) : monthSlips.map(slip => {
+                  const gym = slip.gym_id ? gymsMap[slip.gym_id] : null
+                  return (
+                    <div key={slip.id} className="card p-4 flex items-center gap-4">
+                      <div className="bg-red-50 p-2.5 rounded-lg flex-shrink-0">
+                        <FileText className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {getMonthName(slip.month)} {slip.year}
+                          {gym && <span className="text-gray-400 font-normal"> · {gym.name}</span>}
+                        </p>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
+                          {slip.total_hours > 0
+                            ? <span>{slip.total_hours}h roster pay</span>
+                            : <span>Basic: {formatSGD(slip.basic_salary)}</span>
+                          }
+                          {slip.bonus_amount > 0 && <span>Bonus: {formatSGD(slip.bonus_amount)}</span>}
+                          <span className="font-medium text-gray-900">Net: {formatSGD(slip.net_salary)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {slip.status === 'paid'
+                            ? <><CheckCircle className="w-3 h-3 text-green-600" /><span className="text-xs text-green-600">Paid</span></>
+                            : <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
+                          }
+                        </div>
+                      </div>
+                      {slip.status !== 'draft' && (
+                        <button onClick={() => downloadPayslip(slip)}
+                          className="btn-secondary text-xs py-1.5 flex items-center gap-1 flex-shrink-0">
+                          <Download className="w-3.5 h-3.5" /> PDF
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )
+          })()}
         </div>
       )}
 
