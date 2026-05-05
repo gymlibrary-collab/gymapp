@@ -10,7 +10,7 @@ import {
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
   FileText, Banknote, X, Building2, UserCheck, Clock,
   Calculator, Briefcase, CreditCard, CalendarDays, Receipt,
-  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList
+  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList, Shield
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +20,7 @@ const adminNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/admin/staff', label: 'Business Ops Staff', icon: Briefcase },
   { href: '/dashboard/hr/leave', label: 'Leave Approvals', icon: CalendarDays },
+  { href: '/dashboard/admin/payslip-audit', label: 'Payslip Audit', icon: Shield },
   { href: '/dashboard/admin/settings', label: 'App Settings', icon: Settings },
 ]
 
