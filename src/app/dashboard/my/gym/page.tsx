@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate } from '@/lib/utils'
+import { formatDate, uploadToStorage } from '@/lib/utils'
 import { Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function MyGymPage() {
@@ -48,12 +48,9 @@ export default function MyGymPage() {
     const path = `gym-${gym.id}`
     // Use upsert:true — no need to remove first, and remove() on a
     // non-existent object triggers an RLS error when the row doesn't exist.
-    const { error: uploadErr } = await supabase.storage.from('gym-logos').upload(path, file, {
-      upsert: true, cacheControl: '0',
-    })
-    if (uploadErr) { setError('Logo upload failed: ' + uploadErr.message); setUploading(false); return }
+    const uploaded = await uploadToStorage(supabase, file, 'gym-logos', path)
+    if (!uploaded) { setUploading(false); return }
 
-    const { data } = supabase.storage.from('gym-logos').getPublicUrl(path)
     const logoUrl = data.publicUrl.split('?')[0]
     await supabase.from('gyms').update({ logo_url: logoUrl }).eq('id', gym.id)
     setGym((g: any) => ({ ...g, logo_url: logoUrl }))
