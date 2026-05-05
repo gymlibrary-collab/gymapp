@@ -7,6 +7,7 @@ import { formatDate, formatSGD } from '@/lib/utils'
 import { Search, CheckCircle, XCircle, Clock, CreditCard, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function MembershipSalesPage() {
   const [user, setUser] = useState<any>(null)
@@ -115,7 +116,7 @@ export default function MembershipSalesPage() {
         )}
       </div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
+      <StatusBanner success={success} />
 
       {canConfirmAny && pendingCount > 0 && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
