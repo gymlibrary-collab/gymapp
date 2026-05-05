@@ -47,6 +47,12 @@ export default function MyPayslipsPage() {
         setSelectedMonth(`${slips[0].year}-${String(slips[0].month).padStart(2, '0')}`)
       }
 
+      // Mark notifications as seen — clears the dashboard banner on next login
+      await supabase.from('users').update({
+        payslip_notif_seen_at: new Date().toISOString(),
+        commission_notif_seen_at: new Date().toISOString(),
+      }).eq('id', authUser.id)
+
       // Load commission payouts — approved and paid only (drafts not visible to staff)
       const { data: payouts } = await supabase.from('commission_payouts')
         .select('*, gym:gyms(name)')
