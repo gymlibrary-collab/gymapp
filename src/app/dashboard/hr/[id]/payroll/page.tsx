@@ -401,8 +401,19 @@ export default function StaffPayrollDetailPage() {
     const netSalary = grossSalary - empCpf
     const totalEmployerCost = grossSalary + erCpf
 
-    const { error: err } = await supabase.from('payslips').upsert({
+    // Use delete+insert instead of upsert — avoids ON CONFLICT issues
+    // with partial indexes on nullable gym_id column.
+    // Only delete draft payslips (approved/paid are immutable).
+    const gymId = staff?.trainer_gyms?.[0]?.gym_id || staff?.manager_gym_id || null
+    await supabase.from('payslips')
+      .delete()
+      .eq('user_id', id).eq('month', pMonth).eq('year', pYear)
+      .is('gym_id', gymId ? undefined : null)
+      .eq('status', 'draft')
+
+    const { error: err } = await supabase.from('payslips').insert({
       user_id: id, month: pMonth, year: pYear,
+      gym_id: gymId,
       employment_type: staff?.employment_type || 'full_time',
       basic_salary: basicSalary, bonus_amount: bonusAmt,
       total_hours: isPartTime ? totalHours : null,
@@ -410,12 +421,10 @@ export default function StaffPayrollDetailPage() {
       is_cpf_liable: isCpf,
       employee_cpf_rate: rates.employee_rate,
       employer_cpf_rate: rates.employer_rate,
-      // Computed CPF amounts (correct rounding + ceiling applied)
       employee_cpf_amount: empCpf,
       employer_cpf_amount: erCpf,
       net_salary: netSalary,
       total_employer_cost: totalEmployerCost,
-      // Audit trail
       capped_ow: cappedOW,
       aw_subject_to_cpf: awSubject,
       employee_cpf_aw: empCpfAW,
@@ -429,7 +438,7 @@ export default function StaffPayrollDetailPage() {
       cpf_adjustment_note: cpfAdjustmentNote || null,
       notes: payslipForm.notes || null, status: 'draft',
       generated_by: authUser?.id, generated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,month,year' })
+    })
 
     if (err) { setError(err.message); setSaving(false); return }
     await loadData(); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
