@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatDate, uploadToStorage } from '@/lib/utils'
 import { Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, CheckCircle, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function MyGymPage() {
   const [gym, setGym] = useState<any>(null)
@@ -78,16 +79,7 @@ export default function MyGymPage() {
         <p className="text-sm text-gray-500">Your assigned gym club details</p>
       </div>
 
-      {success && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-          <CheckCircle className="w-4 h-4 flex-shrink-0" /> {success}
-        </div>
-      )}
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
+      <StatusBanner success={success} error={error} />
 
       <div className="card p-5 space-y-5">
         {/* Logo */}
