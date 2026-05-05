@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { Search, CheckCircle, XCircle, Clock, CreditCard, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 export default function MembershipSalesPage() {
   const [user, setUser] = useState<any>(null)
@@ -15,11 +16,10 @@ export default function MembershipSalesPage() {
   const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [success, setSuccess] = useState('')
   const supabase = createClient()
   const router = useRouter()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg } = useToast()
 
   useEffect(() => { load() }, [])
 
