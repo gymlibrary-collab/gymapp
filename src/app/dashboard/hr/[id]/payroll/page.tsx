@@ -32,7 +32,7 @@ export default function StaffPayrollDetailPage() {
   const [deleteModal, setDeleteModal] = useState<{ payslip: any } | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
   const [deleting, setDeleting] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isBizOpsRole, setIsBizOpsRole] = useState(false)
 
   const [showSalaryForm, setShowSalaryForm] = useState(false)
   const [showIncrementForm, setShowIncrementForm] = useState(false)
@@ -67,8 +67,8 @@ export default function StaffPayrollDetailPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.push('/dashboard'); return }
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'business_ops' && me.role !== 'admin')) { router.push('/dashboard'); return }
-    setIsAdmin(me.role === 'admin')
+    if (!me || me.role !== 'business_ops') { router.push('/dashboard'); return }
+    setIsBizOpsRole(me.role === 'business_ops')
 
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
     setStaff(staffData)
@@ -765,8 +765,8 @@ export default function StaffPayrollDetailPage() {
                   {ps.status === 'draft' && <button onClick={() => handlePayslipAction(ps.id, 'approved')} className="text-xs text-blue-600 hover:underline">Approve</button>}
                   {ps.status === 'draft' && <button onClick={() => handleDeletePayslip(ps.id)} className="text-xs text-red-500 hover:underline">Delete</button>}
                   {ps.status === 'approved' && <button onClick={() => handlePayslipAction(ps.id, 'paid')} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
-                  {(ps.status === 'approved' || ps.status === 'paid') && isAdmin && (
-                    <button onClick={() => { setDeleteModal({ payslip: ps }); setDeleteReason('') }} className="text-xs text-red-500 hover:underline">Delete (Admin)</button>
+                  {(ps.status === 'approved' || ps.status === 'paid') && isBizOpsRole && (
+                    <button onClick={() => { setDeleteModal({ payslip: ps }); setDeleteReason('') }} className="text-xs text-red-500 hover:underline">Delete</button>
                   )}
                   {ps.status !== 'draft' && <button onClick={() => downloadPayslipPdf(ps)} className="text-xs text-red-600 hover:underline flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>}
                 </div>
@@ -782,7 +782,7 @@ export default function StaffPayrollDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setDeleteModal(null)}>
           <div className="fixed inset-0 bg-black/30" />
           <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Delete Payslip — Admin Action</h3>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Delete Payslip</h3>
             <p className="text-xs text-gray-500 mb-4">
               Deleting {getMonthName(deleteModal.payslip.month)} {deleteModal.payslip.year} payslip
               ({deleteModal.payslip.status}) for {staff?.full_name}. This action is logged to the audit trail.
