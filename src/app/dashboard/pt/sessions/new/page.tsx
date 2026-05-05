@@ -7,6 +7,7 @@ import { formatDate, cn } from '@/lib/utils'
 import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function NewPtSessionPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
