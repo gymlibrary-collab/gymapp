@@ -6,15 +6,16 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatSGD } from '@/lib/utils'
 import { Dumbbell, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 export default function TrainerCapacityPage() {
   const [user, setUser] = useState<any>(null)
   const [trainers, setTrainers] = useState<any[]>([])
+  const { success, showMsg } = useToast()
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ max_sessions_per_week: 0, monthly_session_target: 0 })
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
   const supabase = createClient()
   const router = useRouter()
 
@@ -102,7 +103,7 @@ export default function TrainerCapacityPage() {
       monthly_session_target: editValues.monthly_session_target,
     }).eq('id', trainerId)
     await load(); setEditingId(null); setSaving(false)
-    setSuccess('Capacity updated'); setTimeout(() => setSuccess(''), 3000)
+    showMsg('Capacity updated')
   }
 
   const utilizationColor = (pct: number) =>
