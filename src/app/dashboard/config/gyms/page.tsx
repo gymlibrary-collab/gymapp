@@ -220,10 +220,10 @@ export default function GymManagementPage() {
               <ImageIcon className="w-3.5 h-3.5 text-gray-400" /> Gym Logo
             </label>
             <p className="text-xs text-gray-400 mb-2">
-              Shown in the sidebar for staff assigned to this gym. Square image recommended.
+              Shown in the sidebar and on payslips for staff assigned to this gym. Rectangular or square logos supported. Transparent background recommended.
             </p>
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+              <div className="w-32 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
                 {logoPreview
                   ? <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain p-1" onError={() => setLogoPreview(null)} />
                   : <ImageIcon className="w-8 h-8 text-gray-300" />
@@ -238,7 +238,7 @@ export default function GymManagementPage() {
                     const f = e.target.files?.[0]
                     if (f) { setLogoFile(f); setLogoPreview(URL.createObjectURL(f)) }
                   }} />
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Transparent background recommended · Max 2MB</p>
+                <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Max 2MB · Rectangular logos supported</p>
                 {logoPreview && <p className="text-xs text-green-600 mt-1">✓ Logo ready to upload</p>}
               </div>
             </div>
