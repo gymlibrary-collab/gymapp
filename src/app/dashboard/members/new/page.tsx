@@ -76,7 +76,7 @@ export default function RegisterMemberPage() {
       if (existing) { setError('This membership number is already registered at this gym'); setLoading(false); return }
     }
 
-    const { data, error: err } = await supabase.from('members').insert({
+    const { data, error: insertErr } = await supabase.from('members').insert({
       gym_id: memberForm.gym_id,
       membership_number: memberForm.membership_number || null,
       full_name: memberForm.full_name,
@@ -88,7 +88,7 @@ export default function RegisterMemberPage() {
       created_by: authUser!.id,
     }).select().single()
 
-    if (err) { setError(err.message); setLoading(false); return }
+    if (insertErr) { setError(insertErr.message); setLoading(false); return }
     setCreatedMemberId(data.id)
     setStep('membership')
     setLoading(false)
@@ -105,7 +105,7 @@ export default function RegisterMemberPage() {
     const endDate = new Date(startDate)
     endDate.setDate(endDate.getDate() + type.duration_days)
 
-    const { error: err } = await supabase.from('gym_memberships').insert({
+    const { error: insertErr } = await supabase.from('gym_memberships').insert({
       member_id: createdMemberId,
       gym_id: memberForm.gym_id,
       membership_type_id: type.id,
@@ -121,7 +121,7 @@ export default function RegisterMemberPage() {
       notes: membershipForm.notes || null,
     })
 
-    if (err) { setError(err.message); setLoading(false); return }
+    if (insertErr) { setError(insertErr.message); setLoading(false); return }
     router.push(`/dashboard/members/${createdMemberId}`)
   }
 
