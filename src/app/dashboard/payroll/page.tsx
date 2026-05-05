@@ -109,22 +109,29 @@ export default function PayrollPage() {
 
     // Batch-load everything upfront before the loop.
     // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
-    const existingRes = await supabase.from('payslips').select('user_id')
+    const existingRes = await supabase.from('payslips').select('user_id, gym_id')
       .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
-    const rosterRes = await supabase.from('duty_roster').select('user_id, hours_worked, gross_pay')
+    // Part-timers: load roster grouped by gym_id so we generate one payslip per gym
+    const rosterRes = await supabase.from('duty_roster').select('user_id, gym_id, hours_worked, gross_pay')
       .in('user_id', allUserIds)
       .gte('shift_date', monthStart).lte('shift_date', monthEnd)
       .eq('status', 'completed')
     const bonusRes = await supabase.from('staff_bonuses').select('user_id, amount')
       .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
+    // Load gym info for logo on payslips
+    const { data: gymsData } = await supabase.from('gyms').select('id, name, logo_url')
 
     // Build lookup maps
-    const existingSet = new Set(existingRes.data?.map((p: any) => p.user_id) || [])
-    const rosterByUser: Record<string, {hours: number, pay: number}> = {}
+    // existingSet: track user+gym combos already generated
+    const existingSet = new Set(existingRes.data?.map((p: any) => `${p.user_id}:${p.gym_id || 'null'}`) || [])
+    // rosterByUserGym: { userId: { gymId: { hours, pay } } }
+    const rosterByUserGym: Record<string, Record<string, {hours: number, pay: number}>> = {}
     rosterRes.data?.forEach((r: any) => {
-      if (!rosterByUser[r.user_id]) rosterByUser[r.user_id] = { hours: 0, pay: 0 }
-      rosterByUser[r.user_id].hours += r.hours_worked || 0
-      rosterByUser[r.user_id].pay += r.gross_pay || 0
+      if (!rosterByUserGym[r.user_id]) rosterByUserGym[r.user_id] = {}
+      const gymKey = r.gym_id || 'null'
+      if (!rosterByUserGym[r.user_id][gymKey]) rosterByUserGym[r.user_id][gymKey] = { hours: 0, pay: 0 }
+      rosterByUserGym[r.user_id][gymKey].hours += r.hours_worked || 0
+      rosterByUserGym[r.user_id][gymKey].pay += r.gross_pay || 0
     })
     const bonusByUser: Record<string, number> = {}
     bonusRes.data?.forEach((b: any) => {
@@ -133,52 +140,66 @@ export default function PayrollPage() {
 
     let generated = 0; let skipped = 0
     const noSalaryNames: string[] = []
-    const noShiftNames: string[] = []
     const toInsert: any[] = []
 
     for (const member of staffList) {
-      if (existingSet.has(member.id)) { skipped++; continue }
-
       const isPartTime = member.employment_type === 'part_time'
-      let basicSalary = 0; let totalHours = 0
-
-      if (isPartTime) {
-        const r = rosterByUser[member.id]
-        basicSalary = r?.pay || 0
-        totalHours = r?.hours || 0
-        if (basicSalary === 0) { noShiftNames.push(member.full_name); skipped++; continue }
-      } else {
-        basicSalary = member.staff_payroll?.current_salary || 0
-        if (basicSalary === 0) {
-          // Issue 4: warn with name instead of silently skipping
-          noSalaryNames.push(member.full_name); skipped++; continue
-        }
-      }
-
-      const bonusAmt = bonusByUser[member.id] || 0
-      // Issue 6: part-timers default to not CPF liable
+      const rates = getBracketRates(member.date_of_birth)
       const isCpf = member.staff_payroll != null
         ? !!member.staff_payroll.is_cpf_liable
-        : !isPartTime  // full_time defaults true, part_time defaults false
-      const rates = getBracketRates(member.date_of_birth)
+        : !isPartTime
 
-      toInsert.push({
-        user_id: member.id, month: bulkMonth, year: bulkYear,
-        employment_type: member.employment_type || 'full_time',
-        basic_salary: basicSalary, bonus_amount: bonusAmt,
-        total_hours: isPartTime ? totalHours : null,
-        hourly_rate_used: isPartTime ? (member.hourly_rate || 0) : null,
-        is_cpf_liable: isCpf,
-        employee_cpf_rate: isCpf ? rates.employee_rate : 0,
-        employer_cpf_rate: isCpf ? rates.employer_rate : 0,
-        status: 'draft', generated_by: authUser?.id, generated_at: new Date().toISOString(),
-      })
-      generated++
+      if (isPartTime) {
+        // Part-timers: generate one payslip per gym where they had completed shifts
+        const gymMap = rosterByUserGym[member.id] || {}
+        let anyGenerated = false
+        for (const [gymId, roster] of Object.entries(gymMap)) {
+          if (roster.pay === 0) continue // skip gyms with no pay
+          const existKey = `${member.id}:${gymId}`
+          if (existingSet.has(existKey)) { skipped++; continue }
+          const actualGymId = gymId === 'null' ? null : gymId
+          toInsert.push({
+            user_id: member.id, month: bulkMonth, year: bulkYear,
+            gym_id: actualGymId,
+            employment_type: 'part_time',
+            basic_salary: roster.pay, bonus_amount: 0,
+            total_hours: roster.hours,
+            hourly_rate_used: member.hourly_rate || 0,
+            is_cpf_liable: isCpf,
+            employee_cpf_rate: isCpf ? rates.employee_rate : 0,
+            employer_cpf_rate: isCpf ? rates.employer_rate : 0,
+            status: 'draft', generated_by: authUser?.id, generated_at: new Date().toISOString(),
+          })
+          generated++; anyGenerated = true
+        }
+        if (!anyGenerated && Object.keys(gymMap).length === 0) skipped++ // no shifts at all — skip silently
+      } else {
+        // Full-timers: one payslip from their assigned gym
+        const existKey = `${member.id}:null`
+        // Resolve gym_id: trainer uses trainer_gyms[0], others use manager_gym_id
+        const gymId = member.trainer_gyms?.[0]?.gym_id || member.manager_gym_id || null
+        const existKeyWithGym = `${member.id}:${gymId || 'null'}`
+        if (existingSet.has(existKey) || existingSet.has(existKeyWithGym)) { skipped++; continue }
+        const basicSalary = member.staff_payroll?.current_salary || 0
+        if (basicSalary === 0) { noSalaryNames.push(member.full_name); skipped++; continue }
+        const bonusAmt = bonusByUser[member.id] || 0
+        toInsert.push({
+          user_id: member.id, month: bulkMonth, year: bulkYear,
+          gym_id: gymId,
+          employment_type: member.employment_type || 'full_time',
+          basic_salary: basicSalary, bonus_amount: bonusAmt,
+          total_hours: null, hourly_rate_used: null,
+          is_cpf_liable: isCpf,
+          employee_cpf_rate: isCpf ? rates.employee_rate : 0,
+          employer_cpf_rate: isCpf ? rates.employer_rate : 0,
+          status: 'draft', generated_by: authUser?.id, generated_at: new Date().toISOString(),
+        })
+        generated++
+      }
     }
 
-    // Issue 5: single batch insert instead of N individual upserts
     if (toInsert.length > 0) {
-      await supabase.from('payslips').upsert(toInsert, { onConflict: 'user_id,month,year' })
+      await supabase.from('payslips').insert(toInsert)
     }
 
     setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: noShiftNames })
