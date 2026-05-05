@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
+import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
 import { FileText, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -69,30 +70,7 @@ export default function MyPayslipsPage() {
     const gym = slip.gym_id ? gymsMap[slip.gym_id] : null
     const gymName = gym?.name || 'Gym Library'
     const logoUrl = gym?.logo_url || null
-    let yPos = 22
-
-    // Logo — rectangular support: max height 25mm, width auto
-    if (logoUrl) {
-      try {
-        const imgBlob = await fetch(logoUrl).then(r => r.blob())
-        const imgDataUrl = await new Promise<string>((res, rej) => {
-          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(imgBlob)
-        })
-        // Determine natural dimensions
-        const imgEl = new Image()
-        await new Promise<void>(r => { imgEl.onload = () => r(); imgEl.src = imgDataUrl })
-        const maxH = 25; const maxW = 60
-        let w = (imgEl.width / imgEl.height) * maxH
-        if (w > maxW) { w = maxW }
-        const h = maxH
-        doc.addImage(imgDataUrl, 'PNG', 14, 8, w, h)
-        doc.setFontSize(18); doc.setFont('helvetica', 'bold')
-        doc.text('PAYSLIP', 14 + w + 4, 20)
-        yPos = 38
-      } catch { doc.setFontSize(20); doc.text('PAYSLIP', 14, 22); yPos = 30 }
-    } else {
-      doc.setFontSize(20); doc.text('PAYSLIP', 14, 22); yPos = 30
-    }
+    let yPos = await addLogoHeader(doc, logoUrl, 'PAYSLIP')
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11); doc.setTextColor(100)
@@ -128,12 +106,7 @@ export default function MyPayslipsPage() {
     rows.push(['', ''])
     rows.push(['Net Pay', formatSGD(slip.net_salary)])
 
-    autoTable(doc, {
-      startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [220, 38, 38] },
-      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-    })
+    autoTable(doc, { startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
 
     const finalY = (doc as any).lastAutoTable.finalY + 10
     if (slip.is_cpf_liable) {
@@ -192,27 +165,7 @@ export default function MyPayslipsPage() {
     const gym = payout.gym_id ? gymsMap[payout.gym_id] : Object.values(gymsMap)[0]
     const gymName = gym?.name || 'Gym Library'
     const logoUrl = (gym as any)?.logo_url || null
-    let yPos = 22
-
-    if (logoUrl) {
-      try {
-        const imgBlob = await fetch(logoUrl).then(r => r.blob())
-        const imgDataUrl = await new Promise<string>((res, rej) => {
-          const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(imgBlob)
-        })
-        const imgEl = new Image()
-        await new Promise<void>(r => { imgEl.onload = () => r(); imgEl.src = imgDataUrl })
-        const maxH = 25; const maxW = 60
-        let w = (imgEl.width / imgEl.height) * maxH
-        if (w > maxW) w = maxW
-        doc.addImage(imgDataUrl, 'PNG', 14, 8, w, maxH)
-        doc.setFontSize(16); doc.setFont('helvetica', 'bold')
-        doc.text('COMMISSION STATEMENT', 14 + w + 4, 20)
-        yPos = 38
-      } catch { doc.setFontSize(18); doc.text('COMMISSION STATEMENT', 14, 22); yPos = 30 }
-    } else {
-      doc.setFontSize(18); doc.text('COMMISSION STATEMENT', 14, 22); yPos = 30
-    }
+    let yPos = await addLogoHeader(doc, logoUrl, 'COMMISSION STATEMENT', 16)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10); doc.setTextColor(100)
