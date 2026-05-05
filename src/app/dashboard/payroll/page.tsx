@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatSGD, getMonthName , getRoleLabel } from '@/lib/utils'
+import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass } from '@/lib/utils'
 import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -213,11 +213,7 @@ export default function PayrollPage() {
   const totalPTCost = Object.values(rosterTotals).reduce((s: number, t: any) => s + t.pay, 0)
   const noSalary = fullTimers.filter(s => !s.staff_payroll?.current_salary).length
 
-  const roleBadge: Record<string, string> = {
-    admin: 'bg-red-100 text-red-700', trainer: 'bg-teal-100 text-teal-700',
-    manager: 'bg-yellow-100 text-yellow-800', business_ops: 'bg-purple-100 text-purple-700',
-  }
-
+  
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
@@ -359,7 +355,7 @@ export default function PayrollPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-gray-900 text-sm">{member.full_name}</p>
-                  <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadge[member.role] || 'bg-gray-100 text-gray-600')}>{getRoleLabel(member.role)}</span>
+                  <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>{getRoleLabel(member.role)}</span>
                   <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', isPartTime ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
                     {isPartTime ? 'Part-time' : 'Full-time'}
                   </span>
