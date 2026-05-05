@@ -9,6 +9,7 @@ import {
   Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, Power,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 const emptyForm = {
   name: '', address: '', size_sqft: '', date_opened: '', is_active: true, fy_start_month: '1',
@@ -18,8 +19,6 @@ export default function GymManagementPage() {
   const [gyms, setGyms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingGym, setEditingGym] = useState<any | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
@@ -28,7 +27,7 @@ export default function GymManagementPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { load() }, [])
 
