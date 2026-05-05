@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass } from '@/lib/utils'
+import { getAgeAsOf, getCpfBracketRates } from '@/lib/cpf'
 import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -76,21 +77,9 @@ export default function PayrollPage() {
     return matchSearch && matchType
   })
 
-  // CPF age bracket helper
-  const getAge = (dob: string | null) => {
-    if (!dob) return null
-    const today = new Date(); const birth = new Date(dob)
-    let age = today.getFullYear() - birth.getFullYear()
-    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--
-    return age
-  }
-
-  const getBracketRates = (dob: string | null) => {
-    const age = getAge(dob)
-    if (age === null) return { employee_rate: 20, employer_rate: 17 }
-    const bracket = cpfBrackets.find(b => age >= b.age_from && (b.age_to === null || age <= b.age_to))
-    return bracket ? { employee_rate: bracket.employee_rate, employer_rate: bracket.employer_rate } : { employee_rate: 20, employer_rate: 17 }
-  }
+  // CPF bracket rates — uses accurate birthday-boundary logic from @/lib/cpf
+  const getBracketRates = (dob: string | null) =>
+    getCpfBracketRates(cpfBrackets, dob, bulkYear, bulkMonth)
 
   const handleBulkGenerate = async () => {
     // Issue 5: Hard block future month
@@ -144,7 +133,7 @@ export default function PayrollPage() {
 
     for (const member of staffList) {
       const isPartTime = member.employment_type === 'part_time'
-      const rates = getBracketRates(member.date_of_birth)
+      const rates = getCpfBracketRates(cpfBrackets, member.date_of_birth, bulkYear, bulkMonth)
       const isCpf = member.staff_payroll != null
         ? !!member.staff_payroll.is_cpf_liable
         : !isPartTime
