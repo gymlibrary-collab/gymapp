@@ -5,18 +5,17 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, uploadToStorage } from '@/lib/utils'
 import { Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, CheckCircle, AlertCircle } from 'lucide-react'
+import { useToast } from '@/hooks/useToast'
 
 export default function MyGymPage() {
   const [gym, setGym] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [error, setError] = useState('')
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => {
     const load = async () => {
