@@ -7,6 +7,7 @@ import { formatSGD } from '@/lib/utils'
 import { Plus, Edit2, X, Save, CheckCircle, Layers, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function MembershipTypesPage() {
   const [types, setTypes] = useState<any[]>([])
@@ -65,8 +66,7 @@ export default function MembershipTypesPage() {
         <button onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ name: '', duration_days: '', price_sgd: '' }) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Type</button>
       </div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
-      {error && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
+      <StatusBanner success={success} error={error} />
 
       {showForm && (
         <form onSubmit={handleSubmit} className="card p-4 space-y-4 border-red-200">
