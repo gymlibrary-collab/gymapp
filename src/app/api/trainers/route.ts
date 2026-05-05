@@ -192,27 +192,28 @@ export async function PATCH(request: Request) {
       if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // ── Gym assignment (Business Ops only) ───────────────────
+    // ── Gym assignment (Business Ops and Manager) ────────────
     // Full-time staff (all roles): gym_id single dropdown → one trainer_gyms row.
     // Part-time ops staff: gym_ids multi-select → multiple trainer_gyms rows
     //   (they can be rostered at any gym and paid per gym per month).
-    if (isBizOps && (gym_id !== undefined || gym_ids !== undefined)) {
-      // Resolve the target staff member's employment type from the form body
-      // (always sent) so we don't need a second DB round-trip.
+    // Manager: can assign gym but only within their own gym.
+    if ((isBizOps || isManager) && (gym_id !== undefined || gym_ids !== undefined)) {
       const targetEmployment = bodyEmploymentType
         ?? (await adminClient.from('users').select('employment_type').eq('id', userId).single()).data?.employment_type
 
       let idsToAssign: string[] = []
       if (targetEmployment === 'part_time' && gym_ids !== undefined) {
         // Part-time ops staff: multi-gym from checkboxes
-        idsToAssign = gym_ids
+        // Manager: filter to only their own gym for security
+        idsToAssign = isManager && currentUser?.manager_gym_id
+          ? gym_ids.filter((id: string) => id === currentUser.manager_gym_id)
+          : gym_ids
       } else if (gym_id) {
         // Full-time staff: single gym from dropdown
         idsToAssign = [gym_id]
       }
 
       // Always delete existing assignments first (clean slate), then re-insert.
-      // Handles reassignment, unassignment (idsToAssign empty), and initial assignment.
       await adminClient.from('trainer_gyms').delete().eq('trainer_id', userId)
       if (idsToAssign.length > 0) {
         const { error: gymErr } = await adminClient.from('trainer_gyms').insert(
