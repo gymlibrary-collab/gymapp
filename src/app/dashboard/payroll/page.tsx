@@ -202,7 +202,7 @@ export default function PayrollPage() {
       await supabase.from('payslips').insert(toInsert)
     }
 
-    setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: noShiftNames })
+    setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: [] })
     setBulkGenerating(false)
     load()
   }
