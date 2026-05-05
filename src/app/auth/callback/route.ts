@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
           // Set on BOTH the cookieStore and the response object
           // to ensure cookies are persisted in Next.js 15
           cookiesToSet.forEach(({ name, value, options }) => {
