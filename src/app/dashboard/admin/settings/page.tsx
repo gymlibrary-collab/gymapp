@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { Upload, Save, CheckCircle, ImageIcon, Timer, Type } from 'lucide-react'
+import { uploadToStorage } from '@/lib/utils'
 
 export default function AdminSettingsPage() {
   const [appName, setAppName] = useState('GymApp')
