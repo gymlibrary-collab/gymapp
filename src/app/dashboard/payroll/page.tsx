@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass } from '@/lib/utils'
 import { getAgeAsOf, getCpfBracketRates } from '@/lib/cpf'
-import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle } from 'lucide-react'
+import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle , Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -111,8 +111,13 @@ export default function PayrollPage() {
     const { data: gymsData } = await supabase.from('gyms').select('id, name, logo_url')
 
     // Build lookup maps
-    // existingSet: track user+gym combos already generated
-    const existingSet = new Set(existingRes.data?.map((p: any) => `${p.user_id}:${p.gym_id || 'null'}`) || [])
+    // existingApproved: track approved/paid payslips — these must never be overwritten
+    const existingApproved = new Set(
+      existingRes.data?.filter((p: any) => p.status !== 'draft').map((p: any) => `${p.user_id}:${p.gym_id || 'null'}`) || []
+    )
+    // Delete all existing DRAFT payslips for this month — regeneration overwrites them
+    await supabase.from('payslips')
+      .delete().eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
     // rosterByUserGym: { userId: { gymId: { hours, pay } } }
     const rosterByUserGym: Record<string, Record<string, {hours: number, pay: number}>> = {}
     rosterRes.data?.forEach((r: any) => {
@@ -145,7 +150,7 @@ export default function PayrollPage() {
         for (const [gymId, roster] of Object.entries(gymMap)) {
           if (roster.pay === 0) continue // skip gyms with no pay
           const existKey = `${member.id}:${gymId}`
-          if (existingSet.has(existKey)) { skipped++; continue }
+          if (existingApproved.has(existKey)) { skipped++; continue } // skip approved/paid only
           const actualGymId = gymId === 'null' ? null : gymId
           toInsert.push({
             user_id: member.id, month: bulkMonth, year: bulkYear,
@@ -168,7 +173,7 @@ export default function PayrollPage() {
         // Resolve gym_id: trainer uses trainer_gyms[0], others use manager_gym_id
         const gymId = member.trainer_gyms?.[0]?.gym_id || member.manager_gym_id || null
         const existKeyWithGym = `${member.id}:${gymId || 'null'}`
-        if (existingSet.has(existKey) || existingSet.has(existKeyWithGym)) { skipped++; continue }
+        if (existingApproved.has(existKey) || existingApproved.has(existKeyWithGym)) { skipped++; continue } // skip approved/paid only
         const basicSalary = member.staff_payroll?.current_salary || 0
         if (basicSalary === 0) { noSalaryNames.push(member.full_name); skipped++; continue }
         const bonusAmt = bonusByUser[member.id] || 0
@@ -194,6 +199,21 @@ export default function PayrollPage() {
     setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: [] })
     setBulkGenerating(false)
     load()
+  }
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Delete all DRAFT payslips for ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} ${bulkYear}? This cannot be undone. Approved and paid payslips are NOT affected.`)) return
+    setBulkGenerating(true)
+    const { error } = await supabase.from('payslips')
+      .delete()
+      .eq('month', bulkMonth)
+      .eq('year', bulkYear)
+      .eq('status', 'draft')
+    if (error) { alert('Delete failed: ' + error.message); setBulkGenerating(false); return }
+    setBulkResult(null)
+    setBulkGenerating(false)
+    load()
+    showMsg('Draft payslips deleted')
   }
 
   const fullTimers = staffList.filter(s => (s.employment_type || 'full_time') === 'full_time')
@@ -255,11 +275,19 @@ export default function PayrollPage() {
               <p>· Part-time staff — from locked roster shifts for this month</p>
               <p>· CPF rates applied from age bracket table (based on date of birth)</p>
               <p>· Staff with no salary set and part-timers with no shifts are skipped</p>
+              <p>· Existing draft payslips for this month are overwritten — approved/paid are protected</p>
             </div>
-            <button onClick={handleBulkGenerate} disabled={bulkGenerating}
-              className="btn-primary w-full disabled:opacity-50">
-              {bulkGenerating ? 'Generating payslips...' : `Generate All Payslips — ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} ${bulkYear}`}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={handleBulkGenerate} disabled={bulkGenerating}
+                className="btn-primary flex-1 disabled:opacity-50">
+                {bulkGenerating ? 'Generating...' : `Generate All Payslips — ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} ${bulkYear}`}
+              </button>
+              <button onClick={handleBulkDelete} disabled={bulkGenerating}
+                className="btn-secondary flex-shrink-0 flex items-center gap-1.5 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                title="Delete all draft payslips for this month">
+                <Trash2 className="w-4 h-4" /> Delete Drafts
+              </button>
+            </div>
             {bulkResult && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
