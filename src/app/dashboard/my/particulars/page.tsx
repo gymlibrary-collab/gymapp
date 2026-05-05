@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { validatePhone, validateAddress, validateAll } from '@/lib/validators'
 import {
   User, Phone, Shield, Globe, Calendar, MapPin,
   Save, CheckCircle, AlertCircle,
@@ -37,8 +38,13 @@ export default function MyParticularsPage() {
   }, [])
 
   const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true); setError('')
+    e.preventDefault(); setError('')
+    const err = validateAll([
+      validatePhone(form.phone),
+      validateAddress(form.address),
+    ])
+    if (err) { setError(err); return }
+    setSaving(true)
     const res = await fetch('/api/trainers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
