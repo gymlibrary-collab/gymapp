@@ -75,33 +75,4 @@
   .nav-active {
     @apply bg-red-50 text-red-700;
   }
-
-  /* react-day-picker — public holiday modifier */
-  .rdp-public-holiday {
-    color: #f97316;
-    font-weight: 600;
-    position: relative;
-  }
-  .rdp-public-holiday::after {
-    content: '';
-    position: absolute;
-    bottom: 2px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 4px;
-    height: 4px;
-    background: #f97316;
-    border-radius: 50%;
-  }
-  /* react-day-picker — selected range uses red */
-  .rdp-leave-picker .rdp-day_selected,
-  .rdp-leave-picker .rdp-day_range_start,
-  .rdp-leave-picker .rdp-day_range_end {
-    background-color: #dc2626 !important;
-    color: white !important;
-  }
-  .rdp-leave-picker .rdp-day_range_middle {
-    background-color: #fef2f2 !important;
-    color: #dc2626 !important;
-  }
 }
