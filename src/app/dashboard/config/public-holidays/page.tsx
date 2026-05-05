@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { Plus, Trash2, CheckCircle, AlertCircle, Calendar, X, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 export default function PublicHolidaysPage() {
   const [holidays, setHolidays] = useState<any[]>([])
@@ -13,12 +14,10 @@ export default function PublicHolidaysPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ holiday_date: '', name: '' })
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [error, setError] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
   const years = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
 
   useEffect(() => { load() }, [selectedYear])
