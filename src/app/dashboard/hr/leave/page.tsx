@@ -8,6 +8,7 @@ import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucid
 import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 const LEAVE_TYPES: Record<string, string> = {
   annual: 'Annual Leave', medical: 'Medical Leave',
@@ -241,7 +242,7 @@ export default function LeaveManagementPage() {
         </p>
       </div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
+      <StatusBanner success={success} />
 
       {/* Context banner */}
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
