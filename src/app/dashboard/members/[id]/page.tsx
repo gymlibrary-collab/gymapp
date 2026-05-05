@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { validatePhone, validateMembershipNumber, validateAll } from '@/lib/validators'
 
 export default function MemberProfilePage() {
   const { id } = useParams()
@@ -108,7 +109,13 @@ export default function MemberProfilePage() {
 
   // ── Edit member ───────────────────────────────────────────
   const handleSaveMember = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true)
+    e.preventDefault()
+    const err = validateAll([
+      validatePhone(editForm.phone),
+      validateMembershipNumber(editForm.membership_number),
+    ])
+    if (err) { alert(err); return }
+    setSaving(true)
     await supabase.from('members').update({
       full_name: editForm.full_name, phone: editForm.phone,
       email: editForm.email || null, date_of_birth: editForm.date_of_birth || null,
@@ -256,7 +263,7 @@ export default function MemberProfilePage() {
             <div><label className="label">Phone *</label><input className="input" required type="tel" value={editForm.phone} onChange={e => setEditForm((f: any) => ({ ...f, phone: e.target.value }))} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Membership Card No</label><input className="input" value={editForm.membership_number} onChange={e => setEditForm((f: any) => ({ ...f, membership_number: e.target.value }))} /></div>
+            <div><label className="label">Membership Card No</label><input className="input" value={editForm.membership_number} onChange={e => setEditForm((f: any) => ({ ...f, membership_number: e.target.value.toUpperCase() }))} /></div>
             <div><label className="label">Date of Birth</label><input className="input" type="date" value={editForm.date_of_birth} onChange={e => setEditForm((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
           </div>
           <div><label className="label">Health Notes</label><textarea className="input min-h-[60px] resize-none" value={editForm.health_notes} onChange={e => setEditForm((f: any) => ({ ...f, health_notes: e.target.value }))} /></div>
