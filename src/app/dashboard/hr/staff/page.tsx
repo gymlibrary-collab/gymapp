@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 const ALL_ROLES = [
   { value: 'admin', label: 'Admin', description: 'App settings only' },
@@ -207,8 +208,7 @@ export default function TrainersPage() {
         {tab === 'active' && <button onClick={() => { setShowCreateForm(!showCreateForm); setEditingUser(null) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Staff</button>}
       </div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
-      {error && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}<button onClick={() => setError('')} className="ml-auto"><X className="w-4 h-4" /></button></div>}
+      <StatusBanner success={success} error={error} onDismissError={() => setError('')} />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
