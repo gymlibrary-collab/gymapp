@@ -11,6 +11,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { validatePhone, validateNric, validateNationality, validateAddress, validateAll } from '@/lib/validators'
 
 interface BizOpsUser {
   id: string
@@ -83,8 +84,15 @@ export default function AdminStaffPage() {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true); setError('')
+    e.preventDefault(); setError('')
+    const err = validateAll([
+      validatePhone(form.phone),
+      validateNric((form as any).nric),
+      validateNationality((form as any).nationality),
+      validateAddress((form as any).address),
+    ])
+    if (err) { setError(err); return }
+    setSaving(true)
 
     if (editingUser) {
       // Update via trainers API (handles auth email update too)
@@ -218,7 +226,7 @@ export default function AdminStaffPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">NRIC / FIN / Passport</label>
-              <input className="input" value={(form as any).nric} onChange={set('nric')} placeholder="e.g. S1234567A" />
+              <input className="input" value={(form as any).nric} onChange={e => setForm((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" />
             </div>
             <div>
               <label className="label">Nationality</label>
