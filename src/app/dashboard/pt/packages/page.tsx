@@ -9,6 +9,7 @@ import {
   AlertCircle, Package, Calendar, Hash, DollarSign
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 interface PackageTemplate {
   id: string
@@ -32,15 +33,13 @@ export default function PackagesPage() {
   const [tab, setTab] = useState<'active' | 'archived'>('active')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingPkg, setEditingPkg] = useState<PackageTemplate | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const supabase = createClient()
   const router = useRouter()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { loadPackages() }, [])
 
