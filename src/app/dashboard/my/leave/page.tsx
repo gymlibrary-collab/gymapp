@@ -245,6 +245,27 @@ export default function MyLeavePage() {
             <div><label className="label">To *</label><input className="input" type="date" required value={form.end_date} min={form.start_date || new Date().toISOString().split('T')[0]} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
           </div>
 
+          {/* Public holidays in selected range */}
+          {form.start_date && form.end_date && (() => {
+            const start = new Date(form.start_date)
+            const end = new Date(form.end_date)
+            const holidaysInRange = holidays.filter(h => {
+              const d = new Date(h)
+              return d >= start && d <= end
+            })
+            if (holidaysInRange.length === 0) return null
+            return (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+                <p className="font-medium mb-1">Public holidays in this period (not counted as leave):</p>
+                <ul className="space-y-0.5">
+                  {holidaysInRange.map(h => (
+                    <li key={h}>· {new Date(h).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', weekday: 'short' })}</li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })()}
+
           {days > 0 && (
             <div className={cn('rounded-lg p-3 text-sm font-medium text-center', days > available ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>
               {days} working day{days !== 1 ? 's' : ''} (excl. weekends & public holidays)
