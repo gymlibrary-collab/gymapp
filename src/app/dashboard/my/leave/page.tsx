@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, X, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 const LEAVE_TYPES = [
   { value: 'annual', label: 'Annual Leave' },
@@ -22,15 +23,13 @@ export default function MyLeavePage() {
   const [holidays, setHolidays] = useState<string[]>([])
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [form, setForm] = useState({
     leave_type: 'annual', start_date: '', end_date: '', reason: '',
   })
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { load() }, [])
 
