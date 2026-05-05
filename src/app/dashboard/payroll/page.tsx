@@ -20,7 +20,7 @@ export default function PayrollPage() {
   const [bulkMonth, setBulkMonth] = useState(new Date().getMonth() + 1)
   const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
   const [bulkGenerating, setBulkGenerating] = useState(false)
-  const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[]} | null>(null)
+  const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[], deleted?: boolean} | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const router = useRouter()
@@ -213,7 +213,7 @@ export default function PayrollPage() {
     setBulkResult(null)
     setBulkGenerating(false)
     load()
-    showMsg('Draft payslips deleted')
+    setBulkResult({ generated: 0, skipped: 0, noSalary: [], noShifts: [], deleted: true })
   }
 
   const fullTimers = staffList.filter(s => (s.employment_type || 'full_time') === 'full_time')
@@ -290,22 +290,31 @@ export default function PayrollPage() {
             </div>
             {bulkResult && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                  {bulkResult.generated} payslip{bulkResult.generated !== 1 ? 's' : ''} generated · {bulkResult.skipped} skipped
-                </div>
-                {bulkResult.noSalary.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-                    <p className="font-medium mb-1">⚠ Skipped — no salary set ({bulkResult.noSalary.length}):</p>
-                    <p>{bulkResult.noSalary.join(', ')}</p>
-                    <p className="mt-1 text-amber-600">Set their salary in the individual payroll profile, then regenerate.</p>
+                {bulkResult.deleted ? (
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    All draft payslips for this month have been deleted
                   </div>
-                )}
-                {bulkResult.noShifts.length > 0 && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
-                    <p className="font-medium mb-1">Skipped — no completed shifts ({bulkResult.noShifts.length}):</p>
-                    <p>{bulkResult.noShifts.join(', ')}</p>
-                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+                      <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                      {bulkResult.generated} payslip{bulkResult.generated !== 1 ? 's' : ''} generated · {bulkResult.skipped} skipped
+                    </div>
+                    {bulkResult.noSalary.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                        <p className="font-medium mb-1">⚠ Skipped — no salary set ({bulkResult.noSalary.length}):</p>
+                        <p>{bulkResult.noSalary.join(', ')}</p>
+                        <p className="mt-1 text-amber-600">Set their salary in the individual payroll profile, then regenerate.</p>
+                      </div>
+                    )}
+                    {bulkResult.noShifts.length > 0 && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-600">
+                        <p className="font-medium mb-1">Skipped — no completed shifts ({bulkResult.noShifts.length}):</p>
+                        <p>{bulkResult.noShifts.join(', ')}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
