@@ -9,6 +9,7 @@ import {
   ChevronLeft, ChevronRight, Settings, Clock, Users, AlertTriangle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 const DEFAULT_PRESETS = [
   { label: 'Morning', shift_start: '08:00', shift_end: '13:00' },
@@ -41,13 +42,11 @@ export default function RosterPage() {
   const [presetForm, setPresetForm] = useState({ label: '', shift_start: '', shift_end: '' })
 
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [overlapWarning, setOverlapWarning] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { loadData() }, [weekStart])
 
