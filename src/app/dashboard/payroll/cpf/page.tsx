@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 function getAge(dob: string) {
   if (!dob) return null
@@ -33,11 +34,10 @@ export default function CpfPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg } = useToast()
 
   useEffect(() => { load() }, [])
 
