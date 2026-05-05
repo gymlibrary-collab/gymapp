@@ -221,7 +221,7 @@ export default function GymManagementPage() {
             <label className="label flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-gray-400" /> Financial Year Start Month
             </label>
-            <select className="input" value={(form as any).fy_start_month} onChange={set('fy_start_month')}>
+            <select className="input" value={(form as any).fy_start_month} onChange={e => setForm(f => ({ ...f, fy_start_month: e.target.value }))}>
               <option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option><option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option><option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
             </select>
             <p className="text-xs text-gray-400 mt-1">The month the financial year begins for this gym. Used for reporting.</p>
