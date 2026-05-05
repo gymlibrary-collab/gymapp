@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, X, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 const LEAVE_TYPES = [
   { value: 'annual', label: 'Annual Leave' },
@@ -174,7 +175,7 @@ export default function MyLeavePage() {
         </button>
       </div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
+      <StatusBanner success={success} />
 
       {/* In-app indicator for recent decisions */}
       {recentDecisions.filter(a => a.status === 'approved').length > 0 && (
