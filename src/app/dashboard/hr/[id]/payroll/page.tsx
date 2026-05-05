@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 export default function StaffPayrollDetailPage() {
   const { id } = useParams()
@@ -27,8 +28,6 @@ export default function StaffPayrollDetailPage() {
   const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({ logoUrl: null, companyName: 'Gym Operations', gymName: 'Gym Operations' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
 
   const [showSalaryForm, setShowSalaryForm] = useState(false)
   const [showIncrementForm, setShowIncrementForm] = useState(false)
@@ -43,7 +42,7 @@ export default function StaffPayrollDetailPage() {
   const [payslipPreview, setPayslipPreview] = useState<any>(null)
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   // Calculate age as of a reference date.
   // CPF bracket moves to the next bracket the DAY AFTER the birthday,
