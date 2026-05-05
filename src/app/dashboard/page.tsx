@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatSGD, formatDateTime, formatDate } from '@/lib/utils'
+import { formatSGD, formatDateTime, formatDate, getMonthName } from '@/lib/utils'
 import {
   Users, Building2, Settings, ChevronRight, CheckCircle, ChevronDown, ChevronUp,
   Clock, DollarSign, Briefcase, UserCheck, Dumbbell, Shield,
   CreditCard, Calendar, Package, AlertTriangle, AlertCircle,
-  TrendingUp, UserX, Bell
-, Gift, X } from 'lucide-react'
+  TrendingUp, UserX, Bell, FileText, Gift, X } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -505,6 +504,8 @@ export default function DashboardPage() {
 
   // Stats
   const [stats, setStats] = useState<any>({})
+  const [newPayslip, setNewPayslip] = useState<any>(null) // latest unseen approved/paid payslip
+  const [newCommission, setNewCommission] = useState<any>(null) // latest unseen approved commission
 
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
@@ -725,6 +726,43 @@ export default function DashboardPage() {
         }
       }
 
+      // ── Payslip & commission notifications ──────────────
+      // Show once after approval — compare against seen timestamp on user record
+      const seenPayslip = u.payslip_notif_seen_at ? new Date(u.payslip_notif_seen_at) : null
+      const seenCommission = u.commission_notif_seen_at ? new Date(u.commission_notif_seen_at) : null
+
+      // Latest approved/paid payslip newer than last seen timestamp
+      const { data: latestPayslip } = await supabase
+        .from('payslips')
+        .select('id, month, year, net_salary, status, approved_at')
+        .eq('user_id', authUser.id)
+        .in('status', ['approved', 'paid'])
+        .order('approved_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (latestPayslip?.approved_at) {
+        const approvedAt = new Date(latestPayslip.approved_at)
+        if (!seenPayslip || approvedAt > seenPayslip) {
+          setNewPayslip(latestPayslip)
+        }
+      }
+
+      // Latest approved commission payout newer than last seen timestamp
+      const { data: latestCommission } = await supabase
+        .from('commission_payouts')
+        .select('id, month, year, total_commission_sgd, approved_at')
+        .eq('trainer_id', authUser.id)
+        .eq('status', 'approved')
+        .order('approved_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (latestCommission?.approved_at) {
+        const approvedAt = new Date(latestCommission.approved_at)
+        if (!seenCommission || approvedAt > seenCommission) {
+          setNewCommission(latestCommission)
+        }
+      }
+
       setLoading(false)
     }
     load()
@@ -739,6 +777,18 @@ export default function DashboardPage() {
   const now = new Date()
   const todayStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })
   const isAdmin = user.role === 'admin'
+  const dismissNotifications = async () => {
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    await supabase.from('users').update({
+      payslip_notif_seen_at: new Date().toISOString(),
+      commission_notif_seen_at: new Date().toISOString(),
+    }).eq('id', authUser.id)
+    setNewPayslip(null)
+    setNewCommission(null)
+  }
+
   const isBizOps = user.role === 'business_ops'
   const isStaff = user.role === 'staff'
   const isManager = user.role === 'manager' && !isActingAsTrainer
@@ -845,6 +895,40 @@ export default function DashboardPage() {
       {/* ── Birthday panel ── */}
       {isManager && (
         <BirthdayPanel gymId={user.manager_gym_id} isBizOps={false} />
+      )}
+
+      {/* ── Payslip notification ── */}
+      {newPayslip && (
+        <Link href="/dashboard/my/payslips" onClick={dismissNotifications}
+          className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-4 hover:bg-green-100 transition-colors">
+          <FileText className="w-5 h-5 text-green-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">
+              New payslip available — {getMonthName(newPayslip.month)} {newPayslip.year}
+            </p>
+            <p className="text-xs text-green-600 mt-0.5">
+              {newPayslip.status === 'paid' ? 'Paid' : 'Approved'} · Net {formatSGD(newPayslip.net_salary)}
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-green-400 flex-shrink-0" />
+        </Link>
+      )}
+
+      {/* ── Commission notification ── */}
+      {newCommission && (
+        <Link href="/dashboard/my/payslips?tab=commission" onClick={dismissNotifications}
+          className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-4 hover:bg-green-100 transition-colors">
+          <DollarSign className="w-5 h-5 text-green-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">
+              Commission payout approved — {getMonthName(newCommission.month)} {newCommission.year}
+            </p>
+            <p className="text-xs text-green-600 mt-0.5">
+              {formatSGD(newCommission.total_commission_sgd)} ready for collection
+            </p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-green-400 flex-shrink-0" />
+        </Link>
       )}
 
       {/* ── Stats row ── */}
