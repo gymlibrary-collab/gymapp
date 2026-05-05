@@ -40,24 +40,16 @@ export default function AdminSettingsPage() {
     load()
   }, [])
 
-  const uploadLogo = async (file: File, bucket: string, path: string) => {
-    if (file.size > 2 * 1024 * 1024) { alert('Image exceeds 2MB. Please choose a smaller file.'); return null }
-    // upsert:true overwrites any existing file — no need to remove first
-    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, cacheControl: '0' })
-    if (error) { console.error('Logo upload error:', error); alert(`Upload failed: ${error.message}`); return null }
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path)
-    return data.publicUrl + '?t=' + Date.now()
-  }
 
   const handleSaveBranding = async () => {
     setSaving('branding')
     const updates: any = { id: 'global', app_name: appName, updated_at: new Date().toISOString() }
     if (loginLogoFile) {
-      const url = await uploadLogo(loginLogoFile, 'app-logos', 'login-logo')
+      const url = await uploadToStorage(supabase, loginLogoFile, 'app-logos', 'login-logo')
       if (url) { updates.login_logo_url = url.split('?')[0]; setLoginLogoPreview(url) }
     }
     if (sidebarLogoFile) {
-      const url = await uploadLogo(sidebarLogoFile, 'app-logos', 'admin-sidebar-logo')
+      const url = await uploadToStorage(supabase, sidebarLogoFile, 'app-logos', 'admin-sidebar-logo')
       if (url) { updates.admin_sidebar_logo_url = url.split('?')[0]; setSidebarLogoPreview(url) }
     }
     updates.company_name = companyName
