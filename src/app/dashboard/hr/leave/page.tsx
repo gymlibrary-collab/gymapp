@@ -7,6 +7,7 @@ import { formatDate , getRoleLabel } from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucide-react'
 import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 const LEAVE_TYPES: Record<string, string> = {
   annual: 'Annual Leave', medical: 'Medical Leave',
@@ -21,11 +22,10 @@ export default function LeaveManagementPage() {
   const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [success, setSuccess] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg } = useToast()
 
   useEffect(() => { load() }, [filter])
 
