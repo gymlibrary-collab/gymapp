@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, X, AlertCircle } from 'lucide-react'
-import { DayPicker, type DateRange } from 'react-day-picker'
-import 'react-day-picker/style.css'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -243,54 +241,27 @@ export default function MyLeavePage() {
             </select>
           </div>
 
-          <div>
-            <label className="label">Select Leave Dates *</label>
-            <DayPicker
-              mode="range"
-              selected={{
-                from: form.start_date ? new Date(form.start_date) : undefined,
-                to: form.end_date ? new Date(form.end_date) : undefined,
-              }}
-              onSelect={(range: DateRange | undefined) => {
-                setForm(f => ({
-                  ...f,
-                  start_date: range?.from ? range.from.toISOString().split('T')[0] : '',
-                  end_date: range?.to ? range.to.toISOString().split('T')[0] : '',
-                }))
-              }}
-              disabled={{ before: new Date() }}
-              modifiers={{
-                publicHoliday: holidays.map(h => new Date(h)),
-              }}
-              modifiersClassNames={{
-                publicHoliday: 'rdp-public-holiday',
-              }}
-              className="rdp-leave-picker"
-            />
-            {/* Legend */}
-            <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" /> Public holiday
-              </span>
-            </div>
-            {/* Public holidays in selected range */}
-            {form.start_date && form.end_date && (() => {
-              const start = new Date(form.start_date)
-              const end = new Date(form.end_date)
-              const holidaysInRange = holidays.filter(h => {
-                const d = new Date(h); return d >= start && d <= end
-              })
-              if (!holidaysInRange.length) return null
-              return (
-                <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-xs text-orange-700 mt-2">
-                  <p className="font-medium mb-1">Public holidays in this period (not counted as leave):</p>
-                  {holidaysInRange.map(h => (
-                    <p key={h}>· {new Date(h).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-                  ))}
-                </div>
-              )
-            })()}
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">From *</label><input className="input" type="date" required value={form.start_date} min={new Date().toISOString().split('T')[0]} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
+            <div><label className="label">To *</label><input className="input" type="date" required value={form.end_date} min={form.start_date || new Date().toISOString().split('T')[0]} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
           </div>
+
+          {form.start_date && form.end_date && (() => {
+            const start = new Date(form.start_date)
+            const end = new Date(form.end_date)
+            const holidaysInRange = holidays.filter(h => {
+              const d = new Date(h); return d >= start && d <= end
+            })
+            if (!holidaysInRange.length) return null
+            return (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
+                <p className="font-medium mb-1">Public holidays in this period (not counted as leave):</p>
+                {holidaysInRange.map(h => (
+                  <p key={h}>· {new Date(h).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
+                ))}
+              </div>
+            )
+          })()}
 
           {days > 0 && (
             <div className={cn('rounded-lg p-3 text-sm font-medium text-center', days > available ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>
