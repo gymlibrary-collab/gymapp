@@ -14,7 +14,10 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies()
 
-  // Session client — anon key + cookies for exchanging the OAuth code
+  // Build the redirect response first — cookies must be set on the response
+  // object in Next.js 15, not on the cookieStore, when returning a redirect
+  const successRedirect = NextResponse.redirect(`${origin}${next}`)
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -23,9 +26,12 @@ export async function GET(request: Request) {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+        setAll(cookiesToSet) {
+          // Set on BOTH the cookieStore and the response object
+          // to ensure cookies are persisted in Next.js 15
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options as any)
+            try { cookieStore.set(name, value, options as any) } catch {}
+            successRedirect.cookies.set(name, value, options as any)
           })
         },
       },
@@ -41,9 +47,7 @@ export async function GET(request: Request) {
 
   const user = data.session.user
 
-  // Use service role client for the users lookup — bypasses RLS entirely.
-  // This is correct for a server-side auth check: we need to verify the user
-  // exists regardless of their role or RLS policy state.
+  // Use service role client for the users lookup — bypasses RLS entirely
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -56,18 +60,16 @@ export async function GET(request: Request) {
     .eq('id', user.id)
     .single()
 
-  // User not found in users table — logged in with Google
-  // but hasn't been added as staff yet
   if (!userRecord) {
     await supabase.auth.signOut()
     return NextResponse.redirect(`${origin}/?error=not_authorised`)
   }
 
-  // User is archived or inactive
   if (userRecord.is_archived || !userRecord.is_active) {
     await supabase.auth.signOut()
     return NextResponse.redirect(`${origin}/?error=account_disabled`)
   }
 
-  return NextResponse.redirect(`${origin}${next}`)
+  // Return the pre-built redirect response which has the session cookies attached
+  return successRedirect
 }
