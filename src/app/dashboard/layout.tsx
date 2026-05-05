@@ -295,7 +295,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       <div className="px-4 py-2 border-b border-gray-100">
-        <p className="text-xs text-gray-400">{new Date().toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+        <p className="text-xs text-gray-900 text-center">{new Date().toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
       </div>
 
       {isManagerTrainer && (
