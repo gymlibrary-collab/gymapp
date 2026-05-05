@@ -6,19 +6,18 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatSGD } from '@/lib/utils'
 import { Plus, Edit2, X, Save, CheckCircle, Layers, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 export default function MembershipTypesPage() {
   const [types, setTypes] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [error, setError] = useState('')
   const [form, setForm] = useState({ name: '', duration_days: '', price_sgd: '' })
   const supabase = createClient()
   const router = useRouter()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { load() }, [])
 
