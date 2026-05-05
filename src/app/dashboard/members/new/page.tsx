@@ -7,6 +7,7 @@ import { formatSGD, formatDate, cn } from '@/lib/utils'
 import { ArrowLeft, User, CreditCard, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
+import { validatePhone, validateFullName, validateMembershipNumber, validateAll } from '@/lib/validators'
 
 export default function RegisterMemberPage() {
   const [step, setStep] = useState<'member' | 'membership'>('member')
@@ -58,7 +59,14 @@ export default function RegisterMemberPage() {
   }, [])
 
   const handleCreateMember = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
+    e.preventDefault(); setError('')
+    const err = validateAll([
+      validateFullName(memberForm.full_name),
+      validatePhone(memberForm.phone),
+      validateMembershipNumber(memberForm.membership_number),
+    ])
+    if (err) { setError(err); return }
+    setLoading(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
     // Check membership number uniqueness if provided
@@ -160,7 +168,7 @@ export default function RegisterMemberPage() {
 
           <div>
             <label className="label">Membership Card Number</label>
-            <input className="input" value={memberForm.membership_number} onChange={e => setMemberForm(f => ({ ...f, membership_number: e.target.value }))} placeholder="From physical card (e.g. GYM-2024-0001)" />
+            <input className="input" value={memberForm.membership_number} onChange={e => setMemberForm(f => ({ ...f, membership_number: e.target.value.toUpperCase() }))} placeholder="From physical card (e.g. GYM-2024-0001)" />
             <p className="text-xs text-gray-400 mt-1">Key in from the physical membership card. Leave blank if not yet assigned.</p>
           </div>
 
