@@ -7,6 +7,7 @@ import { formatSGD, getMonthName } from '@/lib/utils'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 function getAge(dob: string) {
   if (!dob) return null
@@ -167,7 +168,7 @@ export default function CpfPage() {
     <div className="space-y-6 max-w-2xl">
       <div><h1 className="text-xl font-bold text-gray-900">CPF Configuration & Reports</h1><p className="text-sm text-gray-500">Singapore CPF rates by age bracket + monthly submission reports</p></div>
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
+      <StatusBanner success={success} />
 
       {/* Age brackets */}
       <div className="card">
