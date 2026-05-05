@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/utils'
 import { Plus, Trash2, CheckCircle, AlertCircle, Calendar, X, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function PublicHolidaysPage() {
   const [holidays, setHolidays] = useState<any[]>([])
@@ -81,8 +82,7 @@ export default function PublicHolidaysPage() {
         </div>
       )}
 
-      {success && <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700"><CheckCircle className="w-4 h-4 flex-shrink-0" />{success}</div>}
-      {error && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
+      <StatusBanner success={success} error={error} />
 
       {/* Year selector */}
       <div className="flex gap-1">
