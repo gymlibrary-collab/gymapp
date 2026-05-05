@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate } from '@/lib/utils'
+import { formatDate, uploadToStorage } from '@/lib/utils'
 import {
   Plus, Edit2, X, Save, CheckCircle, AlertCircle,
   Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, Power,
@@ -69,17 +69,6 @@ export default function GymManagementPage() {
     setError('')
   }
 
-  const uploadLogo = async (gymId: string, file: File): Promise<string | null> => {
-    const path = `gym-${gymId}`
-    // Use upsert:true — no need to remove first, and remove() on a
-    // non-existent object triggers an RLS error when the row doesn't exist.
-    const { error } = await supabase.storage.from('gym-logos').upload(path, file, {
-      upsert: true, cacheControl: '0',
-    })
-    if (error) return null
-    const { data } = supabase.storage.from('gym-logos').getPublicUrl(path)
-    return data.publicUrl
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
