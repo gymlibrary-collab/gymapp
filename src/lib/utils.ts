@@ -95,3 +95,44 @@ export function getRoleLabel(role: string): string {
   }
   return labels[role] ?? role
 }
+
+// ── Role badge colours ────────────────────────────────────────
+// Returns a Tailwind bg+text colour string for a given role.
+// Teal for trainer avoids clash with the green "Active" badge.
+export function roleBadgeClass(role: string): string {
+  const classes: Record<string, string> = {
+    admin:        'bg-red-100 text-red-700',
+    business_ops: 'bg-purple-100 text-purple-700',
+    manager:      'bg-yellow-100 text-yellow-800',
+    trainer:      'bg-teal-100 text-teal-700',
+    staff:        'bg-blue-100 text-blue-700',
+  }
+  return classes[role] || 'bg-gray-100 text-gray-600'
+}
+
+// ── Storage logo upload ───────────────────────────────────────
+// Generic logo upload helper. Uploads file to the given bucket
+// at the given path (upsert — overwrites existing). Returns the
+// public URL with a cache-busting timestamp, or null on failure.
+export async function uploadToStorage(
+  supabase: any,
+  file: File,
+  bucket: string,
+  path: string,
+  maxMb = 2
+): Promise<string | null> {
+  if (file.size > maxMb * 1024 * 1024) {
+    alert(`Image exceeds ${maxMb}MB. Please choose a smaller file.`)
+    return null
+  }
+  const { error } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, { upsert: true, cacheControl: '0' })
+  if (error) {
+    console.error('Storage upload error:', error)
+    alert(`Upload failed: ${error.message}`)
+    return null
+  }
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+  return data.publicUrl + '?t=' + Date.now()
+}
