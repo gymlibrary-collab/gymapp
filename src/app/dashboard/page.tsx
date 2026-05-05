@@ -843,8 +843,8 @@ export default function DashboardPage() {
       )}
 
       {/* ── Birthday panel ── */}
-      {(isManager || isBizOps) && (
-        <BirthdayPanel gymId={user.manager_gym_id} isBizOps={isBizOps} />
+      {isManager && (
+        <BirthdayPanel gymId={user.manager_gym_id} isBizOps={false} />
       )}
 
       {/* ── Stats row ── */}
@@ -897,8 +897,8 @@ export default function DashboardPage() {
       )}
 
       {/* ── Biz Ops: per-gym breakdown ── */}
-      {isBizOps && <BizOpsDashboardAlerts />}
       {isBizOps && <BirthdayPanel isBizOps={true} />}
+      {isBizOps && <BizOpsDashboardAlerts />}
       {isBizOps && <BizOpsGymBreakdown />}
       {/* ── Biz Ops: per-gym activity ── */}
       {isBizOps && <BizOpsGymActivity />}
