@@ -9,6 +9,7 @@ import {
   AlertCircle, Briefcase, Archive
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 interface BizOpsUser {
   id: string
@@ -30,15 +31,13 @@ export default function AdminStaffPage() {
   const [tab, setTab] = useState<'active' | 'archived'>('active')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingUser, setEditingUser] = useState<BizOpsUser | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { loadData() }, [])
 
