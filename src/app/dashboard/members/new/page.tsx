@@ -60,12 +60,12 @@ export default function RegisterMemberPage() {
 
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
-    const err = validateAll([
+    const validationErr = validateAll([
       validateFullName(memberForm.full_name),
       validatePhone(memberForm.phone),
       validateMembershipNumber(memberForm.membership_number),
     ])
-    if (err) { setError(err); return }
+    if (validationErr) { setError(validationErr); return }
     setLoading(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
