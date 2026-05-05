@@ -20,6 +20,7 @@ function BizOpsDashboardAlerts() {
   const [pendingLeave, setPendingLeave] = useState(0)
   const [holidaysSetUp, setHolidaysSetUp] = useState(true)
   const [cpfRatesSetUp, setCpfRatesSetUp] = useState(true)
+  const [leaveEntitlementReminder, setLeaveEntitlementReminder] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -38,7 +39,7 @@ function BizOpsDashboardAlerts() {
       const now = new Date()
       // Nov 15 onwards in November, OR any day in December.
       // Previous && logic created a 14-day blind spot from Dec 1–14.
-      const isYearEndPromptWindow = (now.getMonth() === 10 && now.getDate() >= 15) || now.getMonth() === 11
+      const isYearEndPromptWindow = now.getMonth() === 11 // 1 Dec through 31 Dec
       if (isYearEndPromptWindow) {
         const nextYear = now.getFullYear() + 1
         const { count } = await supabase.from('public_holidays')
@@ -53,12 +54,15 @@ function BizOpsDashboardAlerts() {
           .select('id', { count: 'exact', head: true })
           .eq('effective_from', nextYearDate)
         setCpfRatesSetUp((cpfCount || 0) >= 5)
+
+        // Remind Biz Ops to review leave entitlements for all staff for the new year
+        setLeaveEntitlementReminder(true)
       }
     }
     load()
   }, [])
 
-  if (pendingLeave === 0 && holidaysSetUp && cpfRatesSetUp) return null
+  if (pendingLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder) return null
 
   return (
     <div className="space-y-3">
@@ -99,6 +103,20 @@ function BizOpsDashboardAlerts() {
             </p>
           </div>
           <Link href="/dashboard/config/public-holidays" className="btn-primary text-xs py-1.5 flex-shrink-0">Set Up</Link>
+        </div>
+      )}
+      {leaveEntitlementReminder && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">
+              Reminder — review staff leave entitlements for {new Date().getFullYear() + 1}
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Update each staff member's annual leave days before the new year begins.
+            </p>
+          </div>
+          <Link href="/dashboard/hr/staff" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
         </div>
       )}
     </div>
