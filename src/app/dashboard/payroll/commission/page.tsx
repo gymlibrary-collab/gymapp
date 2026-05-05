@@ -85,11 +85,11 @@ export default function CommissionPayoutsPage() {
         .gte('marked_complete_at', genForm.period_start)
         .lte('marked_complete_at', genForm.period_end + 'T23:59:59')
 
-      // Membership sale commissions (confirmed in period)
-      const { data: memSales } = await supabase.from('membership_sales')
+      // Membership sale commissions (confirmed in period) — from gym_memberships table
+      const { data: memSales } = await supabase.from('gym_memberships')
         .select('commission_sgd, gym_id')
         .eq('sold_by_user_id', member.id)
-        .eq('status', 'confirmed')
+        .eq('sale_status', 'confirmed')
         .eq('commission_paid', false)
         .gte('created_at', genForm.period_start)
         .lte('created_at', genForm.period_end + 'T23:59:59')
@@ -161,8 +161,8 @@ export default function CommissionPayoutsPage() {
           .eq('trainer_id', payout.user_id).eq('status', 'completed')
           .gte('marked_complete_at', payout.period_start)
           .lte('marked_complete_at', payout.period_end + 'T23:59:59')
-        await supabase.from('membership_sales').update({ commission_paid: true, commission_payout_id: payoutId })
-          .eq('sold_by_user_id', payout.user_id).eq('status', 'confirmed')
+        await supabase.from('gym_memberships').update({ commission_paid: true, commission_payout_id: payoutId })
+          .eq('sold_by_user_id', payout.user_id).eq('sale_status', 'confirmed')
           .gte('created_at', payout.period_start)
           .lte('created_at', payout.period_end + 'T23:59:59')
       }
