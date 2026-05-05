@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, formatDate, cn } from '@/lib/utils'
 import { ArrowLeft, User, CreditCard, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { StatusBanner } from '@/components/StatusBanner'
 
 export default function RegisterMemberPage() {
   const [step, setStep] = useState<'member' | 'membership'>('member')
@@ -138,7 +139,7 @@ export default function RegisterMemberPage() {
         <div className={cn('flex-1 h-1.5 rounded-full', step === 'membership' ? 'bg-red-600' : 'bg-gray-200')} />
       </div>
 
-      {error && <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-600"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>}
+      <StatusBanner error={error} />
 
       {step === 'member' && (
         <form onSubmit={handleCreateMember} className="card p-4 space-y-4">
