@@ -9,6 +9,7 @@ import {
   Download, Users, DollarSign, Calendar, Search
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 export default function CommissionPayoutsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -16,8 +17,6 @@ export default function CommissionPayoutsPage() {
   const [staff, setStaff] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [showGenerateForm, setShowGenerateForm] = useState(false)
@@ -29,7 +28,7 @@ export default function CommissionPayoutsPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { loadData() }, [])
 
