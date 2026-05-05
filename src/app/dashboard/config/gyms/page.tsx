@@ -91,7 +91,7 @@ export default function GymManagementPage() {
       // Upload logo if a new file was selected
       if (logoFile) {
         if (logoFile.size > 2 * 1024 * 1024) { setError('Logo image exceeds 2MB. Please choose a smaller file.'); setSaving(false); return }
-        const logoUrl = await uploadLogo(editingGym.id, logoFile)
+        const logoUrl = await uploadToStorage(supabase, logoFile, 'gym-logos', `gym-${editingGym.id}`)
         if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', editingGym.id)
       }
       showMsg('Gym updated')
@@ -101,7 +101,7 @@ export default function GymManagementPage() {
       if (err) { setError(err.message); setSaving(false); return }
       if (logoFile && created?.id) {
         if (logoFile.size > 2 * 1024 * 1024) { setError('Logo image exceeds 2MB. Please choose a smaller file.'); setSaving(false); return }
-        const logoUrl = await uploadLogo(created.id, logoFile)
+        const logoUrl = await uploadToStorage(supabase, logoFile, 'gym-logos', `gym-${created.id}`)
         if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', created.id)
       }
       showMsg('Gym club added')
