@@ -188,6 +188,7 @@ export default function MemberProfilePage() {
       session_commission_pct: currentUser?.commission_session_pct || 15,
       signup_commission_sgd: parseFloat(pkgForm.total_price_sgd) * (currentUser?.commission_signup_pct || 10) / 100,
       signup_commission_paid: false,
+      manager_confirmed: false,
     })
 
     await load()
