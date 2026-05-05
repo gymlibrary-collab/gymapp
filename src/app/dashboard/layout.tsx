@@ -19,7 +19,6 @@ type NavItem = { href?: string; label: string; icon?: any; header?: boolean }
 const adminNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/admin/staff', label: 'Business Ops Staff', icon: Briefcase },
-  { href: '/dashboard/hr/staff', label: 'HR — All Staff', icon: Users },
   { href: '/dashboard/hr/leave', label: 'Leave Approvals', icon: CalendarDays },
   { href: '/dashboard/admin/payslip-audit', label: 'Payslip Audit', icon: Shield },
   { href: '/dashboard/admin/settings', label: 'App Settings', icon: Settings },
@@ -293,6 +292,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-8 w-auto max-w-[32px] object-contain rounded-lg flex-shrink-0" onError={() => setSidebarLogo(null)} /> : <div className="bg-red-600 p-2 rounded-lg flex-shrink-0"><Dumbbell className="w-4 h-4 text-white" /></div>}
         <div className="flex-1 min-w-0"><p className="font-bold text-gray-900 text-sm truncate">{gymName}</p><p className="text-xs text-gray-500">{portalLabel}</p></div>
         <button onClick={() => setSidebarOpen(false)} className="md:hidden p-1 text-gray-400"><X className="w-4 h-4" /></button>
+      </div>
+
+      <div className="px-4 py-2 border-b border-gray-100">
+        <p className="text-xs text-gray-400">{new Date().toLocaleDateString('en-SG', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
       </div>
 
       {isManagerTrainer && (
