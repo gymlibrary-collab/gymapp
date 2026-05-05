@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
+import { validateHourlyRate } from '@/lib/validators'
 import {
   Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
   ChevronLeft, ChevronRight, Settings, Clock, Users, AlertTriangle
@@ -147,6 +148,8 @@ export default function RosterPage() {
 
   const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const rateErr = validateHourlyRate(bulkForm.hourly_rate)
+    if (rateErr) { setError(rateErr); return }
     if (!gymId || bulkForm.dates.length === 0) { setError('Select at least one date'); return }
     const times = getShiftTimes()
     if (!times) { setError('Select a shift time'); return }
@@ -326,7 +329,7 @@ export default function RosterPage() {
           {bulkForm.user_id && (
             <div>
               <label className="label">Hourly Rate (SGD) *</label>
-              <input className="input" type="number" min="0" step="0.50" required value={bulkForm.hourly_rate}
+              <input className="input" type="number" min="0.50" max="100" step="0.50" required value={bulkForm.hourly_rate}
                 onChange={e => setBulkForm(f => ({ ...f, hourly_rate: e.target.value }))} />
             </div>
           )}
