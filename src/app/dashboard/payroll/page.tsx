@@ -17,6 +17,7 @@ export default function PayrollPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [rosterTotals, setRosterTotals] = useState<Record<string, any>>({})
+  const [ytdOW, setYtdOW] = useState<Record<string, number>>({}) // user_id -> YTD ordinary wages
   const [bulkMonth, setBulkMonth] = useState(new Date().getMonth() + 1)
   const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
   const [bulkGenerating, setBulkGenerating] = useState(false)
@@ -67,6 +68,19 @@ export default function PayrollPage() {
 
     const { data: brackets } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
     setCpfBrackets(brackets || [])
+
+    // Load YTD ordinary wages for current year to detect CPF ceiling approach
+    const currentYear = new Date().getFullYear()
+    const { data: ytdSlips } = await supabase.from('payslips')
+      .select('user_id, capped_ow')
+      .eq('year', currentYear)
+      .in('status', ['approved', 'paid'])
+    const ytdMap: Record<string, number> = {}
+    ytdSlips?.forEach((s: any) => {
+      ytdMap[s.user_id] = (ytdMap[s.user_id] || 0) + (s.capped_ow || 0)
+    })
+    setYtdOW(ytdMap)
+
     setLoading(false)
   }
 
@@ -403,6 +417,17 @@ export default function PayrollPage() {
                   payroll?.current_salary > 0 ? (
                     <>
                       <p className="text-sm font-bold text-gray-900">{formatSGD(payroll.current_salary)}</p>
+                      {(() => {
+                        const ytd = ytdOW[member.id] || 0
+                        const OW_ANNUAL_CEILING = 102000
+                        if (ytd >= OW_ANNUAL_CEILING - 10000 && ytd < OW_ANNUAL_CEILING) {
+                          return <p className="text-xs text-amber-600 mt-0.5">⚠ YTD OW {formatSGD(ytd)} — {formatSGD(OW_ANNUAL_CEILING - ytd)} below annual ceiling</p>
+                        }
+                        if (ytd >= OW_ANNUAL_CEILING) {
+                          return <p className="text-xs text-red-600 mt-0.5">⚠ Annual OW ceiling reached — CPF capped</p>
+                        }
+                        return null
+                      })()}
                       <p className="text-xs text-gray-400">per month</p>
                     </>
                   ) : (
