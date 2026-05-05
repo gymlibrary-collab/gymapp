@@ -29,6 +29,10 @@ export default function StaffPayrollDetailPage() {
   const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({ logoUrl: null, companyName: 'Gym Operations', gymName: 'Gym Operations' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [deleteModal, setDeleteModal] = useState<{ payslip: any } | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const [showSalaryForm, setShowSalaryForm] = useState(false)
   const [showIncrementForm, setShowIncrementForm] = useState(false)
@@ -63,7 +67,8 @@ export default function StaffPayrollDetailPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.push('/dashboard'); return }
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.push('/dashboard'); return }
+    if (!me || (me.role !== 'business_ops' && me.role !== 'admin')) { router.push('/dashboard'); return }
+    setIsAdmin(me.role === 'admin')
 
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
     setStaff(staffData)
@@ -362,6 +367,41 @@ export default function StaffPayrollDetailPage() {
     await loadData(); showMsg('Draft payslip deleted')
   }
 
+  const handleAdminDeletePayslip = async () => {
+    if (!deleteModal) return
+    if (deleteReason.trim().length < 10) { setError('Please enter a reason of at least 10 characters'); return }
+    setDeleting(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const { data: adminUser } = await supabase.from('users').select('full_name').eq('id', authUser?.id).single()
+    const ps = deleteModal.payslip
+
+    // Write audit record before deleting
+    const { error: auditErr } = await supabase.from('payslip_deletions').insert({
+      payslip_id: ps.id,
+      user_id: ps.user_id,
+      staff_name: staff?.full_name || 'Unknown',
+      gym_id: ps.gym_id || null,
+      gym_name: ps.gym?.name || null,
+      month: ps.month,
+      year: ps.year,
+      employment_type: ps.employment_type,
+      basic_salary: ps.basic_salary,
+      bonus_amount: ps.bonus_amount,
+      gross_salary: ps.gross_salary,
+      net_salary: ps.net_salary,
+      status_at_deletion: ps.status,
+      deleted_by: authUser?.id,
+      deleted_by_name: adminUser?.full_name || 'Admin',
+      reason: deleteReason.trim(),
+    })
+    if (auditErr) { setError('Failed to write audit record: ' + auditErr.message); setDeleting(false); return }
+
+    // Delete the payslip
+    await supabase.from('payslips').delete().eq('id', ps.id)
+    setDeleteModal(null); setDeleteReason(''); setDeleting(false)
+    await loadData(); showMsg('Payslip deleted — audit record saved')
+  }
+
   const handlePayslipAction = async (payslipId: string, action: 'approved' | 'paid') => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     // Guard: only approved payslips can be marked paid
@@ -436,6 +476,7 @@ export default function StaffPayrollDetailPage() {
   const isPartTime = staff.employment_type === 'part_time'
 
   return (
+    <>
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center gap-3">
         <Link href="/dashboard/payroll" className="p-2 hover:bg-gray-100 rounded-lg"><ArrowLeft className="w-4 h-4 text-gray-600" /></Link>
@@ -724,6 +765,9 @@ export default function StaffPayrollDetailPage() {
                   {ps.status === 'draft' && <button onClick={() => handlePayslipAction(ps.id, 'approved')} className="text-xs text-blue-600 hover:underline">Approve</button>}
                   {ps.status === 'draft' && <button onClick={() => handleDeletePayslip(ps.id)} className="text-xs text-red-500 hover:underline">Delete</button>}
                   {ps.status === 'approved' && <button onClick={() => handlePayslipAction(ps.id, 'paid')} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
+                  {(ps.status === 'approved' || ps.status === 'paid') && isAdmin && (
+                    <button onClick={() => { setDeleteModal({ payslip: ps }); setDeleteReason('') }} className="text-xs text-red-500 hover:underline">Delete (Admin)</button>
+                  )}
                   {ps.status !== 'draft' && <button onClick={() => downloadPayslipPdf(ps)} className="text-xs text-red-600 hover:underline flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>}
                 </div>
               </div>
@@ -732,5 +776,40 @@ export default function StaffPayrollDetailPage() {
         )}
       </div>
     </div>
+
+    {/* Admin delete modal */}
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setDeleteModal(null)}>
+          <div className="fixed inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Delete Payslip — Admin Action</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Deleting {getMonthName(deleteModal.payslip.month)} {deleteModal.payslip.year} payslip
+              ({deleteModal.payslip.status}) for {staff?.full_name}. This action is logged to the audit trail.
+            </p>
+            <div className="mb-4">
+              <label className="label">Reason for deletion *</label>
+              <textarea
+                className="input min-h-[80px] resize-none"
+                placeholder="e.g. Wrong salary used — regenerating with corrected amount after payroll adjustment"
+                value={deleteReason}
+                onChange={e => setDeleteReason(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">{deleteReason.trim().length}/10 characters minimum</p>
+            </div>
+            <StatusBanner error={error} />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setDeleteModal(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={handleAdminDeletePayslip}
+                disabled={deleting || deleteReason.trim().length < 10}
+                className="btn-primary flex-1 bg-red-600 hover:bg-red-700 border-red-600 disabled:opacity-50">
+                {deleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
