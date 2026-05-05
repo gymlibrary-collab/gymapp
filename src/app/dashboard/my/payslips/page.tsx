@@ -144,6 +144,42 @@ export default function MyPayslipsPage() {
     doc.text(`Status: ${slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}`, 14, finalY + 14)
     if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 20)
 
+    // ── YTD Table (calendar year Jan to payslip month) ────────
+    const ytdY = finalY + 32
+    doc.setFontSize(11); doc.setTextColor(0)
+    doc.text(`Year to Date (Jan – ${getMonthName(slip.month)} ${slip.year})`, 14, ytdY)
+
+    // Fetch all approved/paid payslips for this user in the same calendar year
+    // up to and including the current payslip month
+    const { data: ytdSlips } = await supabase
+      .from('payslips')
+      .select('gross_salary, bonus_amount, employee_cpf_amount, employer_cpf_amount, basic_salary')
+      .eq('user_id', user?.id)
+      .eq('year', slip.year)
+      .lte('month', slip.month)
+      .in('status', ['approved', 'paid'])
+
+    const ytd = (ytdSlips || []).reduce((acc: any, s: any) => ({
+      gross:    acc.gross    + (s.gross_salary || 0),
+      bonus:    acc.bonus    + (s.bonus_amount || 0),
+      empCpf:   acc.empCpf  + (s.employee_cpf_amount || 0),
+      erCpf:    acc.erCpf   + (s.employer_cpf_amount || 0),
+    }), { gross: 0, bonus: 0, empCpf: 0, erCpf: 0 })
+
+    autoTable(doc, {
+      startY: ytdY + 4,
+      head: [['', 'Amount (SGD)']],
+      body: [
+        ['Gross Salary', formatSGD(ytd.gross)],
+        ['Bonus', formatSGD(ytd.bonus)],
+        ['Employee CPF', formatSGD(ytd.empCpf)],
+        ['Employer CPF', formatSGD(ytd.erCpf)],
+      ],
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [100, 100, 100] },
+      columnStyles: { 1: { halign: 'right' } },
+    })
+
     doc.save(`payslip_${getMonthName(slip.month)}_${slip.year}.pdf`)
   }
 
