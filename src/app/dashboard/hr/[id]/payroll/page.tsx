@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD, getMonthName, getRoleLabel } from '@/lib/utils'
 import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
+import { getAgeAsOf, getCpfBracketRates } from '@/lib/cpf'
 import {
   ArrowLeft, DollarSign, Plus, TrendingUp, FileText,
   CheckCircle, AlertCircle, Save, X, ChevronDown, ChevronUp,
@@ -48,102 +49,13 @@ export default function StaffPayrollDetailPage() {
   // CPF bracket moves to the next bracket the DAY AFTER the birthday,
   // so a person born 1 Aug 1970 is in Bracket 2 from 2 Aug 2025.
   // Reference date = last day of the payroll month.
-  const getAgeAsOf = (dob: string | null, refDate: Date): number | null => {
-    if (!dob) return null
-    const birth = new Date(dob)
-    let age = refDate.getFullYear() - birth.getFullYear()
-    // If birthday has not yet occurred as of refDate, subtract 1
-    if (
-      refDate.getMonth() < birth.getMonth() ||
-      (refDate.getMonth() === birth.getMonth() && refDate.getDate() < birth.getDate())
-    ) age--
-    return age
-  }
-
-  // Legacy helper used for display outside of payslip generation (uses today)
+  // getAgeAsOf and getCpfBracketRates are imported from @/lib/cpf
   const getAge = (dob: string | null) => getAgeAsOf(dob, new Date())
 
-  // CPF bracket lookup:
-  // - Age calculated as of LAST DAY of the payroll month (not generation date)
-  // - Bracket boundary: staff moves to next bracket the day AFTER birthday
-  //   e.g. born 1 Aug 1970, turns 55 on 1 Aug 2025 → in Bracket 2 from 2 Aug 2025
-  //   As of 31 May 2026 (last day of May payroll), age = 55 → Bracket 2 applies
-  //   because they passed their 55th birthday before 31 May 2026
-  // - Effective_from: picks most recent bracket rates valid for the payroll month
-  const getBracketRates = (brackets: any[], dob: string | null, payrollYear: number, payrollMonth: number) => {
-    // Last day of payroll month = reference date for age and birthday-passed check
-    const lastDayOfMonth = new Date(payrollYear, payrollMonth, 0)
-    const age = getAgeAsOf(dob, lastDayOfMonth)
-    if (age === null) return { employee_rate: 20, employer_rate: 17 }
+  // getBracketRates: alias of getCpfBracketRates from @/lib/cpf
+  const getBracketRates = getCpfBracketRates
 
-    // Filter to brackets effective on or before the payroll month start
-    const payrollDate = new Date(payrollYear, payrollMonth - 1, 1)
-    const validBrackets = brackets
-      .filter((b: any) => !b.effective_from || new Date(b.effective_from) <= payrollDate)
-      .sort((a: any, b: any) => new Date(b.effective_from || 0).getTime() - new Date(a.effective_from || 0).getTime())
-
-    // Bracket match: staff born 1 Aug 1970, age=55 as of 31 May 2026
-    // age_from=56, age_to=60 for Bracket 2 — but they SHOULD be in Bracket 2
-    // because they passed their 55th birthday. The DB stores age_from=56 to
-    // mean ">55" in whole number terms. However, since getAgeAsOf returns 55
-    // for this staff member (they haven't turned 56 yet), we need to match
-    // on the NEXT bracket boundary: age > age_to of previous bracket.
-    // Solution: match bracket where the staff has PASSED age_to of the prior
-    // bracket, i.e. their birthday at that age has occurred.
-    // Concretely: age_to=55 for Bracket 1 → staff is in Bracket 2 if they
-    // have passed their 55th birthday (age >= 55 AND birthday passed this year).
-    // We implement this by checking: has refDate passed the birthday at age_to+1?
-    // Simpler: treat bracket boundaries as "age strictly less than (age_to+1)"
-    // which means Bracket 1 applies if staff has NOT yet had their 56th birthday.
-    // Staff born 1 Aug 1970: 56th birthday is 1 Aug 2026, not passed by 31 May 2026
-    // → WAIT — that puts them back in Bracket 1. Let me re-read the rule.
-    //
-    // ACTUAL RULE (confirmed by user):
-    //   "he is on bracket 1 on the day of the birthday which is 1 aug 2025 [55th]
-    //    but from 2 aug 2025 he goes into bracket 2"
-    //
-    // So the trigger to leave Bracket 1 is PASSING age 55 (not age 56).
-    // This means: if refDate > [their 55th birthday], they are in Bracket 2.
-    // Their 55th birthday = 1 Aug 2025. 31 May 2026 > 1 Aug 2025 → Bracket 2 ✅
-    //
-    // Implementation: for each bracket, check if refDate is STRICTLY AFTER
-    // the birthday at age_to. If yes → staff has left that bracket.
-    // Find the LAST bracket where refDate is on or before birthday at (age_to + 1) - 1
-    // i.e. the bracket whose upper birthday the staff has NOT yet passed.
-    //
-    // Cleaner: compute "cpf age" = number of bracket boundaries the staff has passed.
-    if (dob) {
-      const birth = new Date(dob)
-      // Build sorted list of bracket upper-age boundaries (age_to values, ascending)
-      const sorted = [...validBrackets].sort((a: any, b: any) => (a.age_from ?? 0) - (b.age_from ?? 0))
-      // Find which bracket the staff is in by checking how many upper boundaries
-      // they have passed (i.e. their birthday at age_to occurred BEFORE refDate)
-      let bracketIndex = 0
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const upperAge = sorted[i].age_to  // e.g. 55 for Bracket 1
-        if (upperAge === null) break
-        // Date they turned upperAge
-        const birthdayAtUpperAge = new Date(birth.getFullYear() + upperAge, birth.getMonth(), birth.getDate())
-        // They leave this bracket the day AFTER birthdayAtUpperAge
-        if (lastDayOfMonth > birthdayAtUpperAge) {
-          bracketIndex = i + 1
-        } else {
-          break
-        }
-      }
-      const bracket = sorted[bracketIndex]
-      return bracket
-        ? { employee_rate: bracket.employee_rate, employer_rate: bracket.employer_rate }
-        : { employee_rate: 20, employer_rate: 17 }
-    }
-    // Fallback: use whole-number age match
-    const bracket = validBrackets.find((b: any) => age >= b.age_from && (b.age_to === null || age <= b.age_to))
-    return bracket
-      ? { employee_rate: bracket.employee_rate, employer_rate: bracket.employer_rate }
-      : { employee_rate: 20, employer_rate: 17 }
-  }
-
-  useEffect(() => { loadData() }, [id])
+    useEffect(() => { loadData() }, [id])
 
   const loadData = async () => {
     setLoading(true)
