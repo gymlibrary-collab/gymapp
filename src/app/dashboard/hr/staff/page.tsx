@@ -10,6 +10,7 @@ import {
   Building2, Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 const ALL_ROLES = [
   { value: 'admin', label: 'Admin', description: 'App settings only' },
@@ -42,8 +43,6 @@ export default function TrainersPage() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingUser, setEditingUser] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const router = useRouter()
@@ -111,7 +110,7 @@ export default function TrainersPage() {
 
   useEffect(() => { loadData() }, [])
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   // (sub-components defined at module level below)
 
