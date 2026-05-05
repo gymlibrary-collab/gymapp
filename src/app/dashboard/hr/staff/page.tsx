@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass } from '@/lib/utils'
+import { validatePhone, validateNric, validateNationality, validateHourlyRate, validateAddress, validateAll } from '@/lib/validators'
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
   Edit2, Trash2, X, Save, CheckCircle, AlertCircle, Archive,
@@ -116,7 +117,16 @@ export default function TrainersPage() {
   // (sub-components defined at module level below)
 
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setError('')
+    e.preventDefault(); setError('')
+    const err = validateAll([
+      validatePhone(createForm.phone),
+      validateNric((createForm as any).nric),
+      validateNationality((createForm as any).nationality),
+      validateHourlyRate((createForm as any).hourly_rate),
+      validateAddress((createForm as any).address),
+    ])
+    if (err) { setError(err); return }
+    setSaving(true)
     const res = await fetch('/api/trainers', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(createForm),
@@ -156,7 +166,16 @@ export default function TrainersPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingUser) return
-    setSaving(true); setError('')
+    setError('')
+    const err = validateAll([
+      validatePhone((editForm as any).phone),
+      validateNric((editForm as any).nric),
+      validateNationality((editForm as any).nationality),
+      validateHourlyRate((editForm as any).hourly_rate),
+      validateAddress((editForm as any).address),
+    ])
+    if (err) { setError(err); return }
+    setSaving(true)
     const res = await fetch('/api/trainers', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: editingUser.id, ...editForm }),
@@ -428,7 +447,7 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
-        {isBizOps && <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value }))} placeholder="e.g. S1234567A" /></div>}
+        {isBizOps && <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" /></div>}
       </div>
       {isBizOps && (
         <div className="grid grid-cols-2 gap-3">
@@ -477,7 +496,7 @@ function EmploymentFields({ form, setF, isBizOps }: { form: any; setF: any; isBi
         </div>
       </div>
       {form.employment_type === 'part_time' && isBizOps && (
-        <div><label className="label">Hourly Rate (SGD)</label><input className="input" type="number" min="0" step="0.50" value={form.hourly_rate} onChange={e => setF((f: any) => ({ ...f, hourly_rate: e.target.value }))} placeholder="e.g. 12.00" /></div>
+        <div><label className="label">Hourly Rate (SGD)</label><input className="input" type="number" min="0.50" max="100" step="0.50" value={form.hourly_rate} onChange={e => setF((f: any) => ({ ...f, hourly_rate: e.target.value }))} placeholder="e.g. 12.00" /></div>
       )}
     </>
   )
