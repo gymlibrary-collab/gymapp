@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { CheckCircle, AlertCircle, ChevronDown, MessageSquare, Plus, Edit2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
 
 interface Placeholder {
   key: string
@@ -29,8 +30,6 @@ export default function WhatsAppTemplatesPage() {
   const [draftLabel, setDraftLabel] = useState('')
   const [showPlaceholderMenu, setShowPlaceholderMenu] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [error, setError] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [newTemplate, setNewTemplate] = useState({
     notification_type: '', label: '', template: '',
@@ -40,7 +39,7 @@ export default function WhatsAppTemplatesPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const showMsg = (msg: string) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000) }
+  const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { load() }, [])
 
