@@ -2,10 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { BarChart3, CreditCard, Package, Banknote } from 'lucide-react'
 
 export default function ReportsPage() {
+  const { logActivity } = useActivityLog()
   const [stats, setStats] = useState<any>({})
   const [month] = useState(new Date().getMonth() + 1)
   const [year] = useState(new Date().getFullYear())
@@ -14,6 +16,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'Reports', 'Viewed summary reports')
     // Route guard
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
