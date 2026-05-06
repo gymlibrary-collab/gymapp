@@ -352,138 +352,15 @@ export default function MemberProfilePage() {
             <Package className="w-4 h-4 text-red-600" /> PT Packages
           </h2>
           {canSellPT && (
-            <button onClick={() => setShowPkgForm(!showPkgForm)}
+            <Link href="/dashboard/pt/onboard"
               className="btn-primary text-xs py-1.5 flex items-center gap-1">
-              {isRenewal
-                ? <><RefreshCw className="w-3.5 h-3.5" /> Renew / Switch Package</>
-                : <><Plus className="w-3.5 h-3.5" /> Sell PT Package</>
-              }
-            </button>
+              <Plus className="w-3.5 h-3.5" /> New PT Package
+            </Link>
           )}
           {!activeMembership && (isActingAsTrainer || currentUser?.role === 'trainer') && (
             <p className="text-xs text-amber-600">Active gym membership required</p>
           )}
         </div>
-
-        {/* Sell / Renew form */}
-        {showPkgForm && (
-          <form onSubmit={handleSellPtPackage} className="p-4 border-b border-gray-100 bg-red-50 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-900">
-                {isRenewal ? 'Renew or Switch PT Package' : 'Sell New PT Package'}
-              </p>
-              <button type="button" onClick={() => setShowPkgForm(false)}>
-                <X className="w-4 h-4 text-gray-400" />
-              </button>
-            </div>
-
-            {/* Renewal warning */}
-            {isRenewal && activePackage && (
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-700">
-                  <p className="font-medium">Current package will be closed</p>
-                  <p className="mt-0.5">
-                    <strong>{activePackage.package_name}</strong> —
-                    {activePackage.total_sessions - activePackage.sessions_used} sessions remaining
-                    {activePackage.end_date_calculated && `, expires ${formatDate(activePackage.end_date_calculated)}`}.
-                    It will be marked as {activePackage.sessions_used >= activePackage.total_sessions ? 'completed' : 'expired'} when the new package is saved.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Package template selection */}
-            <div>
-              <label className="label">Select Package *</label>
-              <div className="space-y-2">
-                {packageTemplates.map(t => (
-                  <label key={t.id} className={cn(
-                    'flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors',
-                    pkgForm.template_id === t.id ? 'border-red-500 bg-white' : 'border-gray-200 bg-white hover:border-gray-300'
-                  )}>
-                    <div className="flex items-center gap-2">
-                      <input type="radio" name="template" value={t.id} checked={pkgForm.template_id === t.id}
-                        onChange={() => setPkgForm(f => ({ ...f, template_id: t.id, total_price_sgd: t.default_price_sgd.toString() }))} />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{t.name}</p>
-                        <p className="text-xs text-gray-400">{t.total_sessions} sessions</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">{formatSGD(t.default_price_sgd)}</p>
-                      <p className="text-xs text-gray-400">{formatSGD(t.default_price_sgd / t.total_sessions)}/session</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="label">Price (SGD) *</label>
-                <input className="input" type="number" step="0.01" required
-                  value={pkgForm.total_price_sgd}
-                  onChange={e => setPkgForm(f => ({ ...f, total_price_sgd: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Start Date *</label>
-                <input className="input" type="date" required value={pkgForm.start_date}
-                  onChange={e => setPkgForm(f => ({ ...f, start_date: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Valid for (days)</label>
-                <input className="input" type="number" min="1" required value={pkgForm.validity_days}
-                  onChange={e => setPkgForm(f => ({ ...f, validity_days: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* Shared package */}
-            <div>
-              <label className="label">Sharing Partner (optional)</label>
-              <select className="input" value={pkgForm.secondary_member_id}
-                onChange={e => setPkgForm(f => ({ ...f, secondary_member_id: e.target.value }))}>
-                <option value="">No sharing — individual package</option>
-                {allMembers.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-              </select>
-              {pkgForm.secondary_member_id && (
-                <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
-                  <p className="font-medium">Shared package rules:</p>
-                  <p>· <strong>{member?.full_name}</strong> is the primary holder — sessions deducted from this pool</p>
-                  <p>· Either member can attend sessions</p>
-                  <p>· Each attended session counts as 2 deductions (one per person present)</p>
-                  <p>· Sessions are logged separately for each attending member</p>
-                </div>
-              )}
-            </div>
-
-            {/* Commission preview */}
-            {selectedTemplate && pkgForm.total_price_sgd && (
-              <div className="bg-white rounded-lg border border-gray-200 p-3 text-xs space-y-1">
-                <div className="flex justify-between text-gray-600">
-                  <span>Price per session</span>
-                  <span className="font-medium">{formatSGD(pricePerSession!)}</span>
-                </div>
-                <div className="flex justify-between text-green-700 font-medium">
-                  <span>Your sign-up commission ({currentUser?.commission_signup_pct || 10}%)</span>
-                  <span>{formatSGD(signupCommission!)}</span>
-                </div>
-                <div className="flex justify-between text-gray-400">
-                  <span>Expires</span>
-                  <span>{formatDate(new Date(new Date(pkgForm.start_date).getTime() + parseInt(pkgForm.validity_days) * 86400000).toISOString().split('T')[0])}</span>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button type="submit" disabled={saving || !pkgForm.template_id}
-                className="btn-primary flex-1 disabled:opacity-50">
-                {saving ? 'Saving...' : isRenewal ? 'Renew Package' : 'Sell Package'}
-              </button>
-              <button type="button" onClick={() => setShowPkgForm(false)} className="btn-secondary">Cancel</button>
-            </div>
-          </form>
-        )}
 
         {ptPackages.length === 0 ? (
           <p className="p-4 text-sm text-gray-400 text-center">No PT packages</p>
