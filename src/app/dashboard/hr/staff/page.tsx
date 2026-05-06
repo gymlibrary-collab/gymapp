@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass, getMonthName } from '@/lib/utils'
 import { validatePhone, validateNric, validateNationality, validateHourlyRate, validateAddress, validateAll } from '@/lib/validators'
 import {
@@ -36,6 +37,7 @@ const emptyForm = {
 }
 
 export default function TrainersPage() {
+  const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [staff, setStaff] = useState<any[]>([])
   const [archived, setArchived] = useState<any[]>([])
@@ -259,6 +261,7 @@ export default function TrainersPage() {
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
     await loadData(); setEditingUser(null); setSaving(false); showMsg('Profile updated')
+    logActivity('update', 'Staff Management', 'Updated staff member record')
   }
 
   const handleArchive = async (member: any) => {
