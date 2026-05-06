@@ -37,6 +37,7 @@ const bizOpsNav: NavItem[] = [
   { label: 'HR & Payroll', header: true },
   { href: '/dashboard/hr/staff', label: 'Staff Management', icon: Users },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
+  { href: '/dashboard/config/leave-policy', label: 'Leave Policy', icon: CalendarDays },
   { href: '/dashboard/payroll', label: 'Monthly Payroll', icon: Banknote },
   { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
