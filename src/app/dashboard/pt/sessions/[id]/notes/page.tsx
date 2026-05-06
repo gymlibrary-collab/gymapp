@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDateTime } from '@/lib/utils'
 import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock, RefreshCw, XCircle } from 'lucide-react'
@@ -27,6 +28,7 @@ const NON_RENEWAL_REASONS = [
 
 export default function PtSessionNotesPage() {
   const { id } = useParams()
+  const { logActivity } = useActivityLog()
   const [session, setSession] = useState<any>(null)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [notes, setNotes] = useState('')
@@ -153,6 +155,7 @@ export default function PtSessionNotesPage() {
       })
     }
 
+    logActivity('update', 'Session Notes', 'Submitted session notes for manager confirmation')
     setLoading(false); setSaved(true)
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
