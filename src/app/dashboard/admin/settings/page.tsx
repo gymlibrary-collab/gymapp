@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { Upload, Save, CheckCircle, ImageIcon, Timer, Type } from 'lucide-react'
 import { uploadToStorage } from '@/lib/utils'
 
 export default function AdminSettingsPage() {
+  const { logActivity } = useActivityLog()
   const [appName, setAppName] = useState('GymApp')
   const [loginLogoFile, setLoginLogoFile] = useState<File | null>(null)
   const [loginLogoPreview, setLoginLogoPreview] = useState<string | null>(null)
@@ -21,6 +23,7 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'App Settings', 'Viewed app settings')
     // Route guard
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
@@ -55,6 +58,7 @@ export default function AdminSettingsPage() {
     }
     updates.company_name = companyName
     await supabase.from('app_settings').upsert(updates)
+    logActivity('update', 'App Settings', 'Updated app branding')
     setSaving(null); setSaved('branding'); setTimeout(() => setSaved(null), 3000)
   }
 
