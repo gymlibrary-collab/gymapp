@@ -124,28 +124,28 @@ function BizOpsDashboardAlerts() {
 }
 
 // Per-gym operational activity for Business Ops dashboard
-function BizOpsGymActivity() {
+function BizOpsGymTabs() {
   const [gyms, setGyms] = useState<any[]>([])
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [selectedGym, setSelectedGym] = useState<string | null>(null)
   const supabase = createClient()
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   useEffect(() => {
     const load = async () => {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
-      const now = new Date()
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
-      const in14Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
       const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
-        // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
-        // Sequential awaits per gym; gyms still run in parallel via the outer Promise.all-over-async-fn.
+        // Activity
         const { data: todaySessions } = await supabase.from('sessions')
           .select('scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
           .eq('gym_id', g.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
         const { count: pendingMemberships } = await supabase.from('gym_memberships')
-          .select('id', { count: 'exact', head: true })
-          .eq('gym_id', g.id).eq('sale_status', 'pending')
+          .select('id', { count: 'exact', head: true }).eq('gym_id', g.id).eq('sale_status', 'pending')
         const { count: pendingSessions } = await supabase.from('sessions')
           .select('id', { count: 'exact', head: true })
           .eq('gym_id', g.id).eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
@@ -155,160 +155,46 @@ function BizOpsGymActivity() {
         const { data: expiringPkgs } = await supabase.from('packages')
           .select('package_name, end_date_calculated, member:members(full_name)')
           .eq('gym_id', g.id).eq('status', 'active')
-          .lte('end_date_calculated', in14Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5)
+          .lte('end_date_calculated', in7Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5)
 
-        // Auto-expire stale gym memberships for this gym
-        await supabase.from('gym_memberships')
-          .update({ status: 'expired' })
-          .eq('gym_id', g.id)
-          .eq('status', 'active')
-          .eq('sale_status', 'confirmed')
+        // Auto-expire stale memberships
+        await supabase.from('gym_memberships').update({ status: 'expired' })
+          .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
           .lt('end_date', now.toISOString().split('T')[0])
 
-        // Memberships expiring within 30 days for Biz Ops gym card
-        const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        const { data: expiringMemsBizOps } = await supabase.from('gym_memberships')
+        // Expiring memberships
+        const { data: expiringMems } = await supabase.from('gym_memberships')
           .select('id, end_date, member_id, member:members(full_name), membership_type_name')
-          .eq('gym_id', g.id)
-          .eq('status', 'active')
-          .eq('sale_status', 'confirmed')
-          .lte('end_date', in30DaysBizOps)
-          .gte('end_date', now.toISOString().split('T')[0])
-          .limit(20)
-
-        // Exclude already-renewed members
-        const renewedBizOps = new Set(
-          expiringMemsBizOps
-            ?.filter((m: any) => expiringMemsBizOps.some((m2: any) =>
-              m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date)
-            ))
-            .map((m: any) => m.member_id)
+          .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
+          .lte('end_date', in30Days).gte('end_date', now.toISOString().split('T')[0]).limit(10)
+        const renewedIds = new Set(
+          expiringMems?.filter((m: any) => expiringMems!.some((m2: any) =>
+            m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date)
+          )).map((m: any) => m.member_id)
         )
-        const expiringMembsBizOps = (expiringMemsBizOps || []).filter((m: any) => !renewedBizOps.has(m.member_id))
+        const filteredExpiringMems = (expiringMems || []).filter((m: any) => !renewedIds.has(m.member_id))
 
-        const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0) + expiringMembsBizOps.length
-        return { ...g, todaySessions: todaySessions || [], pendingMemberships: pendingMemberships || 0, pendingSessions: pendingSessions || 0, lowPkgs: lowPkgs || [], expiringPkgs: expiringPkgs || [], expiringMems: expiringMembsBizOps, totalAlerts }
-      }))
-
-      setGyms(enriched)
-    }
-    load()
-  }, [])
-
-  if (gyms.length === 0) return null
-
-  return (
-    <div className="space-y-3">
-      <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-        <Calendar className="w-4 h-4 text-red-600" /> Today's Activity by Gym Club
-      </h2>
-      {gyms.map(g => (
-        <div key={g.id} className="card">
-          <button onClick={() => setExpanded(expanded === g.id ? null : g.id)}
-            className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left">
-            <Building2 className="w-4 h-4 text-red-600 flex-shrink-0" />
-            <p className="text-sm font-medium text-gray-900 flex-1">{g.name}</p>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {g.totalAlerts > 0 && (
-                <span className="bg-amber-100 text-amber-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {g.totalAlerts} alert{g.totalAlerts !== 1 ? "s" : ""}
-                </span>
-              )}
-              <span className="text-xs text-gray-400">{g.todaySessions.length} sessions today</span>
-              {expanded === g.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-            </div>
-          </button>
-
-          {expanded === g.id && (
-            <div className="border-t border-gray-100 divide-y divide-gray-100">
-              {/* Pending confirmations */}
-              {(g.pendingMemberships > 0 || g.pendingSessions > 0) && (
-                <div className="p-3 bg-amber-50">
-                  <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
-                    <Bell className="w-3.5 h-3.5" /> Pending Confirmations
-                  </p>
-                  <div className="flex gap-3 text-xs text-amber-700">
-                    {g.pendingMemberships > 0 && <span>{g.pendingMemberships} membership sale{g.pendingMemberships !== 1 ? "s" : ""}</span>}
-                    {g.pendingSessions > 0 && <span>{g.pendingSessions} PT session{g.pendingSessions !== 1 ? "s" : ""}</span>}
-                  </div>
-                </div>
-              )}
-
-              {/* Today's sessions */}
-              <div className="p-3">
-                <p className="text-xs font-semibold text-gray-600 mb-2">Today's PT Sessions ({g.todaySessions.length})</p>
-                {g.todaySessions.length === 0 ? (
-                  <p className="text-xs text-gray-400">No sessions scheduled today</p>
-                ) : (
-                  <div className="space-y-1">
-                    {g.todaySessions.map((s: any, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className="text-gray-500 w-12 flex-shrink-0">
-                          {new Date(s.scheduled_at).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                        <span className="text-gray-900 font-medium">{s.member?.full_name}</span>
-                        <span className="text-gray-400">· {s.trainer?.full_name}</span>
-                        <span className={cn("ml-auto px-1.5 py-0.5 rounded text-xs font-medium",
-                          s.status === "completed" ? "bg-green-100 text-green-700" :
-                          s.status === "cancelled" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700")}>
-                          {s.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Expiry alerts */}
-              {(g.lowPkgs.length > 0 || g.expiringPkgs.length > 0 || g.expiringMems?.length > 0) && (
-                <div className="p-3 bg-red-50">
-                  <p className="text-xs font-semibold text-red-800 mb-2 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Alerts
-                  </p>
-                  {g.expiringMems?.map((m: any, i: number) => (
-                    <p key={"mem"+i} className="text-xs text-amber-700">🪪 {m.member?.full_name} — {m.membership_type_name}: expires {formatDate(m.end_date)}</p>
-                  ))}
-                  {g.lowPkgs.map((p: any, i: number) => (
-                    <p key={"low"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: {p.total_sessions - p.sessions_used} sessions left</p>
-                  ))}
-                  {g.expiringPkgs.map((p: any, i: number) => (
-                    <p key={"exp"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: expires {formatDate(p.end_date_calculated)}</p>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// Per-gym breakdown for Business Ops dashboard
-function BizOpsGymBreakdown() {
-  const [gyms, setGyms] = useState<any[]>([])
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const supabase = createClient()
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-
-  useEffect(() => {
-    const load = async () => {
-      const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
-
-      const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
-        // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
-        // Sequential awaits per gym; gyms still run in parallel via the outer Promise.all-over-async-fn.
+        // Financials
         const { count: members } = await supabase.from('members')
           .select('id', { count: 'exact', head: true }).eq('gym_id', g.id)
         const { data: memSales } = await supabase.from('gym_memberships')
-          .select('price_sgd, commission_sgd').eq('gym_id', g.id).eq('sale_status', 'confirmed').gte('created_at', monthStart)
+          .select('price_sgd').eq('gym_id', g.id).eq('sale_status', 'confirmed').gte('created_at', monthStart)
         const { data: sessions } = await supabase.from('sessions')
           .select('session_commission_sgd').eq('gym_id', g.id).eq('status', 'completed').gte('marked_complete_at', monthStart)
         const { data: payouts } = await supabase.from('commission_payouts')
           .select('total_commission_sgd').eq('gym_id', g.id).in('status', ['approved', 'paid']).gte('generated_at', monthStart)
+
+        const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0) + filteredExpiringMems.length
+
         return {
           ...g,
+          todaySessions: todaySessions || [],
+          pendingMemberships: pendingMemberships || 0,
+          pendingSessions: pendingSessions || 0,
+          lowPkgs: lowPkgs || [],
+          expiringPkgs: expiringPkgs || [],
+          expiringMems: filteredExpiringMems,
+          totalAlerts,
           members: members || 0,
           membershipSalesCount: memSales?.length || 0,
           membershipRevenue: memSales?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0,
@@ -316,93 +202,145 @@ function BizOpsGymBreakdown() {
           commissionPayout: payouts?.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0) || 0,
         }
       }))
+
       setGyms(enriched)
+      // Auto-select gym with most alerts, or first gym
+      const topGym = enriched.reduce((a: any, b: any) => b.totalAlerts > a.totalAlerts ? b : a, enriched[0])
+      setSelectedGym(topGym?.id || enriched[0]?.id || null)
     }
     load()
   }, [])
 
+  if (gyms.length === 0) return null
+  const g = gyms.find(x => x.id === selectedGym) || gyms[0]
+  const monthName = now.toLocaleString('default', { month: 'long' })
   const totals = gyms.reduce((acc, g) => ({
     members: acc.members + g.members,
-    membershipSalesCount: acc.membershipSalesCount + g.membershipSalesCount,
     membershipRevenue: acc.membershipRevenue + g.membershipRevenue,
     sessionsCount: acc.sessionsCount + g.sessionsCount,
     commissionPayout: acc.commissionPayout + g.commissionPayout,
-  }), { members: 0, membershipSalesCount: 0, membershipRevenue: 0, sessionsCount: 0, commissionPayout: 0 })
-
-  if (gyms.length === 0) return null
-  const monthName = now.toLocaleString('default', { month: 'long' })
+  }), { members: 0, membershipRevenue: 0, sessionsCount: 0, commissionPayout: 0 })
 
   return (
-    <div className="card">
-      <div className="p-4 border-b border-gray-100">
-        <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-red-600" /> {monthName} — All Gym Clubs
-        </h2>
-        <p className="text-xs text-gray-400 mt-0.5">Click a gym to expand details</p>
-      </div>
-
-      {/* Totals row */}
-      <div className="grid grid-cols-4 divide-x divide-gray-100 bg-gray-50 border-b border-gray-100">
+    <div className="space-y-3">
+      {/* Summary stats row */}
+      <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Total Members', value: totals.members.toString() },
-          { label: 'Membership Sales', value: totals.membershipSalesCount.toString(), sub: formatSGD(totals.membershipRevenue) },
-          { label: 'PT Sessions', value: totals.sessionsCount.toString() },
-          { label: 'Commission Paid', value: formatSGD(totals.commissionPayout) },
+          { label: 'Membership Revenue', value: formatSGD(totals.membershipRevenue), sub: monthName },
+          { label: 'PT Sessions', value: totals.sessionsCount.toString(), sub: monthName },
+          { label: 'Commission Paid', value: formatSGD(totals.commissionPayout), sub: monthName },
         ].map(({ label, value, sub }) => (
-          <div key={label} className="p-3 text-center">
-            <p className="text-sm font-bold text-gray-900">{value}</p>
+          <div key={label} className="stat-card">
+            <p className="text-xs text-gray-500">{label}</p>
+            <p className="text-xl font-bold text-gray-900">{value}</p>
             {sub && <p className="text-xs text-gray-400">{sub}</p>}
-            <p className="text-xs text-gray-400 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
 
-      {/* Per-gym rows */}
-      <div className="divide-y divide-gray-100">
-        {gyms.map(g => (
-          <div key={g.id}>
-            <button onClick={() => setExpanded(expanded === g.id ? null : g.id)}
-              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-left">
-              <Building2 className="w-4 h-4 text-red-600 flex-shrink-0" />
-              <p className="text-sm font-medium text-gray-900 flex-1">{g.name}</p>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span>{g.members} members</span>
-                <span>{g.membershipSalesCount} sales</span>
-                <span>{g.sessionsCount} sessions</span>
-                <span className="font-medium text-green-700">{formatSGD(g.commissionPayout)}</span>
-              </div>
-              {expanded === g.id
-                ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-            </button>
+      {/* Gym tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {gyms.map(gym => (
+          <button key={gym.id} onClick={() => setSelectedGym(gym.id)}
+            className={cn(
+              'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors border',
+              selectedGym === gym.id
+                ? 'bg-red-600 text-white border-red-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            )}>
+            {gym.name}
+            {gym.totalAlerts > 0 && (
+              <span className={cn(
+                'text-xs font-medium px-1.5 py-0.5 rounded-full',
+                selectedGym === gym.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+              )}>
+                {gym.totalAlerts}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
-            {expanded === g.id && (
-              <div className="grid grid-cols-2 gap-3 px-4 pb-4 bg-gray-50">
-                <div className="stat-card">
-                  <p className="text-xs text-gray-500">Members</p>
-                  <p className="text-2xl font-bold">{g.members}</p>
-                </div>
-                <div className="stat-card">
-                  <p className="text-xs text-gray-500">PT Sessions</p>
-                  <p className="text-2xl font-bold">{g.sessionsCount}</p>
-                </div>
-                <div className="stat-card">
-                  <p className="text-xs text-gray-500">Membership Sales ({g.membershipSalesCount})</p>
-                  <p className="text-xl font-bold">{formatSGD(g.membershipRevenue)}</p>
-                </div>
-                <div className="stat-card">
-                  <p className="text-xs text-gray-500">Commission Payouts</p>
-                  <p className="text-xl font-bold text-green-700">{formatSGD(g.commissionPayout)}</p>
-                </div>
+      {/* Selected gym detail */}
+      {g && (
+        <div className="card p-0 overflow-hidden">
+          {/* Stats */}
+          <div className="grid grid-cols-4 divide-x divide-gray-100 bg-gray-50 border-b border-gray-100">
+            {[
+              { label: 'Members', value: g.members.toString() },
+              { label: 'Sales this month', value: g.membershipSalesCount.toString(), sub: formatSGD(g.membershipRevenue) },
+              { label: 'Sessions this month', value: g.sessionsCount.toString() },
+              { label: 'Commission paid', value: formatSGD(g.commissionPayout) },
+            ].map(({ label, value, sub }) => (
+              <div key={label} className="p-3 text-center">
+                <p className="text-sm font-bold text-gray-900">{value}</p>
+                {sub && <p className="text-xs text-gray-400">{sub}</p>}
+                <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Pending confirmations */}
+          {(g.pendingMemberships > 0 || g.pendingSessions > 0) && (
+            <div className="p-3 bg-amber-50 border-b border-amber-100">
+              <p className="text-xs font-semibold text-amber-800 mb-1 flex items-center gap-1.5">
+                <Bell className="w-3.5 h-3.5" /> Pending Confirmations
+              </p>
+              <div className="flex gap-3 text-xs text-amber-700">
+                {g.pendingMemberships > 0 && <span>{g.pendingMemberships} membership sale{g.pendingMemberships !== 1 ? 's' : ''}</span>}
+                {g.pendingSessions > 0 && <span>{g.pendingSessions} PT session{g.pendingSessions !== 1 ? 's' : ''}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Alerts */}
+          {(g.expiringMems.length > 0 || g.lowPkgs.length > 0 || g.expiringPkgs.length > 0) && (
+            <div className="p-3 bg-red-50 border-b border-red-100">
+              <p className="text-xs font-semibold text-red-800 mb-1 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5" /> Alerts
+              </p>
+              {g.expiringMems.map((m: any, i: number) => (
+                <p key={"mem"+i} className="text-xs text-amber-700">🪪 {m.member?.full_name} — {m.membership_type_name}: expires {formatDate(m.end_date)}</p>
+              ))}
+              {g.lowPkgs.map((p: any, i: number) => (
+                <p key={"low"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: {p.total_sessions - p.sessions_used} sessions left</p>
+              ))}
+              {g.expiringPkgs.map((p: any, i: number) => (
+                <p key={"exp"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: expires {formatDate(p.end_date_calculated)}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Today's sessions */}
+          <div className="p-3">
+            <p className="text-xs font-semibold text-gray-600 mb-2">Today's PT Sessions ({g.todaySessions.length})</p>
+            {g.todaySessions.length === 0 ? (
+              <p className="text-xs text-gray-400">No sessions scheduled today</p>
+            ) : (
+              <div className="space-y-1">
+                {g.todaySessions.map((s: any, i: number) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-500 w-12 flex-shrink-0">
+                      {new Date(s.scheduled_at).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span className="text-gray-900 font-medium">{s.member?.full_name}</span>
+                    <span className="text-gray-400">· {s.trainer?.full_name}</span>
+                    <span className={cn("ml-auto px-1.5 py-0.5 rounded text-xs font-medium",
+                      s.status === "completed" ? "bg-green-100 text-green-700" :
+                      s.status === "cancelled" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700")}>
+                      {s.status}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
-
 
 // ── Birthday panel ───────────────────────────────────────────
 // Shows staff birthdays in the next 7 days for Manager / Biz Ops.
@@ -1103,12 +1041,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Biz Ops: per-gym breakdown ── */}
+      {/* ── Biz Ops: gym tabs ── */}
       {isBizOps && <BirthdayPanel isBizOps={true} />}
       {isBizOps && <BizOpsDashboardAlerts />}
-      {isBizOps && <BizOpsGymBreakdown />}
-      {/* ── Biz Ops: per-gym activity ── */}
-      {isBizOps && <BizOpsGymActivity />}
+      {isBizOps && <BizOpsGymTabs />}
 
       {/* ── Today's sessions ── */}
       <div className="card">
