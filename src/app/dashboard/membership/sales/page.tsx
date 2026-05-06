@@ -53,12 +53,27 @@ export default function MembershipSalesPage() {
       const hasPending = (gymSales || []).some((s: any) => s.sale_status === 'pending')
       setTab(hasPending ? 'confirm' : 'my')
     } else if (userData.role === 'business_ops') {
-      // Biz Ops: sees ALL pending sales logged by managers across all gyms (for confirmation)
+      // Biz Ops: sees pending sales logged by managers across all gyms
       // Managers cannot confirm their own sales — only Biz Ops can
-      const { data: managerSales } = await supabase.from('gym_memberships')
+      // Fetch pending sales only, then filter client-side to manager-sold ones
+      const { data: pendingSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
+        .eq('sale_status', 'pending')
         .order('created_at', { ascending: false })
-      setAllGymSales(managerSales || [])
+      // Also fetch recent confirmed/rejected for audit trail (last 90 days)
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: recentSales } = await supabase.from('gym_memberships')
+        .select(baseSelect)
+        .neq('sale_status', 'pending')
+        .gte('created_at', ninetyDaysAgo)
+        .order('created_at', { ascending: false })
+      // Combine and filter to manager-sold only
+      const allSales = [...(pendingSales || []), ...(recentSales || [])]
+      const managerSales = allSales.filter((s: any) => {
+        const role = s.sold_by?.role
+        return role === 'manager' || role === 'business_ops' || role === 'admin' || !role
+      })
+      setAllGymSales(managerSales)
       setTab('confirm')
     } else {
       // Trainer / Staff — own sales only
@@ -103,7 +118,7 @@ export default function MembershipSalesPage() {
   const isBizOps = user?.role === 'business_ops'
 
   // Active dataset based on tab/role
-  const activeSales = isManager ? (tab === 'confirm' ? allGymSales : mySales) : mySales
+  const activeSales = (isManager || isBizOps) ? (tab === 'confirm' ? allGymSales : mySales) : mySales
 
   const filtered = activeSales.filter((s: any) => {
     const matchSearch = s.member?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -174,6 +189,19 @@ export default function MembershipSalesPage() {
       )}
 
       {/* Stats */}
+      {isBizOps && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="stat-card">
+            <p className="text-xs text-gray-500 mb-1">Manager Sales (90 days)</p>
+            <p className="text-2xl font-bold text-gray-900">{allGymSales.length}</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500 mb-1">Pending Confirmation</p>
+            <p className="text-2xl font-bold text-amber-600">{pendingCount}</p>
+          </div>
+        </div>
+      )}
+
       {isManager && tab === 'confirm' && (
         <div className="grid grid-cols-2 gap-3">
           <div className="stat-card">
@@ -187,7 +215,7 @@ export default function MembershipSalesPage() {
         </div>
       )}
 
-      {(!isManager || tab === 'my') && (
+      {(!isManager && !isBizOps || (isManager && tab === 'my')) && (
         <div className="grid grid-cols-3 gap-3">
           <div className="stat-card">
             <p className="text-xs text-gray-500 mb-1">My Sales</p>
