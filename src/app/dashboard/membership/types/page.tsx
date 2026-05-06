@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD } from '@/lib/utils'
 import { Plus, Edit2, X, Save, CheckCircle, Layers, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function MembershipTypesPage() {
+  const { logActivity } = useActivityLog()
   const [types, setTypes] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
@@ -45,7 +47,8 @@ export default function MembershipTypesPage() {
     }
     if (err) { setError(err.message); setSaving(false); return }
     await load(); setShowForm(false); setEditing(null); setForm({ name: '', duration_days: '', duration_months: '', price_sgd: '' })
-    setSaving(false); showMsg(editing ? 'Membership type updated' : 'Membership type added')
+    setSaving(false); logActivity('update', 'Membership Types', editing ? 'Updated membership type' : 'Added membership type')
+    showMsg(editing ? 'Membership type updated' : 'Membership type added')
   }
 
   const openEdit = (type: any) => {
@@ -56,7 +59,8 @@ export default function MembershipTypesPage() {
 
   const toggleActive = async (type: any) => {
     await supabase.from('membership_types').update({ is_active: !type.is_active }).eq('id', type.id)
-    await load(); showMsg(type.is_active ? 'Membership type deactivated' : 'Membership type activated')
+    await load(); logActivity('update', 'Membership Types', type.is_active ? 'Deactivated membership type' : 'Activated membership type')
+    showMsg(type.is_active ? 'Membership type deactivated' : 'Membership type activated')
   }
 
   return (
