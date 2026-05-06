@@ -114,7 +114,7 @@ export default function MyLeavePage() {
       setError('Your leave entitlement has not been configured. Please contact Business Operations before applying for leave.')
       setSaving(false); return
     }
-    const entitlementDays = user.leave_entitlement_days
+    const entitlementDays = (user.leave_entitlement_days ?? 0) + (user.leave_carry_forward_days ?? 0)
     const availableBalance = Math.max(0, entitlementDays - takenDays - pendingDays)
     if (availableBalance === 0) { setError('No leave balance remaining. Contact Business Operations if you believe this is incorrect.'); setSaving(false); return }
     if (days > availableBalance) { setError(`Insufficient leave balance. You have ${availableBalance} day${availableBalance !== 1 ? 's' : ''} available${pendingDays > 0 ? ` (${pendingDays} day${pendingDays !== 1 ? 's' : ''} pending approval)` : ''}.`); setSaving(false); return }
@@ -152,8 +152,10 @@ export default function MyLeavePage() {
   // If entitlement not set, treat as 0 to force escalation — do not use fallback 14
   const entitlementNotSet = user != null && user.leave_entitlement_days == null
   const entitlement = user?.leave_entitlement_days ?? 0
-  const balance = entitlementNotSet ? 0 : Math.max(0, entitlement - takenDays)
-  const available = entitlementNotSet ? 0 : Math.max(0, entitlement - takenDays - pendingDays)
+  const carryForward = user?.leave_carry_forward_days ?? 0
+  const totalEntitlement = entitlement + carryForward
+  const balance = entitlementNotSet ? 0 : Math.max(0, totalEntitlement - takenDays)
+  const available = entitlementNotSet ? 0 : Math.max(0, totalEntitlement - takenDays - pendingDays)
   const days = calcDays(form.start_date, form.end_date)
 
   const recentDecisions = applications.filter(a => {
@@ -200,7 +202,8 @@ export default function MyLeavePage() {
       <div className="card p-4">
         <div className="grid grid-cols-2 gap-3 text-center" style={{gridTemplateColumns: "1fr 1fr"}}>
           <div className="bg-red-50 rounded-xl p-3">
-            <p className="text-2xl font-bold text-red-700">{entitlementNotSet ? '—' : entitlement}</p>
+            <p className="text-2xl font-bold text-red-700">{entitlementNotSet ? '—' : totalEntitlement}</p>
+            {carryForward > 0 && <p className="text-xs text-gray-400 mt-0.5">{entitlement} + {carryForward} carried forward</p>}
             <p className="text-xs text-red-600 mt-1">Entitled</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-3">
