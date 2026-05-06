@@ -92,6 +92,7 @@ export async function PATCH(request: Request) {
     const {
       userId, full_name, email, phone, role, is_active,
       date_of_birth, date_of_joining, date_of_departure, departure_reason,
+      probation_end_date, probation_passed, leave_carry_forward_days,
       commission_signup_pct, commission_session_pct,
       gym_ids, gym_id, manager_gym_id, reset_login, is_also_trainer,
       employment_type: bodyEmploymentType,
@@ -162,8 +163,24 @@ export async function PATCH(request: Request) {
       if (body.address !== undefined)            updatePayload.address = body.address || null
       if (body.date_of_birth !== undefined)      updatePayload.date_of_birth = body.date_of_birth || null
       if (body.date_of_joining !== undefined)    updatePayload.date_of_joining = body.date_of_joining || null
-      if (body.date_of_departure !== undefined)  updatePayload.date_of_departure = body.date_of_departure || null
+      if (body.date_of_departure !== undefined) {
+        updatePayload.date_of_departure = body.date_of_departure || null
+        // Auto-reject all pending leave applications when departure date is set
+        if (body.date_of_departure) {
+          await adminClient.from('leave_applications')
+            .update({
+              status: 'rejected',
+              rejection_reason: 'Staff departure — auto-rejected by system',
+              rejected_at: new Date().toISOString(),
+            })
+            .eq('user_id', userId)
+            .eq('status', 'pending')
+        }
+      }
       if (body.departure_reason !== undefined)   updatePayload.departure_reason = body.departure_reason || null
+      if (probation_end_date !== undefined)      updatePayload.probation_end_date = probation_end_date || null
+      if (probation_passed !== undefined)        updatePayload.probation_passed_at = probation_passed ? new Date().toISOString() : null
+      if (leave_carry_forward_days !== undefined) updatePayload.leave_carry_forward_days = parseInt(leave_carry_forward_days) || 0
       // manager_gym_id: written for all roles so the DB stays consistent
       // with the gym dropdown selection regardless of role
       if (manager_gym_id !== undefined)          updatePayload.manager_gym_id = manager_gym_id || null
