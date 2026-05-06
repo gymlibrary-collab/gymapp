@@ -20,11 +20,13 @@ export default function PtOnboardPage() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const [tab, setTab] = useState<'renew' | 'new'>('renew')
   const [form, setForm] = useState({
     member_id: '',
     template_id: '',
     start_date: new Date().toISOString().split('T')[0],
   })
+  const [trainerMembers, setTrainerMembers] = useState<any[]>([]) // members with active package by this trainer
 
   useEffect(() => { loadData() }, [])
 
@@ -42,6 +44,19 @@ export default function PtOnboardPage() {
     setCurrentUser(me)
 
     const gymId = me.manager_gym_id || me.gym_id
+
+    // Trainer's existing members — members with an active package assigned to this trainer
+    const { data: trainerPkgs } = await supabase.from('packages')
+      .select('member_id, member:members(id, full_name, phone, membership_number)')
+      .eq('trainer_id', authUser.id)
+      .eq('status', 'active')
+    const trainerMemberMap = new Map<string, any>()
+    trainerPkgs?.forEach((p: any) => {
+      if (p.member && !trainerMemberMap.has(p.member_id)) {
+        trainerMemberMap.set(p.member_id, p.member)
+      }
+    })
+    setTrainerMembers(Array.from(trainerMemberMap.values()).sort((a, b) => a.full_name.localeCompare(b.full_name)))
 
     // Active members only — those with a confirmed, active gym membership
     const { data: memberships } = await supabase.from('gym_memberships')
@@ -94,17 +109,9 @@ export default function PtOnboardPage() {
     setSaving(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
-    // Close any existing active package for this member
-    const { data: existingPkgs } = await supabase.from('packages')
-      .select('id, sessions_used, total_sessions')
-      .eq('member_id', form.member_id)
-      .eq('status', 'active')
-
-    for (const pkg of existingPkgs || []) {
-      await supabase.from('packages').update({
-        status: pkg.sessions_used >= pkg.total_sessions ? 'completed' : 'expired',
-      }).eq('id', pkg.id)
-    }
+    // Note: existing active packages are NOT expired here.
+    // A member can have up to 2 active packages simultaneously during renewal.
+    // Old packages expire naturally when sessions run out or end_date passes (lazy expiry on page load).
 
     // Create new package — manager_confirmed = false, pending manager ack
     const { error: insertErr } = await supabase.from('packages').insert({
@@ -151,15 +158,35 @@ export default function PtOnboardPage() {
 
       <StatusBanner success={success} error={error} />
 
-      {activeMembers.length === 0 && (
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+        <button type="button" onClick={() => { setTab('renew'); setForm(f => ({ ...f, member_id: '', template_id: '' })) }}
+          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${tab === 'renew' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          Renew Existing Member
+        </button>
+        <button type="button" onClick={() => { setTab('new'); setForm(f => ({ ...f, member_id: '', template_id: '' })) }}
+          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${tab === 'new' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+          Onboard New Member
+        </button>
+      </div>
+
+      {tab === 'renew' && trainerMembers.length === 0 && (
         <div className="card p-6 text-center">
           <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600 font-medium">No active members found</p>
+          <p className="text-sm text-gray-600 font-medium">No existing members found</p>
+          <p className="text-xs text-gray-400 mt-1">You have no members with an active PT package. Use the Onboard New Member tab to add a new member.</p>
+        </div>
+      )}
+
+      {tab === 'new' && activeMembers.length === 0 && (
+        <div className="card p-6 text-center">
+          <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+          <p className="text-sm text-gray-600 font-medium">No active gym members found</p>
           <p className="text-xs text-gray-400 mt-1">Only members with a confirmed, active gym membership can be onboarded onto a PT package.</p>
         </div>
       )}
 
-      {activeMembers.length > 0 && (
+      {(tab === 'renew' ? trainerMembers.length > 0 : activeMembers.length > 0) && (
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Step 1 — Select member */}
@@ -172,8 +199,10 @@ export default function PtOnboardPage() {
             </div>
             <select className="input" required value={form.member_id}
               onChange={e => setForm(f => ({ ...f, member_id: e.target.value }))}>
-              <option value="">Select an active member...</option>
-              {activeMembers.map(m => (
+              <option value="">
+                {tab === 'renew' ? 'Select a member to renew...' : 'Select an active member to onboard...'}
+              </option>
+              {(tab === 'renew' ? trainerMembers : activeMembers).map(m => (
                 <option key={m.id} value={m.id}>
                   {m.full_name}{m.membership_number ? ` — ${m.membership_number}` : ''}
                 </option>
