@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
 import { Plus, Trash2, CheckCircle, AlertCircle, Calendar, X, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function PublicHolidaysPage() {
+  const { logActivity } = useActivityLog()
   const [holidays, setHolidays] = useState<any[]>([])
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [showForm, setShowForm] = useState(false)
@@ -45,13 +47,15 @@ export default function PublicHolidaysPage() {
     })
     if (err) { setError(err.message); setSaving(false); return }
     await load(); setShowForm(false); setForm({ holiday_date: '', name: '' })
-    setSaving(false); showMsg('Holiday added')
+    setSaving(false); logActivity('create', 'Public Holidays', 'Added public holiday')
+    showMsg('Holiday added')
   }
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Remove "${name}" from the holiday list?`)) return
     await supabase.from('public_holidays').delete().eq('id', id)
-    await load(); showMsg('Holiday removed')
+    await load(); logActivity('delete', 'Public Holidays', 'Deleted public holiday')
+    showMsg('Holiday removed')
   }
 
   const nextYear = new Date().getFullYear() + 1
