@@ -557,6 +557,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>({})
   const [newPayslip, setNewPayslip] = useState<any>(null) // latest unseen approved/paid payslip
   const [newCommission, setNewCommission] = useState<any>(null) // latest unseen approved commission
+  const [rejectionNotifs, setRejectionNotifs] = useState<any[]>([]) // unseen PT package rejections
 
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
@@ -807,6 +808,18 @@ export default function DashboardPage() {
         }
       }
 
+      // ── PT package rejection notifications ──────────────
+      // Show to trainers, staff and managers whose packages were rejected
+      if (['trainer', 'staff', 'manager'].includes(u.role)) {
+        const { data: rejections } = await supabase
+          .from('pkg_rejection_notif')
+          .select('id, package_name, member_name, rejected_by_name, rejected_at')
+          .eq('trainer_id', authUser.id)
+          .is('seen_at', null)
+          .order('rejected_at', { ascending: false })
+        setRejectionNotifs(rejections || [])
+      }
+
       // ── Payslip & commission notifications ──────────────
       // Show once after approval — compare against seen timestamp on user record
       const seenPayslip = u.payslip_notif_seen_at ? new Date(u.payslip_notif_seen_at) : null
@@ -858,6 +871,16 @@ export default function DashboardPage() {
   const now = new Date()
   const todayStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })
   const isAdmin = user.role === 'admin'
+  const dismissRejections = async () => {
+    if (rejectionNotifs.length === 0) return
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    for (const n of rejectionNotifs) {
+      await supabase.from('pkg_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    }
+    setRejectionNotifs([])
+  }
+
   const dismissNotifications = async () => {
     const supabase = createClient()
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -1010,6 +1033,25 @@ export default function DashboardPage() {
           </div>
           <ChevronRight className="w-4 h-4 text-green-400 flex-shrink-0" />
         </Link>
+      )}
+
+      {/* ── PT package rejection notifications ── */}
+      {rejectionNotifs.length > 0 && (
+        <div className="card p-4 bg-red-50 border border-red-200 space-y-2">
+          <p className="text-sm font-medium text-red-800 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {rejectionNotifs.length} PT package sale{rejectionNotifs.length > 1 ? 's were' : ' was'} rejected
+          </p>
+          {rejectionNotifs.map((n: any) => (
+            <p key={n.id} className="text-xs text-red-700">
+              · {n.package_name} for {n.member_name} — rejected by {n.rejected_by_name}
+            </p>
+          ))}
+          <button onClick={dismissRejections}
+            className="text-xs text-red-600 underline mt-1">
+            Dismiss
+          </button>
+        </div>
       )}
 
       {/* ── Stats row ── */}
