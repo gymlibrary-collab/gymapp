@@ -63,7 +63,7 @@ export default function MembershipTypesPage() {
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-gray-900">Membership Types</h1><p className="text-sm text-gray-500">Configure gym membership types and pricing</p></div>
-        <button onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ name: '', duration_days: '', price_sgd: '' }) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Type</button>
+        <button onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ name: '', duration_days: '', duration_months: '', price_sgd: '' }) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Type</button>
       </div>
 
       <StatusBanner success={success} error={error} />
