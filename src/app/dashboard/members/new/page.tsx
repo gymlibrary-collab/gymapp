@@ -48,8 +48,8 @@ export default function RegisterMemberPage() {
       const { data: typesData } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
       setMembershipTypes(typesData || [])
 
-      const { data: cfg } = await supabase.from('commission_config').select('config_value').eq('config_key', 'membership_commission_sgd').single()
-      if (cfg) setCommissionPct(cfg.config_value)
+      // Use per-staff membership commission rate, not global config
+      setCommissionPct(userData?.membership_commission_sgd || 0)
 
       // Auto-select gym for manager
       if (userData?.manager_gym_id) setMemberForm(f => ({ ...f, gym_id: userData.manager_gym_id }))
