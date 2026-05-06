@@ -481,6 +481,8 @@ export default function DashboardPage() {
   const [todaySessions, setTodaySessions] = useState<any[]>([])
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([])
   const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
+  const [calendarOffset, setCalendarOffset] = useState(0) // days offset from today
+  const [calendarModal, setCalendarModal] = useState<any>(null)
   const [pendingMemberships, setPendingMemberships] = useState(0)
   const [pendingSessions, setPendingSessions] = useState(0)
 
@@ -562,10 +564,13 @@ export default function DashboardPage() {
 
       // ── Gym schedule (manager + trainer + staff): upcoming sessions ──
       if (isManager || isTrainer || u.role === 'staff') {
+        const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
         let gymSchedQ = supabase.from('sessions')
-          .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(full_name)')
-          .eq('status', 'scheduled').gte('scheduled_at', now.toISOString())
-          .order('scheduled_at').limit(20)
+          .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
+          .in('status', ['scheduled', 'completed'])
+          .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
+          .lte('scheduled_at', schedEnd)
+          .order('scheduled_at').limit(200)
         if (isManager && gymId) {
           // Manager: their assigned gym
           gymSchedQ = gymSchedQ.eq('gym_id', gymId)
@@ -1086,47 +1091,215 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── Full Gym Schedule (trainer + staff) ── */}
-      {(isManager || isTrainer || isStaff) && (
-        <div className="card">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-red-600" /> Full Gym Schedule
-              {gymScheduleSessions.length > 0 && <span className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-medium">{gymScheduleSessions.length}</span>}
-            </h2>
-            <span className="text-xs text-gray-400">Upcoming scheduled sessions</span>
-          </div>
-          {gymScheduleSessions.length === 0 ? (
-            <div className="p-6 text-center">
-              <Clock className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">No upcoming sessions scheduled</p>
+      {/* ── Full Gym Schedule — 7-day calendar ── */}
+      {(isManager || isTrainer || isStaff) && (() => {
+        const HOURS = Array.from({ length: 19 }, (_, i) => i + 5) // 5am–11pm
+        const HOUR_H = 56 // px per hour
+        const DAY_W = 160 // px per day column
+
+        // Trainer colour palette
+        const PALETTE = [
+          '#E24B4A','#3B82F6','#10B981','#F59E0B','#8B5CF6',
+          '#EC4899','#06B6D4','#84CC16','#F97316','#6366F1',
+        ]
+        const trainerIds = Array.from(new Set(gymScheduleSessions.map((s: any) => s.trainer?.id))).filter(Boolean)
+        const trainerColor: Record<string, string> = {}
+        trainerIds.forEach((id: any, i) => { trainerColor[id] = PALETTE[i % PALETTE.length] })
+
+        // 7 days from today + offset (staff/trainer cannot go back past today)
+        const safeOffset = isManager ? calendarOffset : Math.max(0, calendarOffset)
+        const today = new Date(); today.setHours(0,0,0,0)
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(today); d.setDate(d.getDate() + safeOffset + i); return d
+        })
+
+        // Group sessions by day
+        const byDay: Record<string, any[]> = {}
+        days.forEach(d => { byDay[d.toDateString()] = [] })
+        gymScheduleSessions.forEach((s: any) => {
+          const sd = new Date(s.scheduled_at); sd.setHours(0,0,0,0)
+          const key = sd.toDateString()
+          if (byDay[key]) byDay[key].push(s)
+        })
+
+        return (
+          <div className="card overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-red-600" /> Gym Schedule
+              </h2>
+              <div className="flex items-center gap-2">
+                {isManager && (
+                  <button onClick={() => setCalendarOffset(o => o - 7)}
+                    className="text-xs text-gray-500 hover:text-gray-900 px-2 py-1 rounded border border-gray-200 hover:border-gray-300">← Prev</button>
+                )}
+                <button onClick={() => setCalendarOffset(0)}
+                  className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded border border-red-200">Today</button>
+                <button onClick={() => setCalendarOffset(o => o + 7)}
+                  className="text-xs text-gray-500 hover:text-gray-900 px-2 py-1 rounded border border-gray-200 hover:border-gray-300">Next →</button>
+              </div>
             </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {gymScheduleSessions.map((s: any) => {
-                const isOwn = s.trainer_id === user?.id
-                const dt = new Date(s.scheduled_at)
-                const dateStr = dt.toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })
-                const timeStr = dt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })
-                return (
-                  <div key={s.id} className={cn('flex items-center gap-3 p-4', isOwn && 'bg-red-50/30')}>
-                    <div className="text-center w-16 flex-shrink-0">
-                      <p className="text-xs text-gray-400">{dateStr}</p>
-                      <p className="text-sm font-bold text-gray-900">{timeStr}</p>
+
+            {/* Trainer legend */}
+            {trainerIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
+                {trainerIds.map((tid: any) => {
+                  const s = gymScheduleSessions.find((s: any) => s.trainer?.id === tid)
+                  return (
+                    <div key={tid} className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: trainerColor[tid] }} />
+                      <span className="text-xs text-gray-600">{s?.trainer?.full_name}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{s.member?.full_name}</p>
-                      <p className="text-xs text-gray-400">{s.trainer?.full_name}{isOwn && ' (You)'}</p>
-                      {s.member?.phone && <p className="text-xs text-gray-400">{s.member.phone}</p>}
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Calendar grid */}
+            <div className="overflow-x-auto">
+              <div style={{ display: 'flex', minWidth: `${52 + DAY_W * 7}px` }}>
+
+                {/* Y-axis hours */}
+                <div style={{ width: 52, flexShrink: 0, paddingTop: 48 }}>
+                  {HOURS.map(h => (
+                    <div key={h} style={{ height: HOUR_H, display: 'flex', alignItems: 'flex-start', paddingTop: 2 }}>
+                      <span style={{ fontSize: 10, color: '#9CA3AF', paddingRight: 4, lineHeight: 1 }}>
+                        {h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h-12}pm`}
+                      </span>
                     </div>
-                    {isOwn && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium flex-shrink-0">Mine</span>}
+                  ))}
+                </div>
+
+                {/* Day columns */}
+                {days.map(day => {
+                  const isToday = day.toDateString() === new Date().toDateString()
+                  const daySessions = byDay[day.toDateString()] || []
+
+                  // Group sessions by hour for stacking
+                  const byHour: Record<number, any[]> = {}
+                  daySessions.forEach((s: any) => {
+                    const h = new Date(s.scheduled_at).getHours()
+                    if (!byHour[h]) byHour[h] = []
+                    byHour[h].push(s)
+                  })
+
+                  return (
+                    <div key={day.toDateString()} style={{ width: DAY_W, flexShrink: 0, borderLeft: '1px solid #F3F4F6' }}>
+                      {/* Day header */}
+                      <div style={{ height: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isToday ? '#E24B4A' : '#F9FAFB', borderBottom: isToday ? '2px solid #C73B3A' : '1px solid #F3F4F6' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: isToday ? 'rgba(255,255,255,0.85)' : '#6B7280', letterSpacing: '0.05em' }}>
+                          {day.toLocaleDateString('en-SG', { weekday: 'short' }).toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: isToday ? 'white' : '#111827' }}>
+                          {day.toLocaleDateString('en-SG', { day: '2-digit', month: 'short' })}
+                        </span>
+                      </div>
+
+                      {/* Hour rows */}
+                      {HOURS.map(h => {
+                        const slotSessions = byHour[h] || []
+                        const slotH = slotSessions.length > 0
+                          ? Math.max(HOUR_H, slotSessions.length * HOUR_H)
+                          : HOUR_H
+
+                        return (
+                          <div key={h} style={{ height: slotH, borderBottom: '1px solid #F9FAFB', position: 'relative', background: h % 2 === 0 ? '#FAFAFA' : 'white' }}>
+                            {slotSessions.map((s: any, idx: number) => {
+                              const color = trainerColor[s.trainer?.id] || '#6B7280'
+                              const durH = Math.max(0.5, (s.duration_minutes || 60) / 60)
+                              const blockH = Math.min(durH * HOUR_H - 2, HOUR_H - 2)
+                              const firstName = s.trainer?.full_name?.split(' ')[0] || '?'
+                              const timeStr = new Date(s.scheduled_at).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })
+                              const isCompleted = s.status === 'completed'
+
+                              return (
+                                <div key={s.id}
+                                  onClick={() => isManager ? setCalendarModal(s) : undefined}
+                                  style={{
+                                    position: 'absolute', left: 2, right: 2,
+                                    top: idx * HOUR_H + 1, height: blockH,
+                                    background: color, opacity: isCompleted ? 0.55 : 0.9,
+                                    borderRadius: 4, padding: '2px 4px',
+                                    cursor: isManager ? 'pointer' : 'default',
+                                    overflow: 'hidden',
+                                    display: 'flex', flexDirection: 'column', justifyContent: 'flex-start',
+                                  }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: 'white', lineHeight: 1.2 }}>{firstName}</span>
+                                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)', lineHeight: 1.2 }}>{timeStr}</span>
+                                  {isCompleted && <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.7)' }}>done</span>}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Session detail modal — manager only */}
+            {calendarModal && isManager && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setCalendarModal(null)}>
+                <div className="fixed inset-0 bg-black/30" />
+                <div className="relative bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-gray-900 text-sm">Session Details</h3>
+                    <button onClick={() => setCalendarModal(null)}><X className="w-4 h-4 text-gray-400" /></button>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ background: trainerColor[calendarModal.trainer?.id] || '#6B7280' }} />
+                      <div>
+                        <p className="text-xs text-gray-400">Trainer</p>
+                        <p className="text-sm font-medium text-gray-900">{calendarModal.trainer?.full_name}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Client</p>
+                      <p className="text-sm font-medium text-gray-900">{calendarModal.member?.full_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">PT Package</p>
+                      <p className="text-sm font-medium text-gray-900">{calendarModal.package?.package_name || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Session Progress</p>
+                      {calendarModal.package ? (() => {
+                        const used = calendarModal.package.sessions_used || 0
+                        const total = calendarModal.package.total_sessions || 0
+                        const remaining = total - used
+                        return <p className="text-sm font-medium text-gray-900">Session {used}/{total} · {remaining} remaining</p>
+                      })() : <p className="text-sm text-gray-400">—</p>}
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Date & Time</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatDate(calendarModal.scheduled_at?.split('T')[0])} · {new Date(calendarModal.scheduled_at).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Duration</p>
+                      <p className="text-sm font-medium text-gray-900">{calendarModal.duration_minutes || 60} minutes</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Status</p>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+                        calendarModal.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700')}>
+                        {calendarModal.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
 
       {/* ── Manager alerts section ── */}
       {isManager && totalAlerts > 0 && (
