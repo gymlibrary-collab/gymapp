@@ -13,6 +13,7 @@ export default function AdminSettingsPage() {
   const [sidebarLogoFile, setSidebarLogoFile] = useState<File | null>(null)
   const [sidebarLogoPreview, setSidebarLogoPreview] = useState<string | null>(null)
   const [autoLogoutMinutes, setAutoLogoutMinutes] = useState('10')
+  const [maxCarryForward, setMaxCarryForward] = useState('5')
   const [companyName, setCompanyName] = useState('Gym Operations Suite')
   const [saving, setSaving] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
@@ -28,11 +29,12 @@ export default function AdminSettingsPage() {
     if (!me || (me.role !== 'admin')) { router.replace('/dashboard'); return }
 
       const { data } = await supabase.from('app_settings')
-        .select('login_logo_url, admin_sidebar_logo_url, auto_logout_minutes, app_name')
+        .select('login_logo_url, admin_sidebar_logo_url, auto_logout_minutes, app_name, max_leave_carry_forward_days')
         .eq('id', 'global').single()
       if (data) {
         setAppName(data.app_name || 'GymApp')
         setAutoLogoutMinutes(data.auto_logout_minutes?.toString() || '10')
+        setMaxCarryForward((data as any).max_leave_carry_forward_days?.toString() || '5')
         if (data.login_logo_url) setLoginLogoPreview(data.login_logo_url + '?t=' + Date.now())
         if (data.admin_sidebar_logo_url) setSidebarLogoPreview(data.admin_sidebar_logo_url + '?t=' + Date.now())
         if ((data as any).company_name) setCompanyName((data as any).company_name)
@@ -61,7 +63,7 @@ export default function AdminSettingsPage() {
   const handleSaveLogout = async () => {
     setSaving('logout')
     await supabase.from('app_settings').upsert({
-      id: 'global', auto_logout_minutes: parseInt(autoLogoutMinutes), updated_at: new Date().toISOString(),
+      id: 'global', auto_logout_minutes: parseInt(autoLogoutMinutes), max_leave_carry_forward_days: parseInt(maxCarryForward) || 0, updated_at: new Date().toISOString(),
     })
     setSaving(null); setSaved('logout'); setTimeout(() => setSaved(null), 3000)
   }
@@ -147,6 +149,19 @@ export default function AdminSettingsPage() {
           </select>
         </div>
         <SaveBtn k="logout" label="Save Auto Logout" onSave={handleSaveLogout} />
+      </div>
+
+      <div className="card p-4 space-y-4">
+        <h2 className="font-semibold text-gray-900 text-sm">Leave Policy</h2>
+        <div>
+          <label className="label">Maximum Leave Carry-Forward Days</label>
+          <input className="input" type="number" min="0" max="365" step="1"
+            value={maxCarryForward}
+            onChange={e => setMaxCarryForward(e.target.value)}
+            placeholder="5" />
+          <p className="text-xs text-gray-400 mt-1">Maximum number of unused leave days staff can carry forward to the next year. Biz Ops sets the actual carry-forward per staff in hr/staff.</p>
+        </div>
+        <SaveBtn k="logout" label="Save Leave Policy" onSave={handleSaveLogout} />
       </div>
     </div>
   )
