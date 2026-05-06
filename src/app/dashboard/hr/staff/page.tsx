@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass } from '@/lib/utils'
+import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass, getMonthName } from '@/lib/utils'
 import { validatePhone, validateNric, validateNationality, validateHourlyRate, validateAddress, validateAll } from '@/lib/validators'
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
@@ -46,6 +46,7 @@ export default function TrainersPage() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [editingUser, setEditingUser] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
+  const [offboardingChecklist, setOffboardingChecklist] = useState<any>(null)
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const router = useRouter()
@@ -168,9 +169,55 @@ export default function TrainersPage() {
     setShowCreateForm(false); setError('')
   }
 
+  const checkOffboarding = async (member: any) => {
+    // Only show when departure date is being set for the first time
+    if (!editForm.date_of_departure || member.date_of_departure) return
+
+    const userId = member.id
+    const checks: any = {}
+
+    // Draft/approved payslips not yet paid
+    const { data: payslips } = await supabase.from('payslips')
+      .select('id, month, year, status')
+      .eq('user_id', userId).in('status', ['draft', 'approved'])
+    checks.payslips = payslips || []
+
+    // Unpaid commission payouts
+    const { data: commissions } = await supabase.from('commission_payouts')
+      .select('id, period_start, period_end, total_commission_sgd, status')
+      .eq('user_id', userId).in('status', ['draft', 'approved'])
+    checks.commissions = commissions || []
+
+    // Future roster shifts
+    const today = new Date().toISOString().split('T')[0]
+    const { data: roster } = await supabase.from('duty_roster')
+      .select('id, shift_date, gym_id').eq('user_id', userId).gte('shift_date', today)
+    checks.roster = roster || []
+
+    // Unconfirmed package sales
+    const { data: packages } = await supabase.from('packages')
+      .select('id, package_name, created_at').eq('trainer_id', userId).eq('manager_confirmed', false)
+    checks.packages = packages || []
+
+    // Active PT packages with remaining sessions
+    const { data: activePkgs } = await supabase.from('packages')
+      .select('id, package_name, total_sessions, sessions_used, member:members(full_name)')
+      .eq('trainer_id', userId).eq('status', 'active')
+    checks.activePkgs = activePkgs?.filter((p: any) => p.sessions_used < p.total_sessions) || []
+
+    const hasItems = checks.payslips.length > 0 || checks.commissions.length > 0 ||
+      checks.roster.length > 0 || checks.packages.length > 0 || checks.activePkgs.length > 0
+
+    if (hasItems) {
+      setOffboardingChecklist({ member, checks })
+    }
+  }
+
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingUser) return
     setError('')
+    // Show offboarding checklist if departure date being set
+    await checkOffboarding(editingUser)
     const err = validateAll([
       validatePhone((editForm as any).phone),
       validateNric((editForm as any).nric),
@@ -225,6 +272,7 @@ export default function TrainersPage() {
 
 
   return (
+    <>
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-gray-900">Staff Management</h1><p className="text-sm text-gray-500">All staff across Gym Library · {staff.filter(s => (s.employment_type || 'full_time') === 'full_time').length} full-time · {staff.filter(s => s.employment_type === 'part_time').length} part-time</p></div>
@@ -422,6 +470,57 @@ export default function TrainersPage() {
         </div>
       )}
     </div>
+
+      {/* Offboarding checklist modal */}
+      {offboardingChecklist && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setOffboardingChecklist(null)}>
+          <div className="fixed inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Offboarding Checklist — {offboardingChecklist.member.full_name}</h3>
+            <p className="text-xs text-gray-500 mb-4">Please resolve these outstanding items before the staff member departs.</p>
+            <div className="space-y-3">
+              {offboardingChecklist.checks.payslips.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.payslips.length} unpaid payslip(s)</p>
+                  {offboardingChecklist.checks.payslips.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {getMonthName(p.month)} {p.year}</p>)}
+                </div>
+              )}
+              {offboardingChecklist.checks.commissions.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.commissions.length} unpaid commission payout(s)</p>
+                  {offboardingChecklist.checks.commissions.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {formatDate(p.period_start)} to {formatDate(p.period_end)} ({formatSGD(p.total_commission_sgd)})</p>)}
+                </div>
+              )}
+              {offboardingChecklist.checks.roster.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.roster.length} future roster shift(s)</p>
+                  {offboardingChecklist.checks.roster.slice(0, 3).map((r: any) => <p key={r.id} className="text-xs text-amber-700">· {formatDate(r.shift_date)}</p>)}
+                </div>
+              )}
+              {offboardingChecklist.checks.packages.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.packages.length} unconfirmed PT package sale(s)</p>
+                  {offboardingChecklist.checks.packages.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.package_name}</p>)}
+                </div>
+              )}
+              {offboardingChecklist.checks.activePkgs.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.activePkgs.length} active PT package(s) with remaining sessions</p>
+                  {offboardingChecklist.checks.activePkgs.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {(p.member as any)?.full_name} — {p.package_name} ({p.total_sessions - p.sessions_used} sessions left)</p>)}
+                </div>
+              )}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
+                <p className="text-xs font-medium text-gray-700">Manual items to action:</p>
+                <p className="text-xs text-gray-600">□ Collect access card</p>
+                <p className="text-xs text-gray-600">□ Archive staff account in system after final payslip is paid</p>
+                <p className="text-xs text-gray-600">□ Collect any other company-issued items</p>
+              </div>
+            </div>
+            <button onClick={() => setOffboardingChecklist(null)} className="btn-secondary w-full mt-4">Noted — Continue</button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
