@@ -1,5 +1,6 @@
 'use client'
 
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
@@ -13,6 +14,7 @@ export default function PayrollPage() {
   const [staffList, setStaffList] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('all')
+  const { logActivity } = useActivityLog()
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -211,6 +213,7 @@ export default function PayrollPage() {
     }
 
     setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: [] })
+    logActivity('create', 'Monthly Payroll', 'Generated bulk payslips')
     setBulkGenerating(false)
     load()
   }
