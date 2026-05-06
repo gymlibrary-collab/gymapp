@@ -544,7 +544,7 @@ export default function DashboardPage() {
 
       // ── Today's sessions ─────────────────────────────────
       let todayQ = supabase.from('sessions')
-        .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name)')
+        .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
         .gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd)
         .order('scheduled_at')
       if (isTrainer) todayQ = todayQ.eq('trainer_id', authUser.id)
@@ -1077,7 +1077,22 @@ export default function DashboardPage() {
                     <p className="text-sm font-bold text-gray-900">{time}</p>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{s.member?.full_name}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-medium text-gray-900">{s.member?.full_name}</p>
+                      {s.package?.total_sessions && (() => {
+                        const used = s.package.sessions_used || 0
+                        const total = s.package.total_sessions
+                        const isLast = used >= total - 1
+                        return (
+                          <span className={cn(
+                            'text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0',
+                            isLast ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+                          )}>
+                            Session {used + 1}/{total}
+                          </span>
+                        )
+                      })()}
+                    </div>
                     {!isTrainer && <p className="text-xs text-gray-400">{s.trainer?.full_name}</p>}
                     {s.package?.package_name && <p className="text-xs text-gray-400">{s.package.package_name}</p>}
                   </div>
