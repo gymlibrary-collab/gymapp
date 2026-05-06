@@ -83,16 +83,9 @@ export default function MembersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">
-            {user?.role === 'staff' ? 'Members' : isActingAsTrainer || user?.role === 'trainer' ? 'Members' : 'Members'}
-          </h1>
+          <h1 className="text-xl font-bold text-gray-900">Members</h1>
           <p className="text-sm text-gray-500">{filtered.length} member{filtered.length !== 1 ? 's' : ''}</p>
         </div>
-        {canAddMember && (
-          <Link href="/dashboard/members/new" className="btn-primary flex items-center gap-1.5">
-            <Plus className="w-4 h-4" /> Register Member
-          </Link>
-        )}
       </div>
 
       <div className="card p-3 flex flex-col sm:flex-row gap-2">
