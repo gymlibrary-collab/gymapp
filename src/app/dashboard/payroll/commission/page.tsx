@@ -70,12 +70,13 @@ export default function CommissionPayoutsPage() {
 
     for (const member of targetStaff) {
       // PT signup commissions (from packages created in period)
-      // Only packages confirmed by manager are eligible for commission payout
+      // Packages eligible for commission: not paid
+      // Rejected packages are hard deleted so no filter needed for cancelled
+      // Manager confirmation is for workflow closure only — not a commission gate
       const { data: packages } = await supabase.from('packages')
         .select('signup_commission_sgd, gym_id')
         .eq('trainer_id', member.id)
         .eq('signup_commission_paid', false)
-        .eq('manager_confirmed', true)
         .gte('created_at', genForm.period_start)
         .lte('created_at', genForm.period_end + 'T23:59:59')
 
