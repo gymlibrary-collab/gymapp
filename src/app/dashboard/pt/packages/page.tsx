@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import {
   Plus, Edit2, Archive, X, Save, CheckCircle,
@@ -30,6 +31,7 @@ const emptyForm = {
 }
 
 export default function PackagesPage() {
+  const { logActivity } = useActivityLog()
   const [packages, setPackages] = useState<PackageTemplate[]>([])
   const [archived, setArchived] = useState<PackageTemplate[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
@@ -106,11 +108,13 @@ export default function PackagesPage() {
       const { error: err } = await supabase.from('package_templates')
         .update(payload).eq('id', editingPkg.id)
       if (err) { setError(err.message); setSaving(false); return }
-      showMsg('Package updated')
+      logActivity('update', 'PT Package Templates', 'Updated PT package template')
+    showMsg('Package updated')
     } else {
       const { error: err } = await supabase.from('package_templates').insert(payload)
       if (err) { setError(err.message); setSaving(false); return }
-      showMsg('Package created')
+      logActivity('create', 'PT Package Templates', 'Created PT package template')
+    showMsg('Package created')
     }
 
     await loadPackages()
@@ -130,6 +134,7 @@ export default function PackagesPage() {
       archived_by: user?.id,
     }).eq('id', pkg.id)
     await loadPackages()
+    logActivity('update', 'PT Package Templates', 'Archived PT package template')
     showMsg(`"${pkg.name}" archived — existing member packages unaffected`)
   }
 
