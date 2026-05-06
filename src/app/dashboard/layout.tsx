@@ -73,7 +73,7 @@ const managerNav: NavItem[] = [
 
 const trainerViewNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/members', label: 'My Members', icon: Users },
+  { href: '/dashboard/members', label: 'Members', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
   { href: '/dashboard/pt/onboard', label: 'PT Onboarding', icon: Package },
   // My Account (My Leave + My Payslips) intentionally omitted in Trainer View —
@@ -82,7 +82,7 @@ const trainerViewNav: NavItem[] = [
 
 const pureTrainerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/members', label: 'My Members', icon: Users },
+  { href: '/dashboard/members', label: 'Members', icon: Users },
   { href: '/dashboard/members/new', label: 'New Member', icon: UserCheck },
   { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
@@ -105,7 +105,7 @@ const partTimerNav: NavItem[] = [
 
 const staffNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/members', label: 'Member Lookup', icon: Users },
+  { href: '/dashboard/members', label: 'Members', icon: Users },
   { href: '/dashboard/members/new', label: 'New Member', icon: UserCheck },
   { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
