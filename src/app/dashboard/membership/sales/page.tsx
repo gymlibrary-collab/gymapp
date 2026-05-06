@@ -39,23 +39,13 @@ export default function MembershipSalesPage() {
     const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 
     if (userData.role === 'manager') {
-      // Load all gym sales for confirmation tab
+      // Manager sees all gym sales for confirmation only — no My Sales tab
       const { data: gymSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
         .eq('gym_id', userData.manager_gym_id)
         .order('created_at', { ascending: false })
       setAllGymSales(gymSales || [])
-
-      // Load own sales for My Sales tab
-      const { data: ownSales } = await supabase.from('gym_memberships')
-        .select(baseSelect)
-        .eq('sold_by_user_id', authUser.id)
-        .order('created_at', { ascending: false })
-      setMySales(ownSales || [])
-
-      // Default to confirm tab if there are pending sales, else My Sales
-      const hasPending = (gymSales || []).some((s: any) => s.sale_status === 'pending')
-      setTab(hasPending ? 'confirm' : 'my')
+      setTab('confirm')
     } else if (userData.role === 'business_ops') {
       // Biz Ops: sees pending sales logged by managers across all gyms
       // Managers cannot confirm their own sales — only Biz Ops can
@@ -114,11 +104,42 @@ export default function MembershipSalesPage() {
 
   const handleReject = async () => {
     if (!rejectId || !rejectReason.trim()) return
-    await supabase.from('gym_memberships').update({
-      sale_status: 'rejected', status: 'cancelled', rejection_reason: rejectReason,
-    }).eq('id', rejectId)
-    setRejectId(null); setRejectReason(''); await load(); showMsg('Sale rejected')
+    const sale = [...allGymSales, ...mySales].find((s: any) => s.id === rejectId)
+    if (!sale) return
+
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const { data: me } = await supabase.from('users').select('full_name').eq('id', authUser!.id).single()
+
+    // Check if this is the member's only ever membership (new member scenario)
+    const { data: otherMems } = await supabase.from('gym_memberships')
+      .select('id').eq('member_id', sale.member_id)
+      .eq('sale_status', 'confirmed').neq('id', rejectId)
+    const isNewMember = !otherMems || otherMems.length === 0
+
+    // Write rejection notification to seller
+    await supabase.from('mem_rejection_notif').insert({
+      seller_id: sale.sold_by_user_id || sale.sold_by?.id,
+      member_name: sale.member?.full_name || 'Unknown',
+      membership_type_name: sale.membership_type_name || '',
+      rejection_reason: rejectReason,
+      was_new_member: isNewMember,
+      rejected_by: authUser!.id,
+      rejected_by_name: (me as any)?.full_name || 'Manager',
+    })
+
+    if (isNewMember) {
+      // New member — delete member record entirely (cascade deletes membership)
+      await supabase.from('members').delete().eq('id', sale.member_id)
+    } else {
+      // Renewal/existing member — soft reject, keep member record
+      await supabase.from('gym_memberships').update({
+        sale_status: 'rejected', status: 'cancelled', rejection_reason: rejectReason,
+      }).eq('id', rejectId)
+    }
+
+    setRejectId(null); setRejectReason(''); await load()
     logActivity('reject', 'Membership Sales', 'Rejected membership sale')
+    showMsg(isNewMember ? 'Sale rejected — member record removed' : 'Sale rejected — existing membership unaffected')
   }
 
   const sellerIsManager = (sale: any) => {
@@ -190,26 +211,7 @@ export default function MembershipSalesPage() {
         </div>
       )}
 
-      {/* Manager tabs */}
-      {isManager && (
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-          <button onClick={() => setTab('confirm')}
-            className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors relative',
-              tab === 'confirm' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-            Confirm Sales
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-          <button onClick={() => setTab('my')}
-            className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors',
-              tab === 'my' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
-            My Sales
-          </button>
-        </div>
-      )}
+      {/* Manager: no tabs — confirm sales only. Own pending sales shown on dashboard. */}
 
       {/* Stats */}
       {isBizOps && (
@@ -225,7 +227,7 @@ export default function MembershipSalesPage() {
         </div>
       )}
 
-      {isManager && tab === 'confirm' && (
+      {isManager && (
         <div className="grid grid-cols-2 gap-3">
           <div className="stat-card">
             <p className="text-xs text-gray-500 mb-1">Total Gym Sales</p>
@@ -238,7 +240,7 @@ export default function MembershipSalesPage() {
         </div>
       )}
 
-      {(!isManager && !isBizOps || (isManager && tab === 'my')) && (
+      {(!isManager && !isBizOps) && (
         <div className="grid grid-cols-3 gap-3">
           <div className="stat-card">
             <p className="text-xs text-gray-500 mb-1">My Sales</p>
