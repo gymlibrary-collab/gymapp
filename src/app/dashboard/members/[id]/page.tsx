@@ -33,8 +33,26 @@ export default function MemberProfilePage() {
     secondary_member_id: '',
   })
   const [allMembers, setAllMembers] = useState<any[]>([])
+  const [membershipTypes, setMembershipTypes] = useState<any[]>([])
+  const [showRenewalForm, setShowRenewalForm] = useState(false)
+  const [renewalForm, setRenewalForm] = useState({ membership_type_id: '', start_date: new Date().toISOString().split('T')[0] })
+  const [renewalSaving, setRenewalSaving] = useState(false)
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
+
+  // ── Auto-expire stale gym memberships ───────────────────────
+  const expireStaleGymMemberships = async (memberships: any[]) => {
+    const today = new Date().toISOString().split('T')[0]
+    let count = 0
+    for (const m of memberships) {
+      if (m.status !== 'active' || m.sale_status !== 'confirmed') continue
+      if (m.end_date && m.end_date < today) {
+        await supabase.from('gym_memberships').update({ status: 'expired' }).eq('id', m.id)
+        count++
+      }
+    }
+    return count
+  }
 
   // ── Auto-expire stale packages ────────────────────────────
   const expireStalePackages = async (packages: any[]) => {
@@ -74,7 +92,21 @@ export default function MemberProfilePage() {
     const { data: mems } = await supabase.from('gym_memberships')
       .select('*, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), confirmed_by_user:users!gym_memberships_confirmed_by_fkey(full_name)')
       .eq('member_id', id).order('created_at', { ascending: false })
-    setMemberships(mems || [])
+
+    // Auto-expire stale memberships on page load
+    const staleMems = await expireStaleGymMemberships(mems || [])
+    if (staleMems > 0) {
+      const { data: refreshedMems } = await supabase.from('gym_memberships')
+        .select('*, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), confirmed_by_user:users!gym_memberships_confirmed_by_fkey(full_name)')
+        .eq('member_id', id).order('created_at', { ascending: false })
+      setMemberships(refreshedMems || [])
+    } else {
+      setMemberships(mems || [])
+    }
+
+    // Load membership types for renewal form
+    const { data: memTypes } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
+    setMembershipTypes(memTypes || [])
 
     // Load packages then auto-expire stale ones
     const { data: pkgs } = await supabase.from('packages')
@@ -132,6 +164,15 @@ export default function MemberProfilePage() {
       sale_status: 'confirmed', status: 'active',
       confirmed_by: authUser!.id, confirmed_at: new Date().toISOString(),
     }).eq('id', membershipId)
+
+    // Expire any other active+confirmed memberships for this member (old ones being replaced)
+    await supabase.from('gym_memberships')
+      .update({ status: 'expired' })
+      .eq('member_id', id as string)
+      .eq('status', 'active')
+      .eq('sale_status', 'confirmed')
+      .neq('id', membershipId)
+
     await load()
   }
 
@@ -141,6 +182,38 @@ export default function MemberProfilePage() {
     await supabase.from('gym_memberships').update({
       sale_status: 'rejected', rejection_reason: reason,
     }).eq('id', membershipId)
+    await load()
+  }
+
+  // ── Renew gym membership ─────────────────────────────────
+  const handleRenewMembership = async (e: React.FormEvent) => {
+    e.preventDefault(); setRenewalSaving(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const type = membershipTypes.find(t => t.id === renewalForm.membership_type_id)
+    if (!type) { setRenewalSaving(false); return }
+
+    const startDate = new Date(renewalForm.start_date)
+    const endDate = new Date(startDate)
+    endDate.setDate(endDate.getDate() + type.duration_days)
+
+    const { error: err } = await supabase.from('gym_memberships').insert({
+      member_id: id,
+      gym_id: member?.gym_id,
+      membership_type_id: type.id,
+      membership_type_name: type.name,
+      price_sgd: type.price_sgd,
+      start_date: renewalForm.start_date,
+      end_date: endDate.toISOString().split('T')[0],
+      sold_by_user_id: authUser!.id,
+      commission_pct: currentUser?.membership_commission_pct || 0,
+      commission_sgd: currentUser?.membership_commission_sgd || 0,
+      sale_status: 'pending',
+      status: 'active',
+    })
+    if (err) { alert('Failed to renew: ' + err.message); setRenewalSaving(false); return }
+    setShowRenewalForm(false)
+    setRenewalForm({ membership_type_id: '', start_date: new Date().toISOString().split('T')[0] })
+    setRenewalSaving(false)
     await load()
   }
 
@@ -302,7 +375,56 @@ export default function MemberProfilePage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-red-600" /> Gym Membership
           </h2>
+          {(isActingAsTrainer || currentUser?.role === 'trainer') && (
+            <button onClick={() => setShowRenewalForm(!showRenewalForm)}
+              className="btn-primary text-xs py-1.5 flex items-center gap-1">
+              <Plus className="w-3.5 h-3.5" /> Renew Membership
+            </button>
+          )}
         </div>
+
+        {/* Renewal form */}
+        {showRenewalForm && (
+          <form onSubmit={handleRenewMembership} className="p-4 border-b border-gray-100 bg-blue-50 space-y-3">
+            <p className="text-sm font-semibold text-gray-900">Log Membership Renewal</p>
+            <div>
+              <label className="label">Membership Type *</label>
+              <select className="input" required value={renewalForm.membership_type_id}
+                onChange={e => setRenewalForm(f => ({ ...f, membership_type_id: e.target.value }))}>
+                <option value="">Select type...</option>
+                {membershipTypes.map(t => (
+                  <option key={t.id} value={t.id}>{t.name} — {formatSGD(t.price_sgd)} ({t.duration_days} days)</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Start Date *</label>
+              <input className="input" type="date" required value={renewalForm.start_date}
+                onChange={e => setRenewalForm(f => ({ ...f, start_date: e.target.value }))} />
+              <p className="text-xs text-gray-400 mt-1">Use today for immediate renewal, or day after current expiry for seamless continuation.</p>
+            </div>
+            {renewalForm.membership_type_id && renewalForm.start_date && (() => {
+              const type = membershipTypes.find(t => t.id === renewalForm.membership_type_id)
+              if (!type) return null
+              const end = new Date(renewalForm.start_date)
+              end.setDate(end.getDate() + type.duration_days)
+              return (
+                <div className="bg-white rounded-lg border border-blue-200 p-3 text-xs space-y-1">
+                  <div className="flex justify-between text-gray-600"><span>New end date</span><span className="font-medium">{formatDate(end.toISOString().split('T')[0])}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>Price</span><span className="font-medium">{formatSGD(type.price_sgd)}</span></div>
+                  <div className="flex justify-between text-green-700 font-medium"><span>Your commission</span><span>{formatSGD(currentUser?.membership_commission_sgd || 0)}</span></div>
+                </div>
+              )
+            })()}
+            <p className="text-xs text-amber-600">⚠ Pending manager confirmation. Current membership stays active until confirmed.</p>
+            <div className="flex gap-2">
+              <button type="submit" disabled={renewalSaving} className="btn-primary flex-1 disabled:opacity-50">
+                {renewalSaving ? 'Saving...' : 'Log Renewal'}
+              </button>
+              <button type="button" onClick={() => setShowRenewalForm(false)} className="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        )}
         {memberships.length === 0 ? (
           <p className="p-4 text-sm text-gray-400 text-center">No membership records</p>
         ) : (
