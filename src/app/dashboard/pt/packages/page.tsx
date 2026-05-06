@@ -17,6 +17,7 @@ interface PackageTemplate {
   name: string
   total_sessions: number
   default_price_sgd: number
+  validity_months?: number
   effective_from: string
   is_active: boolean
   is_archived: boolean
