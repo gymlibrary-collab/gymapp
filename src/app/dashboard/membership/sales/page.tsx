@@ -1,5 +1,6 @@
 'use client'
 
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
@@ -16,6 +17,7 @@ export default function MembershipSalesPage() {
   const [tab, setTab] = useState<'confirm' | 'my'>('confirm')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  const { logActivity } = useActivityLog()
   const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -107,6 +109,7 @@ export default function MembershipSalesPage() {
       confirmed_by: authUser!.id, confirmed_at: new Date().toISOString(),
     }).eq('id', id)
     await load(); showMsg('Sale confirmed')
+    logActivity('confirm', 'Membership Sales', 'Confirmed membership sale')
   }
 
   const handleReject = async () => {
@@ -115,6 +118,7 @@ export default function MembershipSalesPage() {
       sale_status: 'rejected', status: 'cancelled', rejection_reason: rejectReason,
     }).eq('id', rejectId)
     setRejectId(null); setRejectReason(''); await load(); showMsg('Sale rejected')
+    logActivity('reject', 'Membership Sales', 'Rejected membership sale')
   }
 
   const sellerIsManager = (sale: any) => {
