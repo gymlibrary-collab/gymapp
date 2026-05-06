@@ -20,6 +20,7 @@ export default function PackageSalesPage() {
   const [tab, setTab] = useState<'pending' | 'confirmed'>('pending')
   const [loading, setLoading] = useState(true)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState<string | null>(null)
 
   useEffect(() => { loadData() }, [])
 
@@ -41,8 +42,8 @@ export default function PackageSalesPage() {
       .select(`
         id, package_name, total_sessions, total_price_sgd,
         signup_commission_pct, signup_commission_sgd,
-        start_date, created_at, status,
-        trainer:users!packages_trainer_id_fkey(full_name),
+        trainer_id, start_date, created_at, status,
+        trainer:users!packages_trainer_id_fkey(id, full_name),
         member:members!packages_member_id_fkey(full_name)
       `)
       .eq('gym_id', gymId)
@@ -81,8 +82,70 @@ export default function PackageSalesPage() {
       manager_confirmed_at: new Date().toISOString(),
     }).eq('id', pkg.id)
     if (err) { setError('Failed to confirm: ' + err.message); setConfirming(null); return }
-    showMsg(`Package confirmed — commission queued for payout`)
+    showMsg('Package confirmed')
     setConfirming(null)
+    loadData()
+  }
+
+  const handleReject = async (pkg: any) => {
+    // ── Check 1: Commission already paid ─────────────────────
+    if (pkg.signup_commission_paid) {
+      setError("Commission has already been paid for this package. Handle as a manual adjustment in next month's payout — rejection is not possible.")
+      return
+    }
+
+    // ── Check 2: Draft/approved commission payout already generated ──
+    const pkgDate = pkg.created_at?.split('T')[0] || ''
+    const { data: existingPayouts } = await supabase
+      .from('commission_payouts')
+      .select('id, status, period_start, period_end')
+      .eq('trainer_id', pkg.trainer_id || pkg.trainer?.id)
+      .in('status', ['pending', 'approved'])
+      .lte('period_start', pkgDate)
+      .gte('period_end', pkgDate)
+      .limit(1)
+
+    if (existingPayouts && existingPayouts.length > 0) {
+      const payout = existingPayouts[0]
+      const proceed = window.confirm(
+        `⚠ A commission payout (${payout.status}) has already been generated for the period covering this package.
+
+` +
+        `Rejecting will cause a discrepancy in that payout total.
+
+` +
+        `Recommended: handle as a manual deduction in next month's payout instead.
+
+` +
+        `Proceed with rejection anyway?`
+      )
+      if (!proceed) return
+    } else {
+      // ── Check 3: Normal confirmation ─────────────────────────
+      if (!window.confirm(`Reject PT package "${pkg.package_name}" for ${pkg.member?.full_name}? The package record will be permanently deleted and the trainer will be notified.`)) return
+    }
+
+    setRejecting(pkg.id)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const { data: me } = await supabase.from('users').select('full_name').eq('id', authUser!.id).single()
+
+    // Write rejection notification for the trainer BEFORE deleting
+    const { error: notifErr } = await supabase.from('pkg_rejection_notif').insert({
+      trainer_id: pkg.trainer?.id || pkg.trainer_id,
+      package_name: pkg.package_name,
+      member_name: pkg.member?.full_name || 'Unknown member',
+      gym_id: currentUser?.manager_gym_id,
+      rejected_by: authUser!.id,
+      rejected_by_name: (me as any)?.full_name || 'Manager',
+    })
+    if (notifErr) { setError('Failed to write notification: ' + notifErr.message); setRejecting(null); return }
+
+    // Hard delete the package — cascade deletes any linked sessions
+    const { error: deleteErr } = await supabase.from('packages').delete().eq('id', pkg.id)
+    if (deleteErr) { setError('Failed to delete package: ' + deleteErr.message); setRejecting(null); return }
+
+    showMsg('Package rejected — trainer will be notified')
+    setRejecting(null)
     loadData()
   }
 
@@ -174,12 +237,20 @@ export default function PackageSalesPage() {
                     <span className="text-gray-400">Sold {formatDate(pkg.created_at)}</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleConfirm(pkg)}
-                  disabled={confirming === pkg.id}
-                  className="btn-primary text-xs py-1.5 flex-shrink-0 disabled:opacity-50">
-                  {confirming === pkg.id ? 'Confirming...' : 'Confirm'}
-                </button>
+                <div className="flex gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => handleConfirm(pkg)}
+                    disabled={confirming === pkg.id || rejecting === pkg.id}
+                    className="btn-primary text-xs py-1.5 disabled:opacity-50">
+                    {confirming === pkg.id ? 'Confirming...' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => handleReject(pkg)}
+                    disabled={confirming === pkg.id || rejecting === pkg.id}
+                    className="btn-secondary text-xs py-1.5 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50">
+                    {rejecting === pkg.id ? '...' : 'Reject'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
