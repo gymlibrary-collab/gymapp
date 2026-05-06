@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDateTime, formatSGD } from '@/lib/utils'
 import {
@@ -13,6 +14,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 export default function PtSessionsPage() {
+  const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [sessions, setSessions] = useState<any[]>([])
   const [filter, setFilter] = useState('upcoming')
@@ -120,6 +122,7 @@ export default function PtSessionsPage() {
       await supabase.from('packages').update(pkgUpdate).eq('id', session.package_id)
     }
     setActionSession(null); setActionType(null); setSaving(false); loadSessions()
+    logActivity('update', 'PT Sessions', 'Marked PT session as completed')
   }
 
   const handleCancel = async () => {
