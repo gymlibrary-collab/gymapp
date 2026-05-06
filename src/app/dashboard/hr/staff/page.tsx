@@ -32,6 +32,7 @@ const emptyForm = {
   date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '', address: '',
   nric: '', nationality: 'Singaporean',
   leave_entitlement_days: '',
+  probation_end_date: '', probation_passed: false, leave_carry_forward_days: '0',
 }
 
 export default function TrainersPage() {
@@ -159,6 +160,9 @@ export default function TrainersPage() {
       address: member.address || '',
       nric: member.nric || '',
       leave_entitlement_days: member.leave_entitlement_days?.toString() || '',
+      probation_end_date: member.probation_end_date || '',
+      probation_passed: !!member.probation_passed_at,
+      leave_carry_forward_days: member.leave_carry_forward_days?.toString() || '0',
       nationality: member.nationality || 'Singaporean',
     })
     setShowCreateForm(false); setError('')
@@ -376,7 +380,10 @@ export default function TrainersPage() {
                         <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
                       )}
                       {member.date_of_joining && <p className="text-xs text-gray-400 mt-0.5">Joined: {formatDate(member.date_of_joining)}</p>}
-                      {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
+                      {member.probation_end_date && !member.probation_passed_at && (
+                    <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
+                  )}
+                {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
@@ -469,6 +476,39 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
           <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
         </div>
       )}
+      {/* Probation — Biz Ops only */}
+      {isBizOps && (
+        <>
+          <div>
+            <label className="label">Probation End Date</label>
+            <input className="input" type="date" value={(form as any).probation_end_date}
+              onChange={e => setF((f: any) => ({ ...f, probation_end_date: e.target.value }))} />
+            <p className="text-xs text-gray-400 mt-1">Leave blank if staff has no probation period.</p>
+          </div>
+          {(form as any).probation_end_date && (
+            (form as any).probation_passed
+              ? <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-lg p-3">
+                  <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <span className="text-sm text-green-700">Probation confirmed passed — cannot be reversed</span>
+                </div>
+              : <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={false}
+                    onChange={e => { if (e.target.checked) setF((f: any) => ({ ...f, probation_passed: true })) }}
+                    className="rounded border-gray-300 text-red-600" />
+                  <span className="text-sm text-gray-700">Probation passed</span>
+                </label>
+          )}
+        </>
+      )}
+      {/* Leave carry-forward */}
+      <div>
+        <label className="label">Leave Carry-Forward Days</label>
+        <input className="input" type="number" min="0" step="1"
+          value={(form as any).leave_carry_forward_days}
+          onChange={e => setF((f: any) => ({ ...f, leave_carry_forward_days: e.target.value }))}
+          placeholder="0" />
+        <p className="text-xs text-gray-400 mt-1">Days carried forward from previous year. Subject to global maximum cap.</p>
+      </div>
       {form.date_of_departure && (
         <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
       )}
