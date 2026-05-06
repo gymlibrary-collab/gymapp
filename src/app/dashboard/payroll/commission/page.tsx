@@ -81,10 +81,12 @@ export default function CommissionPayoutsPage() {
         .lte('created_at', genForm.period_end + 'T23:59:59')
 
       // PT session commissions (completed sessions in period)
+      // is_notes_complete required — incentivises prompt note submission
       const { data: sessions } = await supabase.from('sessions')
         .select('session_commission_sgd, gym_id')
         .eq('trainer_id', member.id)
         .eq('status', 'completed')
+        .eq('is_notes_complete', true)
         .eq('commission_paid', false)
         .gte('marked_complete_at', genForm.period_start)
         .lte('marked_complete_at', genForm.period_end + 'T23:59:59')
@@ -163,6 +165,7 @@ export default function CommissionPayoutsPage() {
       if (payout) {
         await supabase.from('sessions').update({ commission_paid: true })
           .eq('trainer_id', payout.user_id).eq('status', 'completed')
+          .eq('is_notes_complete', true)
           .gte('marked_complete_at', payout.period_start)
           .lte('marked_complete_at', payout.period_end + 'T23:59:59')
         await supabase.from('packages').update({ signup_commission_paid: true })
