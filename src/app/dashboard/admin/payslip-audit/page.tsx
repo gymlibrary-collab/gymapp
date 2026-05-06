@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, formatDateTime, getMonthName } from '@/lib/utils'
 import { Shield, ChevronDown, ChevronUp } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function PayslipAuditPage() {
+  const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
   const { success, error } = useToast()
