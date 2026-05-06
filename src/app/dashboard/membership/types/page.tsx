@@ -14,7 +14,7 @@ export default function MembershipTypesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ name: '', duration_days: '', price_sgd: '' })
+  const [form, setForm] = useState({ name: '', duration_days: '', duration_months: '', price_sgd: '' })
   const supabase = createClient()
   const router = useRouter()
 
@@ -36,7 +36,7 @@ export default function MembershipTypesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
     const { data: { user } } = await supabase.auth.getUser()
-    const payload = { name: form.name, duration_days: parseInt(form.duration_days), price_sgd: parseFloat(form.price_sgd), created_by: user?.id }
+    const payload = { name: form.name, duration_days: parseInt(form.duration_days), duration_months: parseInt(form.duration_months) || null, price_sgd: parseFloat(form.price_sgd), created_by: user?.id }
     let err
     if (editing) {
       const { error: e } = await supabase.from('membership_types').update(payload).eq('id', editing.id); err = e
@@ -44,13 +44,13 @@ export default function MembershipTypesPage() {
       const { error: e } = await supabase.from('membership_types').insert({ ...payload, is_active: true }); err = e
     }
     if (err) { setError(err.message); setSaving(false); return }
-    await load(); setShowForm(false); setEditing(null); setForm({ name: '', duration_days: '', price_sgd: '' })
+    await load(); setShowForm(false); setEditing(null); setForm({ name: '', duration_days: '', duration_months: '', price_sgd: '' })
     setSaving(false); showMsg(editing ? 'Membership type updated' : 'Membership type added')
   }
 
   const openEdit = (type: any) => {
     setEditing(type)
-    setForm({ name: type.name, duration_days: type.duration_days.toString(), price_sgd: type.price_sgd.toString() })
+    setForm({ name: type.name, duration_days: type.duration_days.toString(), duration_months: (type as any).duration_months?.toString() || '', price_sgd: type.price_sgd.toString() })
     setShowForm(true)
   }
 
@@ -74,6 +74,14 @@ export default function MembershipTypesPage() {
           <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Monthly, Annual, Student" /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Duration (days) *</label><input className="input" required type="number" min="1" value={form.duration_days} onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))} placeholder="e.g. 30, 365" /></div>
+            <div>
+              <label className="label">Duration (months)</label>
+              <input className="input" type="number" min="1" max="36" step="1"
+                value={form.duration_months}
+                onChange={e => setForm((f: any) => ({ ...f, duration_months: e.target.value }))}
+                placeholder="e.g. 1, 12" />
+              <p className="text-xs text-gray-400 mt-1">Used for expiry alerts on manager dashboard. Leave blank for trials.</p>
+            </div>
             <div><label className="label">Price (SGD) *</label><input className="input" required type="number" min="0" step="0.01" value={form.price_sgd} onChange={e => setForm(f => ({ ...f, price_sgd: e.target.value }))} /></div>
           </div>
           <div className="flex gap-2"><button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2"><Save className="w-4 h-4" />{saving ? 'Saving...' : editing ? 'Save Changes' : 'Add Type'}</button><button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button></div>
