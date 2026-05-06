@@ -74,8 +74,7 @@ export default function MembersPage() {
     return matchSearch && matchStatus
   })
 
-  const canAddMember = user?.role === 'manager' || user?.role === 'business_ops' || isActingAsTrainer || user?.role === 'trainer'
-  const isReadOnly = user?.role === 'staff'
+  const canAddMember = user?.role === 'manager' || user?.role === 'business_ops' || isActingAsTrainer || user?.role === 'trainer' || user?.role === 'staff'
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
@@ -86,6 +85,11 @@ export default function MembersPage() {
           <h1 className="text-xl font-bold text-gray-900">Members</h1>
           <p className="text-sm text-gray-500">{filtered.length} member{filtered.length !== 1 ? 's' : ''}</p>
         </div>
+        {canAddMember && (
+          <Link href="/dashboard/members/new" className="btn-primary flex items-center gap-1.5">
+            <Plus className="w-4 h-4" /> New Member
+          </Link>
+        )}
       </div>
 
       <div className="card p-3 flex flex-col sm:flex-row gap-2">
