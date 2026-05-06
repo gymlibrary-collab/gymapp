@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react'
 
 export default function MyParticularsPage() {
+  const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [form, setForm] = useState({ phone: '', address: '' })
   const [loading, setLoading] = useState(true)
@@ -24,6 +26,7 @@ export default function MyParticularsPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) { router.replace('/dashboard'); return }
       const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
@@ -54,6 +57,7 @@ export default function MyParticularsPage() {
     if (!res.ok) { setError(result.error || 'Failed to save'); setSaving(false); return }
     setUser((u: any) => ({ ...u, ...form }))
     setSaving(false)
+    logActivity('update', 'My Particulars', 'Updated personal particulars')
     showMsg('Particulars updated')
   }
 
