@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, formatDate, getMonthName , getRoleLabel } from '@/lib/utils'
 import {
   TrendingUp, Plus, CheckCircle, AlertCircle, X,
@@ -13,6 +14,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function CommissionPayoutsPage() {
+  const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [payouts, setPayouts] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
@@ -151,6 +153,7 @@ export default function CommissionPayoutsPage() {
     setPreview([])
     setShowGenerateForm(false)
     setSaving(false)
+    logActivity('create', 'Commission Payouts', `Generated ${preview.length} commission payout(s) as draft`)
     showMsg(`${preview.length} commission payout(s) generated as draft`)
   }
 
