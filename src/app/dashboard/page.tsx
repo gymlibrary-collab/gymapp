@@ -498,6 +498,8 @@ export default function DashboardPage() {
   const [newPayslip, setNewPayslip] = useState<any>(null) // latest unseen approved/paid payslip
   const [newCommission, setNewCommission] = useState<any>(null) // latest unseen approved commission
   const [rejectionNotifs, setRejectionNotifs] = useState<any[]>([]) // unseen PT package rejections
+  const [memRejectionNotifs, setMemRejectionNotifs] = useState<any[]>([]) // unseen membership rejection notifications
+  const [pendingMemSales, setPendingMemSales] = useState<number>(0) // own pending membership sales
 
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
@@ -770,6 +772,23 @@ export default function DashboardPage() {
         }
       }
 
+      // ── Membership sale pending count (own sales) ───────────
+      if (['trainer', 'staff', 'manager'].includes(u.role)) {
+        const { count: pendingCount } = await supabase.from('gym_memberships')
+          .select('id', { count: 'exact', head: true })
+          .eq('sold_by_user_id', authUser.id)
+          .eq('sale_status', 'pending')
+        setPendingMemSales(pendingCount || 0)
+
+        // Membership rejection notifications
+        const { data: memRejections } = await supabase.from('mem_rejection_notif')
+          .select('id, member_name, membership_type_name, rejection_reason, was_new_member, rejected_by_name, rejected_at')
+          .eq('seller_id', authUser.id)
+          .is('seen_at', null)
+          .order('rejected_at', { ascending: false })
+        setMemRejectionNotifs(memRejections || [])
+      }
+
       // ── PT package rejection notifications ──────────────
       // Show to trainers, staff and managers whose packages were rejected
       if (['trainer', 'staff', 'manager'].includes(u.role)) {
@@ -833,6 +852,16 @@ export default function DashboardPage() {
   const now = new Date()
   const todayStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })
   const isAdmin = user.role === 'admin'
+  const dismissMemRejections = async () => {
+    if (memRejectionNotifs.length === 0) return
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    for (const n of memRejectionNotifs) {
+      await supabase.from('mem_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    }
+    setMemRejectionNotifs([])
+  }
+
   const dismissRejections = async () => {
     if (rejectionNotifs.length === 0) return
     const supabase = createClient()
@@ -1013,6 +1042,35 @@ export default function DashboardPage() {
             className="text-xs text-red-600 underline mt-1">
             Dismiss
           </button>
+        </div>
+      )}
+
+      {/* ── Membership sale pending banner ── */}
+      {pendingMemSales > 0 && (
+        <div className="card p-3 bg-amber-50 border border-amber-200 flex items-center gap-3">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          <p className="text-sm text-amber-800 flex-1">
+            {pendingMemSales} membership sale{pendingMemSales > 1 ? 's' : ''} pending manager confirmation
+          </p>
+          <Link href="/dashboard/membership/sales" className="text-xs text-amber-700 font-medium underline flex-shrink-0">View</Link>
+        </div>
+      )}
+
+      {/* ── Membership rejection notifications ── */}
+      {memRejectionNotifs.length > 0 && (
+        <div className="card p-4 bg-red-50 border border-red-200 space-y-2">
+          <p className="text-sm font-medium text-red-800 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {memRejectionNotifs.length} membership sale{memRejectionNotifs.length > 1 ? 's were' : ' was'} rejected
+          </p>
+          {memRejectionNotifs.map((n: any) => (
+            <p key={n.id} className="text-xs text-red-700">
+              · {n.membership_type_name} for {n.member_name} — rejected by {n.rejected_by_name}
+              {n.was_new_member && ' · Member record removed, please re-register'}
+              {!n.was_new_member && ' · Existing membership remains active'}
+            </p>
+          ))}
+          <button onClick={dismissMemRejections} className="text-xs text-red-600 underline mt-1">Dismiss</button>
         </div>
       )}
 
