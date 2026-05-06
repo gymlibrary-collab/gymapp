@@ -230,6 +230,7 @@ export default function PayrollPage() {
     setBulkResult(null)
     setBulkGenerating(false)
     load()
+    logActivity('delete', 'Monthly Payroll', `Deleted draft payslips for bulk period`)
     setBulkResult({ generated: 0, skipped: 0, noSalary: [], noShifts: [], deleted: true })
   }
 
