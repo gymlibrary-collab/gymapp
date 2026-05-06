@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD, getMonthName, getRoleLabel } from '@/lib/utils'
 import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
 import { getAgeAsOf, getCpfBracketRates } from '@/lib/cpf'
@@ -19,6 +20,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 export default function StaffPayrollDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const { logActivity } = useActivityLog()
   const [staff, setStaff] = useState<any>(null)
   const [payroll, setPayroll] = useState<any>(null)
   const [salaryHistory, setSalaryHistory] = useState<any[]>([])
@@ -404,6 +406,7 @@ export default function StaffPayrollDetailPage() {
     // Delete the payslip
     await supabase.from('payslips').delete().eq('id', ps.id)
     setDeleteModal(null); setDeleteReason(''); setDeleting(false)
+    logActivity('delete', 'Staff Payroll', 'Deleted approved payslip')
     await loadData(); showMsg('Payslip deleted — audit record saved')
   }
 
@@ -420,6 +423,7 @@ export default function StaffPayrollDetailPage() {
     if (action === 'approved') { update.approved_by = authUser?.id; update.approved_at = new Date().toISOString() }
     if (action === 'paid') update.paid_at = new Date().toISOString()
     await supabase.from('payslips').update(update).eq('id', payslipId)
+    logActivity('approve', 'Staff Payroll', `Marked payslip as ${action}`)
     await loadData(); showMsg(`Payslip ${action}`)
   }
 
