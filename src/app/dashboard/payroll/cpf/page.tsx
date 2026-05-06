@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ function getAgeAsOf(dob: string | null, refDate: Date): number | null {
 }
 
 export default function CpfPage() {
+  const { logActivity } = useActivityLog()
   const [brackets, setBrackets] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
   const [preview, setPreview] = useState<any>(null)
@@ -89,7 +91,8 @@ export default function CpfPage() {
       effective_from: editValues.effective_from || null,
       updated_by: user?.id, updated_at: new Date().toISOString(),
     }).eq('id', id)
-    await load(); setEditingBracket(null); setSaving(false); showMsg('CPF rate updated')
+    await load(); setEditingBracket(null); setSaving(false); logActivity('update', 'CPF Configuration', 'Updated CPF rate')
+    showMsg('CPF rate updated')
   }
 
   const generatePreview = async () => {
@@ -161,7 +164,8 @@ export default function CpfPage() {
   const handleMarkSubmitted = async (id: string) => {
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('cpf_submissions').update({ status: 'submitted', submitted_by: user?.id, submitted_at: new Date().toISOString() }).eq('id', id)
-    await load(); showMsg('Marked as submitted to CPF')
+    await load(); logActivity('update', 'CPF Configuration', 'Marked CPF submission complete')
+    showMsg('Marked as submitted to CPF')
   }
 
   return (
