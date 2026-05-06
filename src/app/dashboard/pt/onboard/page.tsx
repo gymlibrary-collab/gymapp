@@ -25,6 +25,7 @@ export default function PtOnboardPage() {
     member_id: '',
     template_id: '',
     start_date: new Date().toISOString().split('T')[0],
+    secondary_member_id: '',
   })
   const [trainerMembers, setTrainerMembers] = useState<any[]>([]) // members with active package by this trainer
 
@@ -134,13 +135,15 @@ export default function PtOnboardPage() {
       signup_commission_sgd: selectedTemplate.default_price_sgd * (currentUser?.commission_signup_pct || 10) / 100,
       signup_commission_paid: false,
       manager_confirmed: false,
+      is_shared: !!form.secondary_member_id,
+      secondary_member_id: form.secondary_member_id || null,
     })
 
     if (insertErr) { showError('Failed to create package: ' + insertErr.message); setSaving(false); return }
 
     showMsg('PT package created — pending manager confirmation')
     setSaving(false)
-    setForm({ member_id: '', template_id: '', start_date: new Date().toISOString().split('T')[0] })
+    setForm({ member_id: '', template_id: '', start_date: new Date().toISOString().split('T')[0], secondary_member_id: '' })
   }
 
   if (loading) return (
@@ -252,11 +255,42 @@ export default function PtOnboardPage() {
             </div>
           </div>
 
-          {/* Step 3 — Start date */}
+          {/* Step 3 — Shared package (optional) */}
+          <div className="card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-bold">3</span>
+              </div>
+              <h2 className="text-sm font-semibold text-gray-900">Shared Package <span className="text-xs text-gray-400 font-normal">(optional)</span></h2>
+            </div>
+            <select className="input" value={form.secondary_member_id}
+              onChange={e => setForm(f => ({ ...f, secondary_member_id: e.target.value }))}>
+              <option value="">No sharing — individual package</option>
+              {activeMembers
+                .filter(m => m.id !== form.member_id)
+                .map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.full_name}{m.membership_number ? ` — ${m.membership_number}` : ''}
+                  </option>
+                ))}
+            </select>
+            {form.secondary_member_id && (() => {
+              const sec = activeMembers.find(m => m.id === form.secondary_member_id)
+              return sec ? (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg p-2">
+                  <CheckCircle className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                  <p className="text-xs text-blue-700">{sec.full_name} added as sharing partner — sessions deducted from same pool</p>
+                </div>
+              ) : null
+            })()}
+            <p className="text-xs text-gray-400">Only members with an active confirmed gym membership can be added as a sharing partner.</p>
+          </div>
+
+          {/* Step 4 — Start date */}
           <div className="card p-4 space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-red-600 flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs font-bold">3</span>
+                <span className="text-white text-xs font-bold">4</span>
               </div>
               <h2 className="text-sm font-semibold text-gray-900">Start Date</h2>
             </div>
@@ -282,6 +316,10 @@ export default function PtOnboardPage() {
               <p className="text-xs text-gray-600">Price: <strong>{formatSGD(selectedTemplate.default_price_sgd)}</strong></p>
               <p className="text-xs text-gray-600">Sessions: <strong>{selectedTemplate.total_sessions}</strong></p>
               {expiryDate && <p className="text-xs text-gray-600">Expires: <strong>{formatDate(expiryDate)}</strong></p>}
+              {form.secondary_member_id && (() => {
+                const sec = activeMembers.find(m => m.id === form.secondary_member_id)
+                return sec ? <p className="text-xs text-gray-600">Shared with: <strong>{sec.full_name}</strong></p> : null
+              })()}
               <p className="text-xs text-amber-600 mt-2">⚠ Package pending manager confirmation before commission is eligible for payout.</p>
             </div>
           )}
