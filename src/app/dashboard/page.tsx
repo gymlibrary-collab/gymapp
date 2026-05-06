@@ -157,8 +157,37 @@ function BizOpsGymActivity() {
           .eq('gym_id', g.id).eq('status', 'active')
           .lte('end_date_calculated', in14Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5)
 
-        const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0)
-        return { ...g, todaySessions: todaySessions || [], pendingMemberships: pendingMemberships || 0, pendingSessions: pendingSessions || 0, lowPkgs: lowPkgs || [], expiringPkgs: expiringPkgs || [], totalAlerts }
+        // Auto-expire stale gym memberships for this gym
+        await supabase.from('gym_memberships')
+          .update({ status: 'expired' })
+          .eq('gym_id', g.id)
+          .eq('status', 'active')
+          .eq('sale_status', 'confirmed')
+          .lt('end_date', now.toISOString().split('T')[0])
+
+        // Memberships expiring within 30 days for Biz Ops gym card
+        const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const { data: expiringMemsBizOps } = await supabase.from('gym_memberships')
+          .select('id, end_date, member_id, member:members(full_name), membership_type_name')
+          .eq('gym_id', g.id)
+          .eq('status', 'active')
+          .eq('sale_status', 'confirmed')
+          .lte('end_date', in30DaysBizOps)
+          .gte('end_date', now.toISOString().split('T')[0])
+          .limit(20)
+
+        // Exclude already-renewed members
+        const renewedBizOps = new Set(
+          expiringMemsBizOps
+            ?.filter((m: any) => expiringMemsBizOps.some((m2: any) =>
+              m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date)
+            ))
+            .map((m: any) => m.member_id)
+        )
+        const expiringMembsBizOps = (expiringMemsBizOps || []).filter((m: any) => !renewedBizOps.has(m.member_id))
+
+        const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0) + expiringMembsBizOps.length
+        return { ...g, todaySessions: todaySessions || [], pendingMemberships: pendingMemberships || 0, pendingSessions: pendingSessions || 0, lowPkgs: lowPkgs || [], expiringPkgs: expiringPkgs || [], expiringMems: expiringMembsBizOps, totalAlerts }
       }))
 
       setGyms(enriched)
@@ -231,11 +260,14 @@ function BizOpsGymActivity() {
               </div>
 
               {/* Expiry alerts */}
-              {(g.lowPkgs.length > 0 || g.expiringPkgs.length > 0) && (
+              {(g.lowPkgs.length > 0 || g.expiringPkgs.length > 0 || g.expiringMems?.length > 0) && (
                 <div className="p-3 bg-red-50">
                   <p className="text-xs font-semibold text-red-800 mb-2 flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5" /> Package Alerts
+                    <AlertTriangle className="w-3.5 h-3.5" /> Alerts
                   </p>
+                  {g.expiringMems?.map((m: any, i: number) => (
+                    <p key={"mem"+i} className="text-xs text-amber-700">🪪 {m.member?.full_name} — {m.membership_type_name}: expires {formatDate(m.end_date)}</p>
+                  ))}
                   {g.lowPkgs.map((p: any, i: number) => (
                     <p key={"low"+i} className="text-xs text-red-700">{p.member?.full_name} — {p.package_name}: {p.total_sessions - p.sessions_used} sessions left</p>
                   ))}
@@ -692,16 +724,34 @@ export default function DashboardPage() {
         setExpiringPackages(expPkgs || [])
 
         // Gym memberships expiring within 30 days
-        const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        const { data: expiringMems } = await supabase.from('gym_memberships')
-          .select('id, end_date, member:members(full_name), membership_type_name')
+        // Auto-expire any memberships past their end_date
+        await supabase.from('gym_memberships')
+          .update({ status: 'expired' })
           .eq('gym_id', gymId)
           .eq('status', 'active')
+          .eq('sale_status', 'confirmed')
+          .lt('end_date', now.toISOString().split('T')[0])
+
+        const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const { data: expiringMems } = await supabase.from('gym_memberships')
+          .select('id, end_date, member_id, member:members(full_name), membership_type_name')
+          .eq('gym_id', gymId)
+          .eq('status', 'active')
+          .eq('sale_status', 'confirmed')
           .lte('end_date', in30Days)
           .gte('end_date', now.toISOString().split('T')[0])
           .order('end_date')
-          .limit(10)
-        setExpiringMemberships(expiringMems || [])
+          .limit(20)
+
+        // Exclude members who already have a newer confirmed membership (already renewed)
+        const renewedMemberIds = new Set(
+          expiringMems
+            ?.filter((m: any) => expiringMems.some((m2: any) =>
+              m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date)
+            ))
+            .map((m: any) => m.member_id)
+        )
+        setExpiringMemberships((expiringMems || []).filter((m: any) => !renewedMemberIds.has(m.member_id)).slice(0, 10))
 
         // At-risk: packages expired in last 30 days with no new active package
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
