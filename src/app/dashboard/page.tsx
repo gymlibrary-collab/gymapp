@@ -135,7 +135,7 @@ function BizOpsGymActivity() {
       const now = new Date()
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
-      const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const in14Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
       const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
         // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
