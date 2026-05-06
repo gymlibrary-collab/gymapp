@@ -517,6 +517,7 @@ export default function DashboardPage() {
   // Manager alerts
   const [lowSessionPackages, setLowSessionPackages] = useState<any[]>([])
   const [expiringPackages, setExpiringPackages] = useState<any[]>([])
+  const [expiringMemberships, setExpiringMemberships] = useState<any[]>([])
   const [atRiskMembers, setAtRiskMembers] = useState<any[]>([])
   const [pendingLeave, setPendingLeave] = useState(0)
 
@@ -679,8 +680,8 @@ export default function DashboardPage() {
           .limit(10)
         setLowSessionPackages(lowPkgs || [])
 
-        // Packages expiring within 14 days
-        const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        // Packages expiring within 7 days
+        const in14Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         const { data: expPkgs } = await supabase.from('packages')
           .select('*, member:members(full_name), trainer:users!packages_trainer_id_fkey(full_name)')
           .eq('gym_id', gymId).eq('status', 'active')
@@ -689,6 +690,18 @@ export default function DashboardPage() {
           .order('end_date_calculated')
           .limit(10)
         setExpiringPackages(expPkgs || [])
+
+        // Gym memberships expiring within 30 days
+        const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const { data: expiringMems } = await supabase.from('gym_memberships')
+          .select('id, end_date, member:members(full_name), membership_type_name')
+          .eq('gym_id', gymId)
+          .eq('status', 'active')
+          .lte('end_date', in30Days)
+          .gte('end_date', now.toISOString().split('T')[0])
+          .order('end_date')
+          .limit(10)
+        setExpiringMemberships(expiringMems || [])
 
         // At-risk: packages expired in last 30 days with no new active package
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -1119,7 +1132,17 @@ export default function DashboardPage() {
           )}
 
           {/* Expiring packages */}
-          {expiringPackages.length > 0 && (
+          {expiringMemberships.length > 0 && (
+        <div className="card p-4 bg-amber-50 border border-amber-200">
+          <p className="text-sm font-medium text-amber-800 mb-2">⚠ {expiringMemberships.length} membership{expiringMemberships.length > 1 ? 's' : ''} expiring within 30 days</p>
+          {expiringMemberships.slice(0, 5).map((m: any) => (
+            <p key={m.id} className="text-xs text-amber-700">· {m.member?.full_name} — {m.membership_type_name}: expires {formatDate(m.end_date)}</p>
+          ))}
+          {expiringMemberships.length > 5 && <p className="text-xs text-amber-600 mt-1">+{expiringMemberships.length - 5} more</p>}
+        </div>
+      )}
+
+      {expiringPackages.length > 0 && (
             <div className="card">
               <div className="p-3 border-b border-red-100 bg-red-50 rounded-t-xl">
                 <p className="text-sm font-medium text-red-800 flex items-center gap-2">
