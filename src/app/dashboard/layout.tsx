@@ -37,6 +37,8 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
   { href: '/dashboard/pt/packages', label: 'PT Package Templates', icon: Package },
+  { href: '/dashboard/pt/package-sales', label: 'PT Package Sales', icon: Package },
+  { href: '/dashboard/pt/sessions', label: 'PT Session Notes', icon: Calendar },
   { href: '/dashboard/config/public-holidays', label: 'Public Holidays', icon: CalendarDays },
   { label: 'Configuration', header: true },
   { href: '/dashboard/config/gyms', label: 'Gym Clubs', icon: Building2 },
