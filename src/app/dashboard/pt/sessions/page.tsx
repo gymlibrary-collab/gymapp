@@ -36,7 +36,7 @@ export default function PtSessionsPage() {
     // Business Ops does not need session-level visibility — operational
     // detail is reviewed in person with each gym manager.
     // Block roles that should not access session list
-    if (!userData || ['business_ops', 'admin'].includes(userData.role)) { router.replace('/dashboard'); return }
+    if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
     setUser(userData)
 
     let q = supabase.from('sessions')
@@ -62,7 +62,12 @@ export default function PtSessionsPage() {
 
     const now = new Date().toISOString()
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
-    else if (filter === 'pending_confirm') q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
+    else if (filter === 'pending_confirm') {
+      q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
+      const isBizOpsRole = currentUser?.role === 'business_ops'
+      q = q.eq('escalated_to_biz_ops', isBizOpsRole)
+      if (!isBizOpsRole && currentUser?.manager_gym_id) q = q.eq('gym_id', currentUser.manager_gym_id)
+    }
     else if (filter === 'completed') q = q.eq('status', 'completed').eq('manager_confirmed', true)
     else if (filter === 'cancelled') q = q.in('status', ['cancelled', 'no_show'])
 
