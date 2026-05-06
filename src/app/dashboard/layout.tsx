@@ -74,6 +74,7 @@ const trainerViewNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/members', label: 'My Members', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
+  { href: '/dashboard/pt/onboard', label: 'PT Onboarding', icon: Package },
   // My Account (My Leave + My Payslips) intentionally omitted in Trainer View —
   // manager-trainers manage leave and payslips from Manager View only.
 ]
@@ -82,6 +83,7 @@ const pureTrainerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/members', label: 'My Members', icon: Users },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
+  { href: '/dashboard/pt/onboard', label: 'PT Onboarding', icon: Package },
   { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
