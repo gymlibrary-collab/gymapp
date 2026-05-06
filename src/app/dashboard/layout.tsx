@@ -326,7 +326,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const active = pathname === item.href || (
             item.href !== '/dashboard' &&
             item.href !== '/dashboard/payroll' &&
+            item.href !== '/dashboard/members' &&
             pathname.startsWith(item.href! + '/')
+          ) || (
+            item.href === '/dashboard/members' &&
+            pathname.startsWith('/dashboard/members/') &&
+            !nav.some(n => n.href && pathname === n.href)
           )
           return (
             <Link key={item.href} href={item.href!} onClick={() => setSidebarOpen(false)}
