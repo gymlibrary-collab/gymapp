@@ -53,6 +53,7 @@ const managerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { label: 'Members', header: true },
   { href: '/dashboard/members', label: 'Members', icon: Users },
+  { href: '/dashboard/members/new', label: 'New Member', icon: UserCheck },
   { href: '/dashboard/membership/sales', label: 'Membership Sales', icon: CreditCard },
   { label: 'Personal Training', header: true },
   { href: '/dashboard/pt/sessions', label: 'PT Schedule', icon: Calendar },
