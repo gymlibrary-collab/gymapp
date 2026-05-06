@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD } from '@/lib/utils'
 import { Dumbbell, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function TrainerCapacityPage() {
+  const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [trainers, setTrainers] = useState<any[]>([])
   const { success, showMsg } = useToast()
