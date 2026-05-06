@@ -47,6 +47,8 @@ export default function TrainersPage() {
   const [editingUser, setEditingUser] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
   const [offboardingChecklist, setOffboardingChecklist] = useState<any>(null)
+  const [offboardingTicks, setOffboardingTicks] = useState({ accessCard: false, portalAccess: false, companyItems: false })
+  const [completingOffboard, setCompletingOffboard] = useState(false)
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const router = useRouter()
@@ -205,19 +207,42 @@ export default function TrainersPage() {
       .eq('trainer_id', userId).eq('status', 'active')
     checks.activePkgs = activePkgs?.filter((p: any) => p.sessions_used < p.total_sessions) || []
 
-    const hasItems = checks.payslips.length > 0 || checks.commissions.length > 0 ||
-      checks.roster.length > 0 || checks.packages.length > 0 || checks.activePkgs.length > 0
+    setOffboardingTicks({ accessCard: false, portalAccess: false, companyItems: false })
+    setOffboardingChecklist({ member, checks })
+  }
 
-    if (hasItems) {
-      setOffboardingChecklist({ member, checks })
-    }
+  const handleConfirmOffboarding = async () => {
+    if (!offboardingChecklist) return
+    setCompletingOffboard(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { setCompletingOffboard(false); return }
+
+    // Save departure date + mark offboarding complete
+    const res = await fetch('/api/trainers', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: offboardingChecklist.member.id,
+        date_of_departure: editForm.date_of_departure,
+        departure_reason: editForm.departure_reason,
+        offboarding_completed_at: new Date().toISOString(),
+      }),
+    })
+    if (!res.ok) { setError('Failed to complete offboarding'); setCompletingOffboard(false); return }
+    setOffboardingChecklist(null)
+    setCompletingOffboard(false)
+    await loadData()
+    showMsg('Offboarding completed — ' + offboardingChecklist.member.full_name)
   }
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingUser) return
     setError('')
-    // Show offboarding checklist if departure date being set
-    await checkOffboarding(editingUser)
+    // Show offboarding checklist if departure date being set for first time
+    if (editForm.date_of_departure && !editingUser.date_of_departure) {
+      await checkOffboarding(editingUser)
+      return // save handled by handleConfirmOffboarding
+    }
     const err = validateAll([
       validatePhone((editForm as any).phone),
       validateNric((editForm as any).nric),
@@ -476,47 +501,85 @@ export default function TrainersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setOffboardingChecklist(null)}>
           <div className="fixed inset-0 bg-black/30" />
           <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900 text-sm mb-1">Offboarding Checklist — {offboardingChecklist.member.full_name}</h3>
-            <p className="text-xs text-gray-500 mb-4">Please resolve these outstanding items before the staff member departs.</p>
+            <h3 className="font-semibold text-gray-900 text-sm mb-1">Offboarding — {offboardingChecklist.member.full_name}</h3>
+            <p className="text-xs text-gray-500 mb-4">Review all outstanding items and tick off the manual checklist to complete offboarding.</p>
             <div className="space-y-3">
-              {offboardingChecklist.checks.payslips.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.payslips.length} unpaid payslip(s)</p>
-                  {offboardingChecklist.checks.payslips.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {getMonthName(p.month)} {p.year}</p>)}
-                </div>
-              )}
-              {offboardingChecklist.checks.commissions.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.commissions.length} unpaid commission payout(s)</p>
-                  {offboardingChecklist.checks.commissions.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {formatDate(p.period_start)} to {formatDate(p.period_end)} ({formatSGD(p.total_commission_sgd)})</p>)}
-                </div>
-              )}
-              {offboardingChecklist.checks.roster.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.roster.length} future roster shift(s)</p>
-                  {offboardingChecklist.checks.roster.slice(0, 3).map((r: any) => <p key={r.id} className="text-xs text-amber-700">· {formatDate(r.shift_date)}</p>)}
-                </div>
-              )}
-              {offboardingChecklist.checks.packages.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.packages.length} unconfirmed PT package sale(s)</p>
-                  {offboardingChecklist.checks.packages.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.package_name}</p>)}
-                </div>
-              )}
-              {offboardingChecklist.checks.activePkgs.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.activePkgs.length} active PT package(s) with remaining sessions</p>
-                  {offboardingChecklist.checks.activePkgs.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {(p.member as any)?.full_name} — {p.package_name} ({p.total_sessions - p.sessions_used} sessions left)</p>)}
-                </div>
-              )}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-1">
-                <p className="text-xs font-medium text-gray-700">Manual items to action:</p>
-                <p className="text-xs text-gray-600">□ Collect access card</p>
-                <p className="text-xs text-gray-600">□ Archive staff account in system after final payslip is paid</p>
-                <p className="text-xs text-gray-600">□ Collect any other company-issued items</p>
+              {/* System warnings */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 mb-2">System Items</p>
+                {offboardingChecklist.checks.payslips.length === 0 &&
+                 offboardingChecklist.checks.commissions.length === 0 &&
+                 offboardingChecklist.checks.roster.length === 0 &&
+                 offboardingChecklist.checks.packages.length === 0 &&
+                 offboardingChecklist.checks.activePkgs.length === 0 ? (
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-lg p-3">
+                    <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    <p className="text-xs text-green-700">All clear — no outstanding system items</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {offboardingChecklist.checks.payslips.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.payslips.length} unpaid payslip(s)</p>
+                        {offboardingChecklist.checks.payslips.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {getMonthName(p.month)} {p.year}</p>)}
+                      </div>
+                    )}
+                    {offboardingChecklist.checks.commissions.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.commissions.length} unpaid commission(s)</p>
+                        {offboardingChecklist.checks.commissions.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {formatDate(p.period_start)} to {formatDate(p.period_end)} ({formatSGD(p.total_commission_sgd)})</p>)}
+                      </div>
+                    )}
+                    {offboardingChecklist.checks.roster.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.roster.length} future roster shift(s)</p>
+                        {offboardingChecklist.checks.roster.slice(0, 3).map((r: any) => <p key={r.id} className="text-xs text-amber-700">· {formatDate(r.shift_date)}</p>)}
+                      </div>
+                    )}
+                    {offboardingChecklist.checks.packages.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.packages.length} unconfirmed PT package(s)</p>
+                        {offboardingChecklist.checks.packages.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.package_name}</p>)}
+                      </div>
+                    )}
+                    {offboardingChecklist.checks.activePkgs.length > 0 && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.activePkgs.length} active PT package(s) with remaining sessions</p>
+                        {offboardingChecklist.checks.activePkgs.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {(p.member as any)?.full_name} — {p.package_name} ({p.total_sessions - p.sessions_used} sessions left)</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Manual checklist — must all be ticked */}
+              <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-700 mb-1">Manual Checklist — tick to acknowledge</p>
+                {[
+                  { key: 'accessCard', label: 'Access card collected' },
+                  { key: 'portalAccess', label: 'Portal access to be archived after final payslip is paid' },
+                  { key: 'companyItems', label: 'All company-issued items returned' },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox"
+                      checked={(offboardingTicks as any)[key]}
+                      onChange={e => setOffboardingTicks(t => ({ ...t, [key]: e.target.checked }))}
+                      className="rounded border-gray-300 text-red-600" />
+                    <span className={`text-xs ${(offboardingTicks as any)[key] ? 'line-through text-gray-400' : 'text-gray-700'}`}>{label}</span>
+                  </label>
+                ))}
               </div>
             </div>
-            <button onClick={() => setOffboardingChecklist(null)} className="btn-secondary w-full mt-4">Noted — Continue</button>
+
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setOffboardingChecklist(null)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={handleConfirmOffboarding}
+                disabled={!offboardingTicks.accessCard || !offboardingTicks.portalAccess || !offboardingTicks.companyItems || completingOffboard}
+                className="btn-primary flex-1 disabled:opacity-50">
+                {completingOffboard ? 'Saving...' : 'Confirm Offboarding'}
+              </button>
+            </div>
           </div>
         </div>
       )}
