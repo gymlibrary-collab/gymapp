@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { CheckCircle, AlertCircle, ChevronDown, MessageSquare, Plus, Edit2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -25,6 +26,7 @@ interface Template {
 }
 
 export default function WhatsAppTemplatesPage() {
+  const { logActivity } = useActivityLog()
   const [templates, setTemplates] = useState<Template[]>([])
   const [editing, setEditing] = useState<Template | null>(null)
   const [draftText, setDraftText] = useState('')
@@ -96,6 +98,7 @@ export default function WhatsAppTemplatesPage() {
     if (err) { setError(err.message); setSaving(false); return }
     await load(); setEditing(null); setSaving(false)
     showMsg('Template saved')
+    logActivity('update', 'WhatsApp Templates', 'Saved WhatsApp template')
   }
 
   const handleAddTemplate = async () => {
