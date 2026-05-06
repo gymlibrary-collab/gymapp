@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, formatDate } from '@/lib/utils'
 import { Package, User, Calendar, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -10,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function PtOnboardPage() {
+  const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
   const { success, error, showMsg, showError, setError } = useToast()
@@ -142,6 +144,7 @@ export default function PtOnboardPage() {
     if (insertErr) { showError('Failed to create package: ' + insertErr.message); setSaving(false); return }
 
     showMsg('PT package created — pending manager confirmation')
+    logActivity('create', 'PT Onboarding', 'Created PT package — pending manager confirmation')
     setSaving(false)
     setForm({ member_id: '', template_id: '', start_date: new Date().toISOString().split('T')[0], secondary_member_id: '' })
   }
