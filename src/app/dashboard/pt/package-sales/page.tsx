@@ -33,31 +33,36 @@ export default function PackageSalesPage() {
     const { data: me } = await supabase.from('users')
       .select('*, manager_gym_id, gyms:manager_gym_id(name)')
       .eq('id', authUser.id).single()
-    if (!me || me.role !== 'manager') { router.replace('/dashboard'); return }
+    if (!me || !['manager', 'business_ops'].includes(me.role)) { router.replace('/dashboard'); return }
     setCurrentUser(me)
+    const isBizOps = me.role === 'business_ops'
+    const gymId = me.manager_gym_id || ''
 
     const gymId = me.manager_gym_id
     if (!gymId) { setLoading(false); return }
 
-    // Pending: packages sold at this gym, not yet confirmed by manager
+    // Pending: split by role — manager sees non-escalated, Biz Ops sees escalated
     const { data: pendingData } = await supabase.from('packages')
       .select(`
         id, package_name, total_sessions, total_price_sgd,
         signup_commission_pct, signup_commission_sgd,
         trainer_id, start_date, created_at, status,
+        escalated_to_biz_ops, escalated_at,
         trainer:users!packages_trainer_id_fkey(id, full_name),
         member:members!packages_member_id_fkey(full_name)
       `)
-      .eq('gym_id', gymId)
       .eq('manager_confirmed', false)
+      .eq('escalated_to_biz_ops', isBizOps)
+      .eq(isBizOps ? 'status' : 'gym_id', isBizOps ? 'active' : gymId)
+      .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
     setPending(pendingData || [])
 
-    // Confirmed: packages confirmed this month
+    // Confirmed: packages confirmed this month (both roles see their gym's confirmed)
     const monthStart = new Date()
     monthStart.setDate(1)
     monthStart.setHours(0, 0, 0, 0)
-    const { data: confirmedData } = await supabase.from('packages')
+    let confirmedQ = supabase.from('packages')
       .select(`
         id, package_name, total_sessions, total_price_sgd,
         signup_commission_pct, signup_commission_sgd,
@@ -66,10 +71,11 @@ export default function PackageSalesPage() {
         member:members!packages_member_id_fkey(full_name),
         confirmedBy:users!packages_manager_confirmed_by_fkey(full_name)
       `)
-      .eq('gym_id', gymId)
       .eq('manager_confirmed', true)
       .gte('manager_confirmed_at', monthStart.toISOString())
       .order('manager_confirmed_at', { ascending: false })
+    if (!isBizOps) confirmedQ = confirmedQ.eq('gym_id', gymId)
+    const { data: confirmedData } = await confirmedQ
     setConfirmed(confirmedData || [])
 
     setLoading(false)
@@ -165,6 +171,9 @@ export default function PackageSalesPage() {
     <div className="space-y-5 max-w-2xl">
       <div>
         <h1 className="text-lg font-semibold text-gray-900">PT Package Sales</h1>
+        {currentUser?.role === 'business_ops' && (
+          <p className="text-xs text-amber-600 mt-0.5">Escalated packages — not acknowledged by manager within 48 hours</p>
+        )}
         <p className="text-sm text-gray-500">{gymName} · Confirm package sales for commission payout</p>
       </div>
 
