@@ -43,12 +43,12 @@ export default function MembersPage() {
         .order('full_name')
 
       // Scope by role/view
-      if ((userData.role === 'manager' || userData.role === 'staff') && userData.manager_gym_id) {
+      // Trainers see all active members at their gym — not just ones they created.
+      // This allows them to renew memberships and onboard any active gym member onto PT.
+      if ((userData.role === 'manager' || userData.role === 'staff' || userData.role === 'trainer') && userData.manager_gym_id) {
         q = q.eq('gym_id', userData.manager_gym_id)
-      } else if (userData.role === 'trainer') {
-        q = q.eq('created_by', authUser.id)
-      } else if (isActingAsTrainer) {
-        q = q.eq('created_by', authUser.id)
+      } else if (isActingAsTrainer && userData.manager_gym_id) {
+        q = q.eq('gym_id', userData.manager_gym_id)
       }
 
       const { data } = await q
@@ -84,7 +84,7 @@ export default function MembersPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
-            {user?.role === 'staff' ? 'Member Lookup' : isActingAsTrainer || user?.role === 'trainer' ? 'My Members' : 'Members'}
+            {user?.role === 'staff' ? 'Members' : isActingAsTrainer || user?.role === 'trainer' ? 'Members' : 'Members'}
           </h1>
           <p className="text-sm text-gray-500">{filtered.length} member{filtered.length !== 1 ? 's' : ''}</p>
         </div>
