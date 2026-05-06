@@ -588,10 +588,18 @@ export default function DashboardPage() {
       }
 
       // ── Stats ────────────────────────────────────────────
-      let memberQ = supabase.from('members').select('id', { count: 'exact', head: true })
-      if (isTrainer) memberQ = memberQ.eq('created_by', authUser.id)
-      else if (gymId) memberQ = memberQ.eq('gym_id', gymId)
-      const { count: memberCount } = await memberQ
+      let memberCount = 0
+      if (isTrainer) {
+        // Count distinct members with an active package assigned to this trainer
+        const { data: trainerPkgs } = await supabase.from('packages')
+          .select('member_id').eq('trainer_id', authUser.id).eq('status', 'active')
+        memberCount = new Set(trainerPkgs?.map((p: any) => p.member_id)).size
+      } else {
+        const { count: mc } = await supabase.from('members')
+          .select('id', { count: 'exact', head: true })
+          .eq('gym_id', gymId || '')
+        memberCount = mc || 0
+      }
 
       let pkgQ = supabase.from('packages').select('id', { count: 'exact', head: true }).eq('status', 'active')
       if (isTrainer) pkgQ = pkgQ.eq('trainer_id', authUser.id)
@@ -602,8 +610,19 @@ export default function DashboardPage() {
       if (isTrainer) sessQ = sessQ.eq('trainer_id', authUser.id)
       else if (gymId) sessQ = sessQ.eq('gym_id', gymId)
       const { data: sessData } = await sessQ
-      const commission = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+      const sessionCommission = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
       const sessCount = sessData?.length || 0
+
+      // Signup commission from PT packages sold this month (not yet paid)
+      let signupCommission = 0
+      if (isTrainer) {
+        const { data: signupPkgs } = await supabase.from('packages')
+          .select('signup_commission_sgd')
+          .eq('trainer_id', authUser.id)
+          .gte('created_at', monthStart)
+        signupCommission = signupPkgs?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+      }
+      const commission = sessionCommission + signupCommission
 
       // Per-gym breakdown for biz ops (loaded inline in component)
       // Membership sales revenue + commission payout for manager/biz ops
@@ -632,7 +651,7 @@ export default function DashboardPage() {
         totalCommissionPayout = payoutData?.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0) || 0
       }
 
-      setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessCount, commission, membershipRevenue, membershipSalesCount, totalCommissionPayout })
+      setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessCount, commission, sessionCommission, signupCommission, membershipRevenue, membershipSalesCount, totalCommissionPayout })
 
       // ── Manager-only alerts ──────────────────────────────
       if (isManager && gymId) {
@@ -1004,6 +1023,7 @@ export default function DashboardPage() {
           <div className="stat-card">
             <div className="flex items-center justify-between"><p className="text-xs text-gray-500">My Members</p><Users className="w-4 h-4 text-red-600" /></div>
             <p className="text-2xl font-bold">{stats.members}</p>
+            <p className="text-xs text-gray-400 mt-1">Active packages</p>
           </div>
           <div className="stat-card">
             <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Active Packages</p><Package className="w-4 h-4 text-red-600" /></div>
@@ -1015,7 +1035,11 @@ export default function DashboardPage() {
           </div>
           <div className="stat-card">
             <div className="flex items-center justify-between"><p className="text-xs text-gray-500">My Commission</p><DollarSign className="w-4 h-4 text-red-600" /></div>
-            <p className="text-xl font-bold">{formatSGD(stats.commission)}</p>
+            <p className="text-xl font-bold text-green-700">{formatSGD(stats.commission ?? 0)}</p>
+            <div className="mt-1 space-y-0.5">
+              <p className="text-xs text-gray-400">Sessions: {formatSGD(stats.sessionCommission ?? 0)}</p>
+              <p className="text-xs text-gray-400">Signup: {formatSGD(stats.signupCommission ?? 0)}</p>
+            </div>
           </div>
         </div>
       ) : (
