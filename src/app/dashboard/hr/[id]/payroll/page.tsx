@@ -144,6 +144,7 @@ export default function StaffPayrollDetailPage() {
       await supabase.from('salary_history').insert({ user_id: id, salary_amount: newSalary, effective_from: staff?.date_of_joining || new Date().toISOString().split('T')[0], change_type: 'initial', change_amount: newSalary, notes: 'Initial salary set', created_by: authUser?.id })
     }
 
+    logActivity('update', 'Staff Payroll', 'Updated staff payroll profile')
     await loadData(); setSaving(false); setShowSalaryForm(false); showMsg('Payroll profile saved')
   }
 
@@ -158,6 +159,7 @@ export default function StaffPayrollDetailPage() {
 
     await loadData(); setSaving(false); setShowIncrementForm(false)
     setIncrementForm({ change_amount: '', effective_from: '', change_type: 'increment', notes: '' })
+    logActivity('update', 'Staff Payroll', 'Updated staff salary')
     showMsg(`Salary updated to ${formatSGD(newSalary)}`)
   }
 
@@ -167,6 +169,7 @@ export default function StaffPayrollDetailPage() {
     await supabase.from('staff_bonuses').insert({ user_id: id, bonus_type: bonusForm.bonus_type, amount: parseFloat(bonusForm.amount), month: bonusForm.month, year: bonusForm.year, notes: bonusForm.notes || null, created_by: authUser?.id })
     await loadData(); setSaving(false); setShowBonusForm(false)
     setBonusForm({ bonus_type: 'performance', amount: '', month: new Date().getMonth() + 1, year: new Date().getFullYear(), notes: '' })
+    logActivity('create', 'Staff Payroll', 'Recorded staff bonus')
     showMsg('Bonus recorded')
   }
 
@@ -360,12 +363,14 @@ export default function StaffPayrollDetailPage() {
     })
 
     if (err) { setError(err.message); setSaving(false); return }
+    logActivity('create', 'Staff Payroll', 'Generated individual payslip')
     await loadData(); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
   }
 
   const handleDeletePayslip = async (payslipId: string) => {
     if (!confirm('Delete this draft payslip? This cannot be undone.')) return
     await supabase.from('payslips').delete().eq('id', payslipId).eq('status', 'draft')
+    logActivity('delete', 'Staff Payroll', 'Deleted draft payslip')
     await loadData(); showMsg('Draft payslip deleted')
   }
 
