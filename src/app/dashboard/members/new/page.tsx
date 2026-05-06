@@ -13,6 +13,7 @@ export default function RegisterMemberPage() {
   const [step, setStep] = useState<'member' | 'membership'>('member')
   const [gyms, setGyms] = useState<any[]>([])
   const [membershipTypes, setMembershipTypes] = useState<any[]>([])
+  const [gymName, setGymName] = useState<string>('')
   const [commissionPct, setCommissionPct] = useState(5)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -51,9 +52,31 @@ export default function RegisterMemberPage() {
       // Use per-staff membership commission rate, not global config
       setCommissionPct(userData?.membership_commission_sgd || 0)
 
-      // Auto-select gym for manager
-      if (userData?.manager_gym_id) setMemberForm(f => ({ ...f, gym_id: userData.manager_gym_id }))
-      else if (gymsData?.length === 1) setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
+      // Auto-detect gym — no dropdown for full-time staff/trainer/manager
+      if (userData?.manager_gym_id) {
+        // Full-time: use assigned gym
+        const gym = gymsData?.find((g: any) => g.id === userData.manager_gym_id)
+        setMemberForm(f => ({ ...f, gym_id: userData.manager_gym_id }))
+        setGymName(gym?.name || '')
+      } else if (userData?.employment_type === 'part_time') {
+        // Part-timer: look up today's or next upcoming roster shift
+        const today = new Date().toISOString().split('T')[0]
+        const { data: rosterShift } = await supabase.from('duty_roster')
+          .select('gym_id, gyms:gym_id(name)')
+          .eq('user_id', authUser.id)
+          .gte('shift_date', today)
+          .order('shift_date', { ascending: true })
+          .limit(1)
+          .single()
+        if (rosterShift?.gym_id) {
+          setMemberForm(f => ({ ...f, gym_id: rosterShift.gym_id }))
+          setGymName((rosterShift.gyms as any)?.name || '')
+        }
+        // If no roster found — fall back to dropdown (gymName stays empty = show dropdown)
+      } else if (gymsData?.length === 1) {
+        setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
+        setGymName(gymsData[0].name)
+      }
     }
     load()
   }, [])
@@ -159,10 +182,14 @@ export default function RegisterMemberPage() {
           {gyms.length > 1 && (
             <div>
               <label className="label">Gym Location *</label>
-              <select className="input" required value={memberForm.gym_id} onChange={e => setMemberForm(f => ({ ...f, gym_id: e.target.value }))}>
-                <option value="">Select gym...</option>
-                {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
+              {gymName ? (
+                <div className="input bg-gray-50 text-gray-700 cursor-default">{gymName}</div>
+              ) : (
+                <select className="input" required value={memberForm.gym_id} onChange={e => setMemberForm(f => ({ ...f, gym_id: e.target.value }))}>
+                  <option value="">Select gym outlet...</option>
+                  {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              )}
             </div>
           )}
 
