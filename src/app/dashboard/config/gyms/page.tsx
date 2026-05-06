@@ -1,5 +1,6 @@
 'use client'
 
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
@@ -18,6 +19,7 @@ const emptyForm = {
 
 export default function GymManagementPage() {
   const [gyms, setGyms] = useState<any[]>([])
+  const { logActivity } = useActivityLog()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
