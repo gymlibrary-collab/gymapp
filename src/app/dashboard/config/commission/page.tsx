@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD } from '@/lib/utils'
 import { Save, CheckCircle, Info, DollarSign } from 'lucide-react'
 
 export default function CommissionConfigPage() {
+  const { logActivity } = useActivityLog()
   const [config, setConfig] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -17,6 +19,7 @@ export default function CommissionConfigPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'Commission Rates', 'Viewed commission rates configuration')
     // Route guard
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
@@ -52,6 +55,7 @@ export default function CommissionConfigPage() {
       updated_by: user?.id, updated_at: now,
     }, { onConflict: 'config_key' })
 
+    logActivity('update', 'Commission Rates', 'Updated commission rates')
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
