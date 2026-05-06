@@ -52,12 +52,19 @@ export default function MembershipSalesPage() {
       // Default to confirm tab if there are pending sales, else My Sales
       const hasPending = (gymSales || []).some((s: any) => s.sale_status === 'pending')
       setTab(hasPending ? 'confirm' : 'my')
+    } else if (userData.role === 'business_ops') {
+      // Biz Ops: sees ALL pending sales logged by managers across all gyms (for confirmation)
+      // Managers cannot confirm their own sales — only Biz Ops can
+      const { data: managerSales } = await supabase.from('gym_memberships')
+        .select(baseSelect)
+        .order('created_at', { ascending: false })
+      setAllGymSales(managerSales || [])
+      setTab('confirm')
     } else {
-      // Trainer / Staff / Biz Ops — only own sales
+      // Trainer / Staff — own sales only
       const { data: ownSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
-        .eq(userData.role === 'business_ops' ? 'gym_id' : 'sold_by_user_id',
-           userData.role === 'business_ops' ? userData.manager_gym_id : authUser.id)
+        .eq('sold_by_user_id', authUser.id)
         .order('created_at', { ascending: false })
       setMySales(ownSales || [])
     }
@@ -125,15 +132,25 @@ export default function MembershipSalesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Membership Sales</h1>
+        <h1 className="text-xl font-bold text-gray-900">
+          {isBizOps ? 'Confirm Manager Sales' : 'Membership Sales'}
+        </h1>
         <p className="text-sm text-gray-500">
-          {isBizOps ? 'Gym membership sales activity across all clubs' :
+          {isBizOps ? 'Confirm or reject membership sales logged by managers across all gyms' :
            isManager ? 'Confirm staff sales and track your own membership sales' :
            'Your membership sales history and commission earned'}
         </p>
       </div>
 
       <StatusBanner success={success} error={error} />
+
+      {/* Biz Ops confirm tab — always shown, no My Sales tab */}
+      {isBizOps && pendingCount > 0 && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {pendingCount} manager sale{pendingCount > 1 ? 's' : ''} pending your confirmation
+        </div>
+      )}
 
       {/* Manager tabs */}
       {isManager && (
