@@ -84,7 +84,6 @@ const trainerViewNav: NavItem[] = [
 const pureTrainerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/members', label: 'Members', icon: Users },
-  { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
   { href: '/dashboard/pt/onboard', label: 'PT Onboarding', icon: Package },
   { label: 'My Account', header: true },
@@ -96,7 +95,6 @@ const pureTrainerNav: NavItem[] = [
 const partTimerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/my/roster', label: 'My Roster', icon: CalendarDays },
-  { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
@@ -106,7 +104,6 @@ const partTimerNav: NavItem[] = [
 const staffNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/members', label: 'Members', icon: Users },
-  { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
