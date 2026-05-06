@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate, formatSGD } from '@/lib/utils'
-import { Search, CheckCircle, XCircle, Clock, CreditCard, AlertCircle, X } from 'lucide-react'
+import { Search, CheckCircle, XCircle, Clock, CreditCard, AlertCircle, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -19,6 +19,8 @@ export default function MembershipSalesPage() {
   const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [memberPackages, setMemberPackages] = useState<Record<string, any[]>>({})
   const supabase = createClient()
   const router = useRouter()
   const { success, error, showMsg } = useToast()
@@ -87,6 +89,17 @@ export default function MembershipSalesPage() {
     setLoading(false)
   }
 
+  const fetchMemberPackages = async (memberId: string) => {
+    if (memberPackages[memberId]) return // already loaded
+    const { data } = await supabase.from('packages')
+      .select('package_name, status, total_sessions, sessions_used, start_date, end_date_calculated, trainer:users!packages_trainer_id_fkey(full_name)')
+      .eq('member_id', memberId)
+      .in('status', ['active', 'completed', 'expired'])
+      .order('created_at', { ascending: false })
+      .limit(3)
+    setMemberPackages(prev => ({ ...prev, [memberId]: data || [] }))
+  }
+
   const handleConfirm = async (id: string) => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     await supabase.from('gym_memberships').update({
@@ -121,8 +134,14 @@ export default function MembershipSalesPage() {
   const activeSales = (isManager || isBizOps) ? (tab === 'confirm' ? allGymSales : mySales) : mySales
 
   const filtered = activeSales.filter((s: any) => {
-    const matchSearch = s.member?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      s.member?.phone?.includes(search) || s.member?.membership_number?.includes(search)
+    const q = search.toLowerCase()
+    const matchSearch = !q ||
+      s.member?.full_name?.toLowerCase().includes(q) ||
+      s.member?.phone?.includes(q) ||
+      s.member?.membership_number?.includes(q) ||
+      s.gym?.name?.toLowerCase().includes(q) ||
+      s.sold_by?.full_name?.toLowerCase().includes(q) ||
+      s.membership_type_name?.toLowerCase().includes(q)
     const matchStatus = filterStatus === 'all' || s.sale_status === filterStatus
     return matchSearch && matchStatus
   })
@@ -265,7 +284,8 @@ export default function MembershipSalesPage() {
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input className="input pl-9" placeholder="Search by name, phone or membership no..."
+          <input className="input pl-9"
+            placeholder={isBizOps ? 'Search by name, phone, membership no., gym or manager...' : 'Search by name, phone or membership no...'}
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-1">
@@ -287,9 +307,18 @@ export default function MembershipSalesPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((sale: any) => (
-            <div key={sale.id} className="card p-4">
-              <div className="flex items-start gap-3">
+          {filtered.map((sale: any) => {
+            const isExpanded = expandedId === sale.id
+            const pkgs = memberPackages[sale.member_id] || []
+            return (
+            <div key={sale.id} className="card overflow-hidden">
+              {/* Summary row — always visible */}
+              <div className="flex items-start gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  const next = isExpanded ? null : sale.id
+                  setExpandedId(next)
+                  if (next && sale.member_id) fetchMemberPackages(sale.member_id)
+                }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900 text-sm">{sale.member?.full_name}</p>
@@ -315,21 +344,76 @@ export default function MembershipSalesPage() {
                     <p className="text-xs text-red-500 mt-0.5">Rejected: {sale.rejection_reason}</p>
                   )}
                 </div>
-                {canConfirmSale(sale) && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => handleConfirm(sale.id)}
-                      className="btn-primary text-xs py-1.5 flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5" /> Confirm
-                    </button>
-                    <button onClick={() => setRejectId(sale.id)}
-                      className="btn-secondary text-xs py-1.5 flex items-center gap-1">
-                      <XCircle className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {canConfirmSale(sale) && (
+                    <>
+                      <button onClick={e => { e.stopPropagation(); handleConfirm(sale.id) }}
+                        className="btn-primary text-xs py-1.5 flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Confirm
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setRejectId(sale.id) }}
+                        className="btn-secondary text-xs py-1.5 flex items-center gap-1">
+                        <XCircle className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                  {isExpanded
+                    ? <ChevronUp className="w-4 h-4 text-gray-400 ml-1" />
+                    : <ChevronDown className="w-4 h-4 text-gray-400 ml-1" />}
+                </div>
               </div>
+
+              {/* Expanded member details */}
+              {isExpanded && (
+                <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-gray-700">Member Details</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                    <div><p className="text-xs text-gray-400">Full Name</p><p className="text-xs font-medium text-gray-900">{sale.member?.full_name}</p></div>
+                    <div><p className="text-xs text-gray-400">Phone</p><p className="text-xs font-medium text-gray-900">{sale.member?.phone || '—'}</p></div>
+                    <div><p className="text-xs text-gray-400">Membership No.</p><p className="text-xs font-medium text-gray-900">{sale.member?.membership_number || '—'}</p></div>
+                    <div><p className="text-xs text-gray-400">Gym</p><p className="text-xs font-medium text-gray-900">{sale.gym?.name || '—'}</p></div>
+                  </div>
+                  <div className="divider" style={{height:'0.5px', background:'var(--color-border-tertiary)'}} />
+                  <p className="text-xs font-semibold text-gray-700">Membership</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                    <div><p className="text-xs text-gray-400">Type</p><p className="text-xs font-medium text-gray-900">{sale.membership_type_name}</p></div>
+                    <div><p className="text-xs text-gray-400">Price</p><p className="text-xs font-medium text-gray-900">{formatSGD(sale.price_sgd)}</p></div>
+                    <div><p className="text-xs text-gray-400">Start Date</p><p className="text-xs font-medium text-gray-900">{formatDate(sale.start_date)}</p></div>
+                    <div><p className="text-xs text-gray-400">End Date</p><p className="text-xs font-medium text-gray-900">{formatDate(sale.end_date)}</p></div>
+                    <div><p className="text-xs text-gray-400">Sold By</p><p className="text-xs font-medium text-gray-900">{sale.sold_by?.full_name || '—'}</p></div>
+                    <div><p className="text-xs text-gray-400">Status</p><p className="text-xs font-medium text-gray-900">{sale.sale_status}</p></div>
+                  </div>
+                  {pkgs.length > 0 && (
+                    <>
+                      <div className="divider" style={{height:'0.5px', background:'var(--color-border-tertiary)'}} />
+                      <p className="text-xs font-semibold text-gray-700">PT Packages</p>
+                      {pkgs.map((pkg: any, i: number) => (
+                        <div key={i} className="text-xs space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">{pkg.package_name}</span>
+                            <span className={cn('px-1.5 py-0.5 rounded-full text-xs font-medium',
+                              pkg.status === 'active' ? 'bg-green-100 text-green-700' :
+                              pkg.status === 'completed' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
+                              {pkg.status}
+                            </span>
+                          </div>
+                          <p className="text-gray-500">Sessions: {pkg.sessions_used}/{pkg.total_sessions} · {formatDate(pkg.start_date)}{pkg.end_date_calculated ? ` → ${formatDate(pkg.end_date_calculated)}` : ''}</p>
+                          {pkg.trainer && <p className="text-gray-500">Trainer: {pkg.trainer?.full_name}</p>}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  {pkgs.length === 0 && memberPackages[sale.member_id] !== undefined && (
+                    <>
+                      <div className="divider" style={{height:'0.5px', background:'var(--color-border-tertiary)'}} />
+                      <p className="text-xs text-gray-400">No PT packages found for this member</p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
