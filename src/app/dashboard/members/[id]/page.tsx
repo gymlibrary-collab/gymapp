@@ -375,7 +375,7 @@ export default function MemberProfilePage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-red-600" /> Gym Membership
           </h2>
-          {(isActingAsTrainer || currentUser?.role === 'trainer') && (
+          {(isActingAsTrainer || currentUser?.role === 'trainer' || currentUser?.role === 'staff' || currentUser?.role === 'manager') && (
             <button onClick={() => setShowRenewalForm(!showRenewalForm)}
               className="btn-primary text-xs py-1.5 flex items-center gap-1">
               <Plus className="w-3.5 h-3.5" /> Renew Membership
