@@ -64,9 +64,9 @@ export default function PtSessionsPage() {
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
     else if (filter === 'pending_confirm') {
       q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
-      const isBizOpsRole = currentUser?.role === 'business_ops'
+      const isBizOpsRole = user?.role === 'business_ops'
       q = q.eq('escalated_to_biz_ops', isBizOpsRole)
-      if (!isBizOpsRole && currentUser?.manager_gym_id) q = q.eq('gym_id', currentUser.manager_gym_id)
+      if (!isBizOpsRole && user?.manager_gym_id) q = q.eq('gym_id', user.manager_gym_id)
     }
     else if (filter === 'completed') q = q.eq('status', 'completed').eq('manager_confirmed', true)
     else if (filter === 'cancelled') q = q.in('status', ['cancelled', 'no_show'])
