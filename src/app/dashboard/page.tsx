@@ -554,6 +554,44 @@ export default function DashboardPage() {
       const { data: todayData } = await todayQ
       setTodaySessions(todayData || [])
 
+      // ── 48-hour escalation check (trainer only) ─────────────
+      // Runs on every trainer dashboard load — no cron needed
+      if (isTrainer) {
+        const cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString()
+
+        // Packages: unconfirmed + not yet escalated + older than 48h
+        const { data: stalePackages } = await supabase.from('packages')
+          .select('id')
+          .eq('trainer_id', authUser.id)
+          .eq('manager_confirmed', false)
+          .eq('escalated_to_biz_ops', false)
+          .neq('status', 'cancelled')
+          .lt('created_at', cutoff)
+        if (stalePackages && stalePackages.length > 0) {
+          const ids = stalePackages.map((p: any) => p.id)
+          await supabase.from('packages').update({
+            escalated_to_biz_ops: true,
+            escalated_at: now.toISOString(),
+          }).in('id', ids)
+        }
+
+        // Sessions: notes submitted + unconfirmed + not yet escalated + older than 48h
+        const { data: staleSessions } = await supabase.from('sessions')
+          .select('id')
+          .eq('trainer_id', authUser.id)
+          .eq('manager_confirmed', false)
+          .eq('is_notes_complete', true)
+          .eq('escalated_to_biz_ops', false)
+          .lt('notes_submitted_at', cutoff)
+        if (staleSessions && staleSessions.length > 0) {
+          const ids = staleSessions.map((s: any) => s.id)
+          await supabase.from('sessions').update({
+            escalated_to_biz_ops: true,
+            escalated_at: now.toISOString(),
+          }).in('id', ids)
+        }
+      }
+
       // ── Upcoming (next 5 excluding today) ────────────────
       let upQ = supabase.from('sessions')
         .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
