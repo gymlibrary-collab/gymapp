@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { validateHourlyRate } from '@/lib/validators'
 import {
@@ -21,6 +22,7 @@ const DEFAULT_PRESETS = [
 ]
 
 export default function RosterPage() {
+  const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [gymId, setGymId] = useState<string | null>(null)
   const [gymName, setGymName] = useState('')
