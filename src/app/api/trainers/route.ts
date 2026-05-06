@@ -179,6 +179,7 @@ export async function PATCH(request: Request) {
       }
       if (body.departure_reason !== undefined)   updatePayload.departure_reason = body.departure_reason || null
       if (probation_end_date !== undefined)      updatePayload.probation_end_date = probation_end_date || null
+      if (body.offboarding_completed_at !== undefined) updatePayload.offboarding_completed_at = body.offboarding_completed_at || null
       if (probation_passed !== undefined)        updatePayload.probation_passed_at = probation_passed ? new Date().toISOString() : null
       if (leave_carry_forward_days !== undefined) updatePayload.leave_carry_forward_days = parseInt(leave_carry_forward_days) || 0
       // manager_gym_id: written for all roles so the DB stays consistent
