@@ -27,8 +27,7 @@ export default function NewPtSessionPage() {
     duration_minutes: '60',
     location: '',
     notes: '',
-    attending_member_id: '',  // for shared packages
-    secondary_member_attending: false,
+    attending_member_id: '',  // for shared packages — which member is attending
   })
 
   const supabase = createClient()
@@ -46,7 +45,7 @@ export default function NewPtSessionPage() {
       // Load members with active PT packages for this trainer
       const { data: pkgData } = await supabase
         .from('packages')
-        .select('*, member:members(full_name, phone)')
+        .select('*, member:members!packages_member_id_fkey(full_name, phone), secondary_member:members!packages_secondary_member_id_fkey(full_name)')
         .eq('trainer_id', authUser.id)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -135,12 +134,15 @@ export default function NewPtSessionPage() {
     }
 
     const isPkgShared = (pkg as any)?.is_shared
-    const bothAttending = isPkgShared && form.secondary_member_attending
+    // For shared packages, use selected attending member; default to primary
+    const attendingMemberId = isPkgShared && form.attending_member_id
+      ? form.attending_member_id
+      : form.member_id
+    const isSecondary = isPkgShared && attendingMemberId !== form.member_id
 
-    // For shared packages with both attending, insert 2 session records
     const sessionPayload = {
       package_id: form.package_id,
-      member_id: form.member_id,
+      member_id: form.member_id,  // always primary member (package owner)
       client_id: form.member_id,
       trainer_id: currentUser.id,
       gym_id: pkg?.gym_id,
@@ -149,20 +151,11 @@ export default function NewPtSessionPage() {
       location: form.location || null,
       status: 'scheduled',
       session_commission_pct: currentUser.commission_session_pct || 15,
-      attending_member_id: form.member_id,
-      is_secondary_member: false,
+      attending_member_id: attendingMemberId,
+      is_secondary_member: isSecondary,
     }
 
     const { error: err } = await supabase.from('sessions').insert(sessionPayload)
-    if (!err && bothAttending && (pkg as any)?.secondary_member_id) {
-      // Second record for secondary member
-      await supabase.from('sessions').insert({
-        ...sessionPayload,
-        attending_member_id: (pkg as any).secondary_member_id,
-        is_secondary_member: true,
-        session_commission_pct: 0, // commission only on primary session
-      })
-    }
 
     if (err) { setError(err.message); setSaving(false); return }
 
@@ -238,7 +231,7 @@ export default function NewPtSessionPage() {
           <div className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-700">
             {selectedPkg.sessions_used}/{selectedPkg.total_sessions} sessions used
             {selectedPkg.end_date_calculated && ` · Valid until ${formatDate(selectedPkg.end_date_calculated)}`}
-            {(selectedPkg as any).is_shared && ' · Shared package (2 sessions per joint attendance)'}
+            {(selectedPkg as any).is_shared && ' · Shared package'}
           </div>
         )}
 
@@ -277,16 +270,25 @@ export default function NewPtSessionPage() {
         </div>
 
         {(selectedPkg as any)?.is_shared && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
-            <p className="font-medium">Shared package — who is attending this session?</p>
-            <div className="flex gap-2 mt-2">
-              {[{ value: 'primary', label: 'Primary member only (1 session deducted)' }, { value: 'both', label: 'Both members (2 sessions deducted)' }].map(opt => (
-                <label key={opt.value} className={cn('flex-1 flex items-center gap-2 p-2 rounded-lg border cursor-pointer', form.secondary_member_attending === (opt.value === 'both') ? 'border-blue-500 bg-white' : 'border-blue-200')}>
-                  <input type="radio" checked={form.secondary_member_attending === (opt.value === 'both')} onChange={() => setForm(f => ({ ...f, secondary_member_attending: opt.value === 'both' }))} />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
-            </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-medium text-blue-700">Shared package — who is attending this session?</p>
+            <select className="input" value={form.attending_member_id || form.member_id}
+              onChange={e => setForm(f => ({ ...f, attending_member_id: e.target.value }))}>
+              {members.find(m => m.id === form.member_id) && (
+                <option value={form.member_id}>
+                  {members.find(m => m.id === form.member_id)?.full_name} (primary)
+                </option>
+              )}
+              {(selectedPkg as any)?.secondary_member_id && (() => {
+                const secId = (selectedPkg as any).secondary_member_id
+                return (
+                  <option value={secId}>
+                    {(selectedPkg as any).secondary_member?.full_name || 'Secondary member'} (sharing partner)
+                  </option>
+                )
+              })()}
+            </select>
+            <p className="text-xs text-blue-600">1 session deducted from the shared pool regardless of who attends.</p>
           </div>
         )}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 flex items-start gap-2">
