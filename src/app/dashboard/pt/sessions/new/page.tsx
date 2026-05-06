@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, cn } from '@/lib/utils'
 import { renderWhatsAppTemplate } from '@/lib/whatsapp'
 import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
@@ -10,6 +11,7 @@ import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function NewPtSessionPage() {
+  const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [members, setMembers] = useState<any[]>([])
   const [packages, setPackages] = useState<any[]>([])
@@ -34,6 +36,7 @@ export default function NewPtSessionPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'Schedule Session', 'Viewed schedule new session form')
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
@@ -176,6 +179,7 @@ export default function NewPtSessionPage() {
     }
 
     router.push('/dashboard/pt/sessions')
+    logActivity('create', 'Schedule Session', 'Scheduled new PT session')
   }
 
   const selectedPkg = packages.find(p => p.id === form.package_id)
