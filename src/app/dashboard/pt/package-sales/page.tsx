@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { Package, CheckCircle, Clock, User, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function PackageSalesPage() {
+  const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
   const { success, error, showMsg, setError } = useToast()
@@ -83,6 +85,7 @@ export default function PackageSalesPage() {
     }).eq('id', pkg.id)
     if (err) { setError('Failed to confirm: ' + err.message); setConfirming(null); return }
     showMsg('Package confirmed')
+    logActivity('confirm', 'PT Package Sales', 'Confirmed PT package sale')
     setConfirming(null)
     loadData()
   }
@@ -145,6 +148,7 @@ export default function PackageSalesPage() {
     if (deleteErr) { setError('Failed to delete package: ' + deleteErr.message); setRejecting(null); return }
 
     showMsg('Package rejected — trainer will be notified')
+    logActivity('reject', 'PT Package Sales', 'Rejected PT package sale — trainer notified')
     setRejecting(null)
     loadData()
   }
