@@ -50,7 +50,7 @@ export default function PtSessionNotesPage() {
       if (!userData || !canView) { router.replace('/dashboard'); return }
       setCurrentUser(userData)
       const { data } = await supabase.from('sessions')
-        .select('*, member:members(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
+        .select('*, member:members!sessions_member_id_fkey(full_name), attending_member:members!sessions_attending_member_id_fkey(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions, is_shared, secondary_member_id), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
         .eq('id', id).single()
       setSession(data)
       setNotes(data?.performance_notes || '')
@@ -198,10 +198,27 @@ export default function PtSessionNotesPage() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Session Notes</h1>
           <p className="text-sm text-gray-500">
-            {session.member?.full_name} · {formatDateTime(session.scheduled_at)}
+            {session.is_secondary_member && session.attending_member
+              ? session.attending_member.full_name
+              : session.member?.full_name} · {formatDateTime(session.scheduled_at)}
           </p>
         </div>
       </div>
+
+      {/* Shared package — show who actually attended */}
+      {session.package?.is_shared && (
+        <div className="flex items-start gap-2 bg-purple-50 border border-purple-100 rounded-lg p-3">
+          <div className="flex-1 text-xs text-purple-700 space-y-0.5">
+            <p className="font-medium">Shared package session</p>
+            <p>Attending: <strong>{session.is_secondary_member && session.attending_member
+              ? session.attending_member.full_name
+              : session.member?.full_name}</strong>
+              {session.is_secondary_member ? ' (sharing partner)' : ' (primary holder)'}
+            </p>
+            <p className="text-purple-500">Primary package holder: {session.member?.full_name}</p>
+          </div>
+        </div>
+      )}
 
       {/* Last session badge */}
       {lastSession && (!pkgClosed || isLastSessionFlag) && (
@@ -284,7 +301,7 @@ export default function PtSessionNotesPage() {
             value={notes}
             onChange={e => { setNotes(e.target.value); setError('') }}
             className={cn('input min-h-[160px] resize-none', locked && !isManagerView && 'bg-gray-50 cursor-not-allowed')}
-            placeholder="Exercises performed, weights/reps, member's progress, goals for next session..."
+            placeholder={`Exercises performed, weights/reps, ${session.is_secondary_member && session.attending_member ? session.attending_member.full_name : session.member?.full_name}'s progress, goals for next session...`}
             disabled={locked && !isManagerView}
           />
           <p className="text-xs text-gray-400 mt-1">{notes.length} characters</p>
