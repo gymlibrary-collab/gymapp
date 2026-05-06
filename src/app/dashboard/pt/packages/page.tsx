@@ -25,7 +25,7 @@ interface PackageTemplate {
 }
 
 const emptyForm = {
-  name: '', total_sessions: '', default_price_sgd: '', effective_from: '',
+  name: '', total_sessions: '', default_price_sgd: '', effective_from: '', validity_months: '3',
 }
 
 export default function PackagesPage() {
@@ -80,6 +80,7 @@ export default function PackagesPage() {
       name: pkg.name,
       total_sessions: pkg.total_sessions.toString(),
       default_price_sgd: pkg.default_price_sgd.toString(),
+      validity_months: pkg.validity_months?.toString() || '3',
       effective_from: pkg.effective_from || '',
     })
     setShowForm(true)
@@ -94,6 +95,7 @@ export default function PackagesPage() {
       name: form.name,
       total_sessions: parseInt(form.total_sessions),
       default_price_sgd: parseFloat(form.default_price_sgd),
+      validity_months: parseInt((form as any).validity_months) || 3,
       effective_from: form.effective_from,
       is_active: true,
       is_archived: false,
@@ -212,6 +214,14 @@ export default function PackagesPage() {
               <input className="input" required type="number" min="1" step="1"
                 value={form.total_sessions} onChange={set('total_sessions')}
                 placeholder="e.g. 10" />
+            </div>
+            <div>
+              <label className="label">Validity Period (months) *</label>
+              <input className="input" type="number" min="1" max="36" step="1" required
+                value={(form as any).validity_months}
+                onChange={e => setForm((f: any) => ({ ...f, validity_months: e.target.value }))}
+                placeholder="e.g. 3" />
+              <p className="text-xs text-gray-400 mt-1">Package expires this many months after the start date.</p>
             </div>
             <div>
               <label className="label flex items-center gap-1.5">
