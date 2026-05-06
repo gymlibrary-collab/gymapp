@@ -10,7 +10,7 @@ import {
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
   FileText, Banknote, X, Building2, UserCheck, Clock,
   Calculator, Briefcase, CreditCard, CalendarDays, Receipt,
-  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList, Shield
+  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList, Shield, Activity
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,7 @@ const adminNav: NavItem[] = [
   { href: '/dashboard/admin/staff', label: 'Business Ops Staff', icon: Briefcase },
   { href: '/dashboard/hr/leave', label: 'Leave Approvals', icon: CalendarDays },
   { href: '/dashboard/admin/payslip-audit', label: 'Payslip Audit', icon: Shield },
+  { href: '/dashboard/admin/activity-logs', label: 'Activity Logs', icon: Activity },
   { href: '/dashboard/admin/settings', label: 'App Settings', icon: Settings },
 ]
 
@@ -187,6 +188,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (!u) { await supabase.auth.signOut(); router.push('/?error=not_authorised'); return }
         if (u.is_archived || !u.is_active) { await supabase.auth.signOut(); router.push('/?error=account_disabled'); return }
         setUser(u); isLoggedInRef.current = true
+        // Log login event
+        fetch('/api/activity-log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: u.id, user_name: u.full_name, role: u.role,
+            action_type: 'login', page: 'Login', description: 'Logged into the portal',
+          }),
+        }).catch(() => {})
         if (u.role === 'manager' && u.is_also_trainer) {
           const saved = sessionStorage.getItem(VIEW_KEY) as ViewMode | null
           setViewMode(saved || 'manager')
