@@ -1,5 +1,6 @@
 'use client'
 
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
@@ -17,10 +18,12 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
+  const { logActivity } = useActivityLog()
   const { isActingAsTrainer } = useViewMode()
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'Members', 'Viewed members list')
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
