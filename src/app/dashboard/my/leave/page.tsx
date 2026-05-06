@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, X, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ const LEAVE_TYPES = [
 ]
 
 export default function MyLeavePage() {
+  const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [applications, setApplications] = useState<any[]>([])
   const [takenDays, setTakenDays] = useState(0)
@@ -141,6 +143,7 @@ export default function MyLeavePage() {
 
     await load(); setShowForm(false); setForm({ leave_type: 'annual', start_date: '', end_date: '', reason: '' })
     setSaving(false); showMsg('Leave application submitted')
+    logActivity('create', 'My Leave', 'Submitted leave application')
   }
 
   const handleCancel = async (id: string) => {
