@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDate, formatSGD } from '@/lib/utils'
 import {
@@ -16,6 +17,7 @@ import { validatePhone, validateMembershipNumber, validateAll } from '@/lib/vali
 
 export default function MemberProfilePage() {
   const { id } = useParams()
+  const { logActivity } = useActivityLog()
   const router = useRouter()
   const [member, setMember] = useState<any>(null)
   const [memberships, setMemberships] = useState<any[]>([])
@@ -164,6 +166,7 @@ export default function MemberProfilePage() {
       gender: editForm.gender || null, health_notes: editForm.health_notes || null,
       membership_number: editForm.membership_number || null,
     }).eq('id', id as string)
+    logActivity('update', 'Member Profile', 'Updated member particulars')
     await load(); setSaving(false); setShowEditForm(false)
   }
 
@@ -182,7 +185,7 @@ export default function MemberProfilePage() {
       .eq('status', 'active')
       .eq('sale_status', 'confirmed')
       .neq('id', membershipId)
-
+    logActivity('confirm', 'Member Profile', 'Confirmed membership renewal')
     await load()
   }
 
@@ -221,6 +224,7 @@ export default function MemberProfilePage() {
       status: 'active',
     })
     if (err) { alert('Failed to renew: ' + err.message); setRenewalSaving(false); return }
+    logActivity('create', 'Member Profile', 'Logged membership renewal')
     setShowRenewalForm(false)
     setRenewalForm({ membership_type_id: '', start_date: new Date().toISOString().split('T')[0] })
     setRenewalSaving(false)
