@@ -1,5 +1,6 @@
 'use client'
 
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
@@ -20,6 +21,7 @@ export default function LeaveManagementPage() {
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
   const [filter, setFilter] = useState('pending')
+  const { logActivity } = useActivityLog()
   const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -193,6 +195,7 @@ export default function LeaveManagementPage() {
         })
       }
     }
+    logActivity('approve', 'Leave Management', 'Approved leave application')
     await load(); showMsg('Leave approved')
   }
 
@@ -224,6 +227,7 @@ export default function LeaveManagementPage() {
         })
       }
     }
+    logActivity('reject', 'Leave Management', 'Rejected leave application')
     setRejectId(null); setRejectReason(''); await load(); showMsg('Leave rejected')
   }
 
