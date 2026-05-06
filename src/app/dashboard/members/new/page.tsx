@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, formatDate, cn } from '@/lib/utils'
 import { ArrowLeft, User, CreditCard, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -10,6 +11,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateFullName, validateMembershipNumber, validateAll } from '@/lib/validators'
 
 export default function RegisterMemberPage() {
+  const { logActivity } = useActivityLog()
   const [step, setStep] = useState<'member' | 'membership'>('member')
   const [gyms, setGyms] = useState<any[]>([])
   const [membershipTypes, setMembershipTypes] = useState<any[]>([])
@@ -34,6 +36,7 @@ export default function RegisterMemberPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'New Member', 'Viewed new member registration form')
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
@@ -146,6 +149,7 @@ export default function RegisterMemberPage() {
 
     if (insertErr) { setError(insertErr.message); setLoading(false); return }
     router.push(`/dashboard/members/${createdMemberId}`)
+    logActivity('create', 'New Member', 'Registered new gym member')
   }
 
   const handleSkipMembership = () => {
