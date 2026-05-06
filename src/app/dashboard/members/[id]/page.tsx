@@ -20,6 +20,7 @@ export default function MemberProfilePage() {
   const [member, setMember] = useState<any>(null)
   const [memberships, setMemberships] = useState<any[]>([])
   const [ptPackages, setPtPackages] = useState<any[]>([])
+  const [memberSessions, setMemberSessions] = useState<any[]>([])
   const [packageTemplates, setPackageTemplates] = useState<any[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [showEditForm, setShowEditForm] = useState(false)
@@ -124,6 +125,15 @@ export default function MemberProfilePage() {
     } else {
       setPtPackages(pkgs || [])
     }
+
+    // Load sessions where this member attended — includes shared package sessions
+    // Fetch by attending_member_id to capture secondary member sessions
+    const { data: attendedSessions } = await supabase.from('sessions')
+      .select('*, trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, is_shared, secondary_member_id)')
+      .eq('attending_member_id', id)
+      .order('scheduled_at', { ascending: false })
+      .limit(20)
+    setMemberSessions(attendedSessions || [])
 
     const { data: templates } = await supabase.from('package_templates')
       .select('*').eq('is_archived', false).order('name')
@@ -548,6 +558,44 @@ export default function MemberProfilePage() {
           </div>
         )}
       </div>
+
+      {/* ── Attended Sessions ── */}
+      {memberSessions.length > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-red-600" /> Recent Sessions
+            </h2>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {memberSessions.map(s => (
+              <div key={s.id} className="p-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900">{formatDate(s.scheduled_at?.split('T')[0])}</p>
+                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+                      s.status === 'completed' ? 'bg-green-100 text-green-700' :
+                      s.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700')}>
+                      {s.status}
+                    </span>
+                    {s.is_secondary_member && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Shared pkg</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {s.package?.package_name}
+                    {s.trainer && ` · Trainer: ${s.trainer.full_name}`}
+                  </p>
+                  {s.notes && <p className="text-xs text-gray-400 mt-0.5 italic">{s.notes}</p>}
+                </div>
+                <p className="text-xs text-gray-400 flex-shrink-0">
+                  {new Date(s.scheduled_at).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
