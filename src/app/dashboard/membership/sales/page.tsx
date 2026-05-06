@@ -11,7 +11,9 @@ import { StatusBanner } from '@/components/StatusBanner'
 
 export default function MembershipSalesPage() {
   const [user, setUser] = useState<any>(null)
-  const [sales, setSales] = useState<any[]>([])
+  const [allGymSales, setAllGymSales] = useState<any[]>([]) // manager: all gym sales for confirmation
+  const [mySales, setMySales] = useState<any[]>([])          // personal sales history
+  const [tab, setTab] = useState<'confirm' | 'my'>('confirm')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -19,7 +21,6 @@ export default function MembershipSalesPage() {
   const [rejectReason, setRejectReason] = useState('')
   const supabase = createClient()
   const router = useRouter()
-
   const { success, error, showMsg } = useToast()
 
   useEffect(() => { load() }, [])
@@ -28,22 +29,39 @@ export default function MembershipSalesPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Admin does not manage membership sales
     if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
     setUser(userData)
 
-    let q = supabase.from('gym_memberships')
-      .select('*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)')
-      .order('created_at', { ascending: false })
+    const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 
-    if (userData.role === 'trainer' || userData.role === 'staff' || (userData.role === 'manager' && userData.is_also_trainer)) {
-      q = q.eq('sold_by_user_id', authUser.id)
-    } else if (userData.role === 'manager' && userData.manager_gym_id) {
-      q = q.eq('gym_id', userData.manager_gym_id)
+    if (userData.role === 'manager') {
+      // Load all gym sales for confirmation tab
+      const { data: gymSales } = await supabase.from('gym_memberships')
+        .select(baseSelect)
+        .eq('gym_id', userData.manager_gym_id)
+        .order('created_at', { ascending: false })
+      setAllGymSales(gymSales || [])
+
+      // Load own sales for My Sales tab
+      const { data: ownSales } = await supabase.from('gym_memberships')
+        .select(baseSelect)
+        .eq('sold_by_user_id', authUser.id)
+        .order('created_at', { ascending: false })
+      setMySales(ownSales || [])
+
+      // Default to confirm tab if there are pending sales, else My Sales
+      const hasPending = (gymSales || []).some((s: any) => s.sale_status === 'pending')
+      setTab(hasPending ? 'confirm' : 'my')
+    } else {
+      // Trainer / Staff / Biz Ops — only own sales
+      const { data: ownSales } = await supabase.from('gym_memberships')
+        .select(baseSelect)
+        .eq(userData.role === 'business_ops' ? 'gym_id' : 'sold_by_user_id',
+           userData.role === 'business_ops' ? userData.manager_gym_id : authUser.id)
+        .order('created_at', { ascending: false })
+      setMySales(ownSales || [])
     }
 
-    const { data } = await q
-    setSales(data || [])
     setLoading(false)
   }
 
@@ -53,45 +71,44 @@ export default function MembershipSalesPage() {
       sale_status: 'confirmed', status: 'active',
       confirmed_by: authUser!.id, confirmed_at: new Date().toISOString(),
     }).eq('id', id)
-    await load(); showMsg('Sale confirmed — commission queued for payout')
+    await load(); showMsg('Sale confirmed')
   }
 
   const handleReject = async () => {
     if (!rejectId || !rejectReason.trim()) return
-    await supabase.from('gym_memberships').update({ sale_status: 'rejected', status: 'cancelled', rejection_reason: rejectReason }).eq('id', rejectId)
+    await supabase.from('gym_memberships').update({
+      sale_status: 'rejected', status: 'cancelled', rejection_reason: rejectReason,
+    }).eq('id', rejectId)
     setRejectId(null); setRejectReason(''); await load(); showMsg('Sale rejected')
   }
 
-  // Confirm logic:
-  // - If sold by a manager (including manager-trainer hybrid, role = 'manager') → only biz_ops can confirm
-  // - If sold by a trainer → manager or biz_ops can confirm
-  // - null/unknown sold_by role → default to biz_ops only (safe fallback)
   const sellerIsManager = (sale: any) => {
     const role = sale.sold_by?.role
-    // Manager (incl. manager-trainer) and above → biz ops confirms
-    // Trainer and staff → manager confirms
     return role === 'manager' || role === 'business_ops' || role === 'admin' || !role
   }
   const canConfirmSale = (sale: any) => {
     if (sale.sale_status !== 'pending') return false
     if (sellerIsManager(sale)) return user?.role === 'business_ops'
-    // Sold by a trainer — manager or biz_ops can confirm
     return user?.role === 'manager' || user?.role === 'business_ops'
   }
-  const canConfirmAny = sales.some(s => canConfirmSale(s))
-  const pendingCount = sales.filter(s => s.sale_status === 'pending').length
-  const confirmedTotal = sales.filter(s => s.sale_status === 'confirmed').reduce((sum, s) => sum + (s.commission_sgd || 0), 0)
-  // Biz Ops sees sales activity but not the commission figures — those belong
-  // in the payroll workflow, not the sales view.
+
+  const isManager = user?.role === 'manager'
   const isBizOps = user?.role === 'business_ops'
 
-  const filtered = sales.filter(s => {
-    const member = s.member
-    const matchSearch = member?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-      member?.phone?.includes(search) || member?.membership_number?.includes(search)
+  // Active dataset based on tab/role
+  const activeSales = isManager ? (tab === 'confirm' ? allGymSales : mySales) : mySales
+
+  const filtered = activeSales.filter((s: any) => {
+    const matchSearch = s.member?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+      s.member?.phone?.includes(search) || s.member?.membership_number?.includes(search)
     const matchStatus = filterStatus === 'all' || s.sale_status === filterStatus
     return matchSearch && matchStatus
   })
+
+  const pendingCount = allGymSales.filter((s: any) => canConfirmSale(s)).length
+  const myConfirmedTotal = mySales.filter((s: any) => s.sale_status === 'confirmed')
+    .reduce((sum: number, s: any) => sum + (s.sale_status === 'confirmed' ? (s.commission_sgd || 0) : 0), 0)
+  const myPendingCount = mySales.filter((s: any) => s.sale_status === 'pending').length
 
   const statusBadge = (status: string) => {
     if (status === 'confirmed') return 'badge-active'
@@ -99,77 +116,170 @@ export default function MembershipSalesPage() {
     return 'badge-danger'
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading) return (
+    <div className="flex items-center justify-center h-48">
+      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
+    </div>
+  )
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Membership Sales</h1>
-        <p className="text-sm text-gray-500">{isBizOps ? 'Gym membership sales activity across all clubs' : 'Gym membership sales confirmation and commission tracking'}</p>
+        <p className="text-sm text-gray-500">
+          {isBizOps ? 'Gym membership sales activity across all clubs' :
+           isManager ? 'Confirm staff sales and track your own membership sales' :
+           'Your membership sales history and commission earned'}
+        </p>
       </div>
 
-      <div className={cn('grid gap-3', isBizOps ? 'grid-cols-2' : 'grid-cols-3')}>
-        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Total Sales</p><p className="text-2xl font-bold text-gray-900">{sales.length}</p></div>
-        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Pending Review</p><p className="text-2xl font-bold text-amber-600">{pendingCount}</p></div>
-        {!isBizOps && (
-          <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Confirmed Commission</p><p className="text-lg font-bold text-green-700">{formatSGD(confirmedTotal)}</p></div>
-        )}
-      </div>
+      <StatusBanner success={success} error={error} />
 
-      <StatusBanner success={success} />
-
-      {canConfirmAny && pendingCount > 0 && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          {pendingCount} sale{pendingCount > 1 ? 's' : ''} pending your confirmation.
+      {/* Manager tabs */}
+      {isManager && (
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+          <button onClick={() => setTab('confirm')}
+            className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors relative',
+              tab === 'confirm' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+            Confirm Sales
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setTab('my')}
+            className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors',
+              tab === 'my' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+            My Sales
+          </button>
         </div>
       )}
 
-      {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
-            <h3 className="font-bold text-gray-900">Reject Sale</h3>
-            <div><label className="label">Reason *</label><textarea className="input min-h-[80px]" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Duplicate entry, incorrect amount..." /></div>
-            <div className="flex gap-2"><button onClick={handleReject} disabled={!rejectReason.trim()} className="btn-danger flex-1">Reject</button><button onClick={() => { setRejectId(null); setRejectReason('') }} className="btn-secondary">Cancel</button></div>
+      {/* Stats */}
+      {isManager && tab === 'confirm' && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="stat-card">
+            <p className="text-xs text-gray-500 mb-1">Total Gym Sales</p>
+            <p className="text-2xl font-bold text-gray-900">{allGymSales.length}</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500 mb-1">Pending Confirmation</p>
+            <p className="text-2xl font-bold text-amber-600">{pendingCount}</p>
           </div>
         </div>
       )}
 
+      {(!isManager || tab === 'my') && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="stat-card">
+            <p className="text-xs text-gray-500 mb-1">My Sales</p>
+            <p className="text-2xl font-bold text-gray-900">{mySales.length}</p>
+          </div>
+          <div className="stat-card">
+            <p className="text-xs text-gray-500 mb-1">Pending</p>
+            <p className="text-2xl font-bold text-amber-600">{myPendingCount}</p>
+          </div>
+          {!isBizOps && (
+            <div className="stat-card">
+              <p className="text-xs text-gray-500 mb-1">Commission Earned</p>
+              <p className="text-lg font-bold text-green-700">{formatSGD(myConfirmedTotal)}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pending alert for manager confirm tab */}
+      {isManager && tab === 'confirm' && pendingCount > 0 && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-700">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {pendingCount} sale{pendingCount > 1 ? 's' : ''} pending your confirmation
+        </div>
+      )}
+
+      {/* Reject modal */}
+      {rejectId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
+            <h3 className="font-bold text-gray-900">Reject Sale</h3>
+            <div>
+              <label className="label">Reason *</label>
+              <textarea className="input min-h-[80px]" value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="e.g. Duplicate entry, incorrect amount..." />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleReject} disabled={!rejectReason.trim()} className="btn-danger flex-1">Reject</button>
+              <button onClick={() => { setRejectId(null); setRejectReason('') }} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Search + filter */}
       <div className="flex flex-col sm:flex-row gap-2">
-        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input className="input pl-9" placeholder="Search by name, phone or membership no..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input className="input pl-9" placeholder="Search by name, phone or membership no..."
+            value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
         <div className="flex gap-1">
           {['all', 'pending', 'confirmed', 'rejected'].map(s => (
-            <button key={s} onClick={() => setFilterStatus(s)} className={cn('px-3 py-2 rounded-lg text-xs font-medium capitalize transition-colors', filterStatus === s ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>{s}</button>
+            <button key={s} onClick={() => setFilterStatus(s)}
+              className={cn('px-3 py-2 rounded-lg text-xs font-medium capitalize transition-colors',
+                filterStatus === s ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
+              {s}
+            </button>
           ))}
         </div>
       </div>
 
+      {/* Sales list */}
       {filtered.length === 0 ? (
-        <div className="card p-8 text-center"><CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No membership sales found</p></div>
+        <div className="card p-8 text-center">
+          <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm">No membership sales found</p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(sale => (
+          {filtered.map((sale: any) => (
             <div key={sale.id} className="card p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-sm">{isBizOps ? (sale.member?.membership_number ? `Member #${sale.member.membership_number}` : 'Member') : sale.member?.full_name}</p>
-                    {!isBizOps && sale.member?.membership_number && <span className="text-xs text-gray-400">#{sale.member.membership_number}</span>}
+                    <p className="font-semibold text-gray-900 text-sm">{sale.member?.full_name}</p>
+                    {sale.member?.membership_number && (
+                      <span className="text-xs text-gray-400">#{sale.member.membership_number}</span>
+                    )}
                     <span className={statusBadge(sale.sale_status)}>{sale.sale_status}</span>
                   </div>
                   <p className="text-xs text-gray-500">{sale.member?.phone}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                     <span>{sale.membership_type_name} · {formatSGD(sale.price_sgd)}</span>
                     <span>{formatDate(sale.start_date)} → {formatDate(sale.end_date)}</span>
-                    {!isBizOps && <span className="text-green-600 font-medium">Commission: {formatSGD(sale.commission_sgd)}</span>}
+                    {!isBizOps && (
+                      <span className="text-green-600 font-medium">
+                        Commission: {formatSGD(sale.commission_sgd)}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-400 mt-0.5">Sold by: {sale.sold_by?.full_name} · {sale.gym?.name}</p>
-                  {sale.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Rejected: {sale.rejection_reason}</p>}
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Sold by: {sale.sold_by?.full_name} · {sale.gym?.name}
+                  </p>
+                  {sale.rejection_reason && (
+                    <p className="text-xs text-red-500 mt-0.5">Rejected: {sale.rejection_reason}</p>
+                  )}
                 </div>
                 {canConfirmSale(sale) && (
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => handleConfirm(sale.id)} className="btn-primary text-xs py-1.5 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Confirm</button>
-                    <button onClick={() => setRejectId(sale.id)} className="btn-secondary text-xs py-1.5 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => handleConfirm(sale.id)}
+                      className="btn-primary text-xs py-1.5 flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> Confirm
+                    </button>
+                    <button onClick={() => setRejectId(sale.id)}
+                      className="btn-secondary text-xs py-1.5 flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 )}
               </div>
