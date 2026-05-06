@@ -72,23 +72,24 @@ export default function CommissionPayoutsPage() {
 
     for (const member of targetStaff) {
       // PT signup commissions (from packages created in period)
-      // Packages eligible for commission: not paid
-      // Rejected packages are hard deleted so no filter needed for cancelled
-      // Manager confirmation is for workflow closure only — not a commission gate
+      // Packages eligible: manager_confirmed = true AND not yet paid
+      // Confirmed by either manager or Biz Ops (escalated items)
       const { data: packages } = await supabase.from('packages')
         .select('signup_commission_sgd, gym_id')
         .eq('trainer_id', member.id)
+        .eq('manager_confirmed', true)
         .eq('signup_commission_paid', false)
         .gte('created_at', genForm.period_start)
         .lte('created_at', genForm.period_end + 'T23:59:59')
 
-      // PT session commissions (completed sessions in period)
-      // is_notes_complete required — incentivises prompt note submission
+      // PT session commissions: notes submitted AND manager_confirmed = true AND not yet paid
+      // Confirmed by either manager or Biz Ops (escalated items)
       const { data: sessions } = await supabase.from('sessions')
         .select('session_commission_sgd, gym_id')
         .eq('trainer_id', member.id)
         .eq('status', 'completed')
         .eq('is_notes_complete', true)
+        .eq('manager_confirmed', true)
         .eq('commission_paid', false)
         .gte('marked_complete_at', genForm.period_start)
         .lte('marked_complete_at', genForm.period_end + 'T23:59:59')
@@ -169,10 +170,12 @@ export default function CommissionPayoutsPage() {
         await supabase.from('sessions').update({ commission_paid: true })
           .eq('trainer_id', payout.user_id).eq('status', 'completed')
           .eq('is_notes_complete', true)
+          .eq('manager_confirmed', true)
           .gte('marked_complete_at', payout.period_start)
           .lte('marked_complete_at', payout.period_end + 'T23:59:59')
         await supabase.from('packages').update({ signup_commission_paid: true })
           .eq('trainer_id', payout.user_id)
+          .eq('manager_confirmed', true)
           .eq('signup_commission_paid', false)
           .gte('created_at', payout.period_start)
           .lte('created_at', payout.period_end + 'T23:59:59')
