@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { CalendarDays, Save } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 export default function LeavePolicyPage() {
+  const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
   const { success, error, showMsg, showError } = useToast()
@@ -18,6 +20,7 @@ export default function LeavePolicyPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'Leave Policy', 'Viewed leave policy configuration')
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) { router.replace('/dashboard'); return }
       const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
@@ -48,7 +51,9 @@ export default function LeavePolicyPage() {
       .eq('id', 'global')
 
     if (err) { showError('Failed to save: ' + err.message); setSaving(false); return }
+    logActivity('update', 'Leave Policy', 'Updated leave carry-forward policy')
     showMsg('Leave policy saved')
+    logActivity('update', 'Leave Policy', 'Updated leave carry-forward policy')
     setSaving(false)
   }
 
