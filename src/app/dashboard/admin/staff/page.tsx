@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import {
   Plus, Edit2, Trash2, X, Save, CheckCircle,
@@ -28,6 +29,7 @@ interface BizOpsUser {
 const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '', address: '' }
 
 export default function AdminStaffPage() {
+  const { logActivity } = useActivityLog()
   const [staff, setStaff] = useState<BizOpsUser[]>([])
   const [archived, setArchived] = useState<BizOpsUser[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
@@ -114,7 +116,8 @@ export default function AdminStaffPage() {
       })
       const result = await res.json()
       if (!res.ok) { setError(result.error || 'Failed to update'); setSaving(false); return }
-      showMsg('Account updated')
+      logActivity('update', 'Admin Staff', 'Updated Business Ops staff account')
+    showMsg('Account updated')
     } else {
       const res = await fetch('/api/trainers', {
         method: 'POST',
@@ -123,7 +126,8 @@ export default function AdminStaffPage() {
       })
       const result = await res.json()
       if (!res.ok) { setError(result.error || 'Failed to create'); setSaving(false); return }
-      showMsg('Business Ops account created')
+      logActivity('create', 'Admin Staff', 'Created Business Ops staff account')
+    showMsg('Business Ops account created')
     }
 
     await loadData()
@@ -144,6 +148,7 @@ export default function AdminStaffPage() {
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
     await loadData(); setSaving(false)
+    logActivity('update', 'Admin Staff', 'Archived Business Ops staff account')
     showMsg(`${user.full_name} archived`)
   }
 
