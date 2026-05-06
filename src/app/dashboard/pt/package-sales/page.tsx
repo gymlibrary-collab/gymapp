@@ -37,9 +37,7 @@ export default function PackageSalesPage() {
     setCurrentUser(me)
     const isBizOps = me.role === 'business_ops'
     const gymId = me.manager_gym_id || ''
-
-    const gymId = me.manager_gym_id
-    if (!gymId) { setLoading(false); return }
+    if (!isBizOps && !gymId) { setLoading(false); return }
 
     // Pending: split by role — manager sees non-escalated, Biz Ops sees escalated
     const { data: pendingData } = await supabase.from('packages')
