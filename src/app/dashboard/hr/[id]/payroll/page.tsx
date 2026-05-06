@@ -370,6 +370,11 @@ export default function StaffPayrollDetailPage() {
   const handleAdminDeletePayslip = async () => {
     if (!deleteModal) return
     if (deleteReason.trim().length < 10) { setError('Please enter a reason of at least 10 characters'); return }
+    // Block deletion of paid payslips — salary already transferred, correct via next month adjustment
+    if (deleteModal.payslip.status === 'paid') {
+      setError('Paid payslips cannot be deleted — salary has already been transferred. Handle corrections as an adjustment in the next payslip cycle.')
+      return
+    }
     setDeleting(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const { data: adminUser } = await supabase.from('users').select('full_name').eq('id', authUser?.id).single()
@@ -765,7 +770,7 @@ export default function StaffPayrollDetailPage() {
                   {ps.status === 'draft' && <button onClick={() => handlePayslipAction(ps.id, 'approved')} className="text-xs text-blue-600 hover:underline">Approve</button>}
                   {ps.status === 'draft' && <button onClick={() => handleDeletePayslip(ps.id)} className="text-xs text-red-500 hover:underline">Delete</button>}
                   {ps.status === 'approved' && <button onClick={() => handlePayslipAction(ps.id, 'paid')} className="text-xs text-green-600 hover:underline">Mark Paid</button>}
-                  {(ps.status === 'approved' || ps.status === 'paid') && isBizOpsRole && (
+                  {ps.status === 'approved' && isBizOpsRole && (
                     <button onClick={() => { setDeleteModal({ payslip: ps }); setDeleteReason('') }} className="text-xs text-red-500 hover:underline">Delete</button>
                   )}
                   {ps.status !== 'draft' && <button onClick={() => downloadPayslipPdf(ps)} className="text-xs text-red-600 hover:underline flex items-center gap-1"><FileText className="w-3 h-3" /> PDF</button>}
@@ -784,8 +789,8 @@ export default function StaffPayrollDetailPage() {
           <div className="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <h3 className="font-semibold text-gray-900 text-sm mb-1">Delete Payslip</h3>
             <p className="text-xs text-gray-500 mb-4">
-              Deleting {getMonthName(deleteModal.payslip.month)} {deleteModal.payslip.year} payslip
-              ({deleteModal.payslip.status}) for {staff?.full_name}. This action is logged to the audit trail.
+              Deleting {getMonthName(deleteModal.payslip.month)} {deleteModal.payslip.year} approved payslip
+              for {staff?.full_name}. Salary has not been paid — this action is logged to the audit trail.
             </p>
             <div className="mb-4">
               <label className="label">Reason for deletion *</label>
