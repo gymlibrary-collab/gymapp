@@ -31,7 +31,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
   { label: 'Gym Operations', header: true },
-  { href: '/dashboard/membership/sales', label: 'Confirm Manager Sales', icon: CreditCard },
+  { href: '/dashboard/membership/sales', label: 'Members', icon: Users },
   { href: '/dashboard/hr/staff', label: 'Staff Management', icon: Users },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
