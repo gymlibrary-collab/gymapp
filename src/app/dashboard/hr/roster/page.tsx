@@ -187,6 +187,7 @@ export default function RosterPage() {
     await loadData()
     setBulkForm({ user_id: '', preset_id: '', custom_start: '', custom_end: '', hourly_rate: '', dates: [] })
     setShowBulkForm(false); setSaving(false)
+    logActivity('create', 'Duty Roster', `Added ${rows.length} roster shift(s)`)
     showMsg(`${rows.length} shift${rows.length !== 1 ? 's' : ''} added`)
   }
 
@@ -198,6 +199,7 @@ export default function RosterPage() {
       sort_order: presets.length, created_by: currentUser?.id,
     })
     await loadData(); setShowPresetForm(false); setPresetForm({ label: '', shift_start: '', shift_end: '' })
+    logActivity('create', 'Duty Roster', 'Saved roster shift preset')
     showMsg('Shift preset saved')
   }
 
@@ -206,6 +208,7 @@ export default function RosterPage() {
     await supabase.from('duty_roster').update({
       is_locked: true, locked_at: new Date().toISOString(), locked_by: currentUser?.id, status: 'completed'
     }).eq('id', entry.id)
+    logActivity('update', 'Duty Roster', 'Locked roster shift')
     await loadData(); showMsg('Shift locked')
   }
 
@@ -215,6 +218,7 @@ export default function RosterPage() {
     }
     if (!confirm('Delete this shift?')) return
     await supabase.from('duty_roster').delete().eq('id', entry.id)
+    logActivity('delete', 'Duty Roster', 'Deleted roster shift')
     await loadData(); showMsg('Shift deleted')
   }
 
