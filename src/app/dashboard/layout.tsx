@@ -83,9 +83,10 @@ const trainerViewNav: NavItem[] = [
 const pureTrainerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/members', label: 'My Members', icon: Users },
+  { href: '/dashboard/members/new', label: 'New Member', icon: UserCheck },
+  { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { href: '/dashboard/pt/sessions', label: 'My Sessions', icon: Calendar },
   { href: '/dashboard/pt/onboard', label: 'PT Onboarding', icon: Package },
-  { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
@@ -95,7 +96,7 @@ const pureTrainerNav: NavItem[] = [
 const partTimerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/my/roster', label: 'My Roster', icon: CalendarDays },
-  { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
+  { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
@@ -104,8 +105,9 @@ const partTimerNav: NavItem[] = [
 
 const staffNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/membership/sales', label: 'Log Membership Sale', icon: CreditCard },
   { href: '/dashboard/members', label: 'Member Lookup', icon: Users },
+  { href: '/dashboard/members/new', label: 'New Member', icon: UserCheck },
+  { href: '/dashboard/membership/sales', label: 'My Sales', icon: CreditCard },
   { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
