@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MyRosterPage() {
+  const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [shifts, setShifts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -16,6 +18,7 @@ export default function MyRosterPage() {
 
   useEffect(() => {
     const load = async () => {
+      logActivity('page_view', 'My Roster', 'Viewed own duty roster')
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
       const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
