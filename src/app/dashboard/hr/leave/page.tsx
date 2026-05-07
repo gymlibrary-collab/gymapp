@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate , getRoleLabel } from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucide-react'
-import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
+import { queueWhatsApp } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -183,23 +183,19 @@ export default function LeaveManagementPage() {
     // WhatsApp to applicant (app already declared above)
     if (app) {
       const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
-      if (applicant?.phone && await isWhatsAppEnabled(supabase, 'leave_approved')) {
-        const approveMsg = await renderWhatsAppTemplate('leave_approved', {
-          staff_name: applicant.full_name,
+      await queueWhatsApp(supabase, {
+        notificationType: 'leave_approved',
+        phone: applicant?.phone,
+        name: applicant?.full_name,
+        placeholders: {
+          staff_name: applicant?.full_name || '',
           leave_type: LEAVE_TYPES[app.leave_type] || app.leave_type,
           start_date: formatDate(app.start_date),
           end_date: formatDate(app.end_date),
           days: String(app.days_applied),
-        }, `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} (${app.days_applied} day${app.days_applied !== 1 ? 's' : ''}) has been APPROVED.`)
-        await supabase.from('whatsapp_queue').insert({
-          notification_type: 'leave_approved',
-          recipient_phone: applicant.phone,
-          recipient_name: applicant.full_name,
-          message: approveMsg,
-          scheduled_for: new Date().toISOString(),
-          status: 'pending',
-        })
-      }
+        },
+        fallbackMessage: `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} (${app.days_applied} day${app.days_applied !== 1 ? 's' : ''}) has been APPROVED.`,
+      })
     }
     logActivity('approve', 'Leave Management', 'Approved leave application')
     // Write in-app decision notification
@@ -232,23 +228,19 @@ export default function LeaveManagementPage() {
     const app = applications.find(a => a.id === rejectId)
     if (app) {
       const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
-      if (applicant?.phone && await isWhatsAppEnabled(supabase, 'leave_rejected')) {
-        const rejectMsg = await renderWhatsAppTemplate('leave_rejected', {
-          staff_name: applicant.full_name,
+      await queueWhatsApp(supabase, {
+        notificationType: 'leave_rejected',
+        phone: applicant?.phone,
+        name: applicant?.full_name,
+        placeholders: {
+          staff_name: applicant?.full_name || '',
           leave_type: LEAVE_TYPES[app.leave_type] || app.leave_type,
           start_date: formatDate(app.start_date),
           end_date: formatDate(app.end_date),
           rejection_reason: rejectReason,
-        }, `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} has been REJECTED. Reason: ${rejectReason}`)
-        await supabase.from('whatsapp_queue').insert({
-          notification_type: 'leave_rejected',
-          recipient_phone: applicant.phone,
-          recipient_name: applicant.full_name,
-          message: rejectMsg,
-          scheduled_for: new Date().toISOString(),
-          status: 'pending',
-        })
-      }
+        },
+        fallbackMessage: `Your ${LEAVE_TYPES[app.leave_type] || app.leave_type} from ${formatDate(app.start_date)} to ${formatDate(app.end_date)} has been REJECTED. Reason: ${rejectReason}`,
+      })
     }
     logActivity('reject', 'Leave Management', 'Rejected leave application')
     // Write in-app decision notification
