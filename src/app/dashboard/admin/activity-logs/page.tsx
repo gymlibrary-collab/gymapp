@@ -309,15 +309,15 @@ export default function ActivityLogsPage() {
       </div>
 
       {/* Log table — scrollable area */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 flex flex-col">
       {filtered.length === 0 ? (
-        <div className="card p-8 text-center">
+        <div className="card p-8 text-center flex-1">
           <Activity className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">No activity logs found for the selected filters</p>
         </div>
       ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="card overflow-hidden flex-1 min-h-0 flex flex-col">
+          <div className="overflow-auto flex-1 min-h-0">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                 <tr>
