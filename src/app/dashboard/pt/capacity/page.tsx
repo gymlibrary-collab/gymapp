@@ -113,7 +113,6 @@ export default function TrainerCapacityPage() {
   const monthName = now.toLocaleString('default', { month: 'long' })
   const weekLabel = `Week of ${new Date(now.getDate() - (now.getDay() || 7) + 1 + now.valueOf() - now.valueOf()).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}`
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
     <div className="space-y-5">
