@@ -121,8 +121,6 @@ export default function WhatsAppTemplatesPage() {
 
   const load = async () => {
     logActivity('page_view', 'WhatsApp Templates', 'Viewed WhatsApp message templates')
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
     const { data } = await supabase.from('whatsapp_templates').select('*').order('created_at')
     setTemplates(data || [])
   }
