@@ -231,7 +231,6 @@ export default function MyPayslipsPage() {
     logActivity('export', 'My Payslips', `Downloaded commission PDF — ${payout.period_start} to ${payout.period_end}`)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
     <div className="space-y-5 max-w-2xl">
