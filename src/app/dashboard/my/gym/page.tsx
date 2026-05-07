@@ -8,11 +8,13 @@ import { formatDate, uploadToStorage } from '@/lib/utils'
 import { Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, CheckCircle, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MyGymPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager'] })
   const { logActivity } = useActivityLog()
   const [gym, setGym] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const router = useRouter()
@@ -23,15 +25,12 @@ export default function MyGymPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Gym', 'Viewed gym details')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.replace('/dashboard'); return }
-      const { data: me } = await supabase.from('users').select('role, manager_gym_id').eq('id', authUser.id).single()
-      if (!me || me.role !== 'manager' || !me.manager_gym_id) { router.replace('/dashboard'); return }
+        // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
       const { data: gymData } = await supabase.from('gyms').select('*').eq('id', me.manager_gym_id).single()
       setGym(gymData)
       setLogoPreview(gymData?.logo_url ? gymData.logo_url + '?t=' + Date.now() : null)
-      setLoading(false)
     }
     load()
   }, [])
