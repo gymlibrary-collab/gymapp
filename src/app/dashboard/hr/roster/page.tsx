@@ -62,8 +62,8 @@ export default function RosterPage() {
       // Auth guard handled by useCurrentUser hook
   if (loading || !user) return null
     // Biz Ops has no assigned gym — default to first active gym for roster view
-    let gId = u.manager_gym_id || null
-    if (me.role === 'business_ops' && !gId) {
+    let gId = user.manager_gym_id || null
+    if (user.role === 'business_ops' && !gId) {
       const { data: firstGym } = await supabase.from('gyms').select('id').eq('is_active', true).order('name').limit(1).single()
       gId = firstGym?.id || null
     }
