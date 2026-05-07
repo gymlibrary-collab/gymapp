@@ -29,6 +29,8 @@ export default function CommissionPayoutsPage() {
     user_ids: [] as string[], gym_id: '',
   })
   const [preview, setPreview] = useState<any[]>([])
+  const [existingDrafts, setExistingDrafts] = useState<string[]>([]) // user names with existing drafts
+  const [showDraftWarning, setShowDraftWarning] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -48,7 +50,7 @@ export default function CommissionPayoutsPage() {
 
     // Load payouts
     let q = supabase.from('commission_payouts')
-      .select('*, user:users(full_name, role), gym:gyms(name)')
+      .select('*, user:users!commission_payouts_user_id_fkey(full_name, role), gym:gyms(name)')
       .order('period_end', { ascending: false })
     if (userData.role === 'manager' && userData.manager_gym_id) q = q.eq('gym_id', userData.manager_gym_id)
     const { data: payoutData } = await q
@@ -129,6 +131,26 @@ export default function CommissionPayoutsPage() {
       }
     }
 
+    // Check for existing draft payouts for this period
+    if (results.length > 0) {
+      const userIds = results.map(r => r.user_id)
+      // Derive period dates for draft check
+      const dcDays = new Date(genForm.period_year, genForm.period_month, 0).getDate()
+      const dc_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
+      const dc_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(dcDays).padStart(2, '0')}`
+      const { data: drafts } = await supabase.from('commission_payouts')
+        .select('user_id, user:users!commission_payouts_user_id_fkey(full_name)')
+        .in('user_id', userIds)
+        .eq('period_start', dc_start)
+        .eq('period_end', dc_end)
+        .eq('status', 'draft')
+      const draftNames = (drafts || []).map((d: any) => d.user?.full_name).filter(Boolean)
+      setExistingDrafts(draftNames)
+      if (draftNames.length > 0) setShowDraftWarning(true)
+    } else {
+      setExistingDrafts([])
+      setShowDraftWarning(false)
+    }
     setPreview(results)
     setGenerating(false)
     if (results.length === 0) setError('No commissions found for this period with unpaid items.')
@@ -159,6 +181,8 @@ export default function CommissionPayoutsPage() {
         generated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,period_start,period_end' })
     }
+    setShowDraftWarning(false)
+    setExistingDrafts([])
 
     await loadData()
     setPreview([])
@@ -283,11 +307,32 @@ export default function CommissionPayoutsPage() {
           {preview.length > 0 && (
             <div className="space-y-3">
               <p className="text-sm font-medium text-gray-900">Preview — {preview.length} staff with commissions</p>
+
+              {/* Draft overwrite warning */}
+              {showDraftWarning && existingDrafts.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-amber-800">Existing draft payouts will be overwritten</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        {existingDrafts.join(', ')} already {existingDrafts.length === 1 ? 'has' : 'have'} a draft payout for {getMonthName(genForm.period_month)} {genForm.period_year}. Saving will replace {existingDrafts.length === 1 ? 'it' : 'them'} with the new figures.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
                 {preview.map((item, i) => (
-                  <div key={i} className="p-3 flex items-center gap-3">
+                  <div key={i} className={cn('p-3 flex items-center gap-3', existingDrafts.includes(item.user_name) && 'bg-amber-50')}>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{item.user_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">{item.user_name}</p>
+                        {existingDrafts.includes(item.user_name) && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">overwrites draft</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
                         {item.pt_signups_count > 0 && <span>PT Signups: {formatSGD(item.pt_signup_commission_sgd)}</span>}
                         {item.pt_sessions_count > 0 && <span>PT Sessions: {formatSGD(item.pt_session_commission_sgd)}</span>}
@@ -303,7 +348,7 @@ export default function CommissionPayoutsPage() {
                 </div>
               </div>
               <button onClick={handleSavePayouts} disabled={saving} className="btn-primary w-full">
-                {saving ? 'Saving...' : `Save ${preview.length} Payout Drafts`}
+                {saving ? 'Saving...' : showDraftWarning ? `Confirm & Overwrite ${existingDrafts.length} Draft(s)` : `Save ${preview.length} Payout Drafts`}
               </button>
             </div>
           )}
