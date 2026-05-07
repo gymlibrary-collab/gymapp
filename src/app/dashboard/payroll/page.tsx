@@ -15,7 +15,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PayrollPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
-  if (loading || !user) return null
 
   const [staffList, setStaffList] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -38,11 +37,14 @@ export default function PayrollPage() {
   const [archiveGyms, setArchiveGyms] = useState<any[]>([])
   const [archiveProgress, setArchiveProgress] = useState('')
   const [archiveGenerating, setArchiveGenerating] = useState(false)
+
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => { load() }, [selectedMonth, selectedYear])
+
+  if (loading || !user) return null
 
   const load = async () => {
     // Issue 7: Guard — only business_ops can access payroll
