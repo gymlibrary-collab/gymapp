@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, formatDate, getMonthName , getRoleLabel } from '@/lib/utils'
-import { getCpfBracketRates } from '@/lib/cpf'
+import { getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import {
   TrendingUp, Plus, CheckCircle, AlertCircle, X,
   Download, Users, DollarSign, Calendar, Search
@@ -66,8 +66,7 @@ export default function CommissionPayoutsPage() {
       setStaff(staffData || [])
 
       // Load CPF brackets for AW calculation
-      const { data: brackets } = await supabase.from('cpf_age_brackets')
-        .select('*').order('effective_from', { ascending: false })
+      const brackets = await loadCpfBrackets(supabase)
       setCpfBrackets(brackets || [])
     }
   }
@@ -265,6 +264,7 @@ export default function CommissionPayoutsPage() {
     setShowGenerateForm(false)
     setSaving(false)
     logActivity('create', 'Commission Payouts', `Generated ${preview.length} commission payout(s) as draft`)
+    logActivity('create', 'Commission Payouts', `Generated ${preview.length} payout draft(s) for ${getMonthName(genForm.period_month)} ${genForm.period_year}`)
     showMsg(`${preview.length} commission payout(s) generated as draft`)
   }
 
@@ -296,6 +296,10 @@ export default function CommissionPayoutsPage() {
       }
     }
     await supabase.from('commission_payouts').update(update).eq('id', payoutId)
+    const payout = payouts.find(p => p.id === payoutId)
+    const staffName = payout?.user?.full_name || ''
+    const period = payout?.period_start ? `${getMonthName(new Date(payout.period_start).getMonth() + 1)} ${new Date(payout.period_start).getFullYear()}` : ''
+    logActivity(newStatus === 'approved' ? 'approve' : 'update', 'Commission Payouts', `${newStatus === 'approved' ? 'Approved' : 'Marked paid'}: ${staffName} — ${period}`)
     await loadData()
     showMsg(`Payout ${newStatus}`)
   }
