@@ -455,19 +455,6 @@ export default function LeaveManagementPage() {
         </p>
       </div>
 
-      {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
-            <h3 className="font-bold text-gray-900">Reject Leave</h3>
-            <div><label className="label">Reason *</label><textarea className="input min-h-[80px]" value={rejectReason} onChange={e => setRejectReason(e.target.value)} /></div>
-            <div className="flex gap-2">
-              <button onClick={handleReject} disabled={!rejectReason.trim()} className="btn-danger flex-1">Reject</button>
-              <button onClick={() => { setRejectId(null); setRejectReason('') }} className="btn-secondary">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Leave balances */}
       <div className="card">
         <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-red-600" /> Staff Leave Balances ({new Date().getFullYear()})</h2></div>
@@ -533,7 +520,7 @@ export default function LeaveManagementPage() {
                 {app.status === 'pending' && (
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => handleApprove(app.id)} className="btn-primary text-xs py-1.5 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Approve</button>
-                    <button onClick={() => setRejectId(app.id)} className="btn-secondary text-xs py-1.5"><XCircle className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => setRejectId(app.id)} className="btn-danger text-xs py-1.5 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> Reject</button>
                   </div>
                 )}
               </div>
@@ -542,6 +529,25 @@ export default function LeaveManagementPage() {
         </div>
       )}
       </> }
+
+      {/* Reject modal — outside tab blocks so it persists regardless of active tab */}
+      {rejectId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
+            <h3 className="font-bold text-gray-900">Reject Leave Application</h3>
+            <p className="text-sm text-gray-500">Please provide a reason — this will be shown to the staff member.</p>
+            <div>
+              <label className="label">Reason *</label>
+              <textarea className="input min-h-[80px]" placeholder="e.g. Insufficient leave balance, critical staffing period..."
+                value={rejectReason} onChange={e => setRejectReason(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleReject} disabled={!rejectReason.trim()} className="btn-danger flex-1">Confirm Rejection</button>
+              <button onClick={() => { setRejectId(null); setRejectReason('') }} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
