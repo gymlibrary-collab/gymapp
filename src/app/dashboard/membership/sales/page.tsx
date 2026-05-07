@@ -39,7 +39,7 @@ export default function MembershipSalesPage() {
     const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 
     if (userData.role === 'manager') {
-      // Manager sees all gym sales for confirmation only — no My Sales tab
+      // Manager sees non-escalated pending gym sales for confirmation
       const { data: gymSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
         .eq('gym_id', userData.manager_gym_id)
@@ -47,27 +47,29 @@ export default function MembershipSalesPage() {
       setAllGymSales(gymSales || [])
       setTab('confirm')
     } else if (userData.role === 'business_ops') {
-      // Biz Ops: sees pending sales logged by managers across all gyms
-      // Managers cannot confirm their own sales — only Biz Ops can
-      // Fetch pending sales only, then filter client-side to manager-sold ones
+      // Biz Ops sees:
+      // 1. Escalated pending sales from trainer/staff (manager not actioned within threshold)
+      // 2. Pending sales from managers (manager cannot confirm own sales)
       const { data: pendingSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
         .eq('sale_status', 'pending')
         .order('created_at', { ascending: false })
-      // Also fetch recent confirmed/rejected for audit trail (last 90 days)
+      // Recent confirmed/rejected for audit trail (last 90 days)
       const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       const { data: recentSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
         .neq('sale_status', 'pending')
         .gte('created_at', ninetyDaysAgo)
         .order('created_at', { ascending: false })
-      // Combine and filter to manager-sold only
+      // Biz Ops sees: manager-sold sales + escalated trainer/staff sales
       const allSales = [...(pendingSales || []), ...(recentSales || [])]
-      const managerSales = allSales.filter((s: any) => {
+      const bizOpsSales = allSales.filter((s: any) => {
         const role = s.sold_by?.role
-        return role === 'manager' || role === 'business_ops' || role === 'admin' || !role
+        const isManagerSold = role === 'manager' || role === 'business_ops' || role === 'admin' || !role
+        const isEscalated = s.escalated_to_biz_ops === true
+        return isManagerSold || isEscalated
       })
-      setAllGymSales(managerSales)
+      setAllGymSales(bizOpsSales)
       setTab('confirm')
     } else {
       // Trainer / Staff — own sales only
@@ -171,7 +173,9 @@ export default function MembershipSalesPage() {
     return matchSearch && matchStatus
   })
 
-  const pendingCount = allGymSales.filter((s: any) => canConfirmSale(s)).length
+  const pendingCount = isManager
+    ? allGymSales.filter((s: any) => canConfirmSale(s) && !s.escalated_to_biz_ops).length
+    : allGymSales.filter((s: any) => canConfirmSale(s)).length
   const myConfirmedTotal = mySales.filter((s: any) => s.sale_status === 'confirmed')
     .reduce((sum: number, s: any) => sum + (s.sale_status === 'confirmed' ? (s.commission_sgd || 0) : 0), 0)
   const myPendingCount = mySales.filter((s: any) => s.sale_status === 'pending').length
