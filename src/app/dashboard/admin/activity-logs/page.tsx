@@ -139,7 +139,6 @@ export default function ActivityLogsPage() {
   const [logs, setLogs] = useState<any[]>([])
   const [staffList, setStaffList] = useState<string[]>([])
   const [allStaffList, setAllStaffList] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const { error, showError, setError } = useToast()
   const [filterDateFrom, setFilterDateFrom] = useState(() => offsetDate(1))
@@ -173,14 +172,13 @@ export default function ActivityLogsPage() {
     if (filterAction !== 'all') q = q.eq('action_type', filterAction)
 
     const { data, error: queryErr } = await q
-    if (queryErr) { showError('Failed to load logs: ' + queryErr.message); setLoading(false); return }
+    if (queryErr) { showError('Failed to load logs: ' + queryErr.message); return }
     setLogs(data || [])
 
     // Current period staff for display
     const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()
     setStaffList(names as string[])
 
-    setLoading(false)
     setLastRefresh(new Date())
   }, [filterDateFrom, filterDateTo, filterStaff, filterAction])
 
