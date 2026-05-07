@@ -34,7 +34,6 @@ export default function GymManagementPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { load() }, [])
 
   const load = async () => {
     logActivity('page_view', 'Gym Configuration', 'Viewed gym configuration')
@@ -43,6 +42,9 @@ export default function GymManagementPage() {
     const { data } = await supabase.from('gyms').select('*').order('name')
     setGyms(data || [])
   }
+
+  useEffect(() => { load() }, [])
+
 
   const openCreate = () => {
     setEditingGym(null)

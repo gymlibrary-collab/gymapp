@@ -117,13 +117,15 @@ export default function WhatsAppTemplatesPage() {
   const supabase = createClient()
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { load() }, [])
 
   const load = async () => {
     logActivity('page_view', 'WhatsApp Templates', 'Viewed WhatsApp message templates')
     const { data } = await supabase.from('whatsapp_templates').select('*').order('created_at')
     setTemplates(data || [])
   }
+
+  useEffect(() => { load() }, [])
+
 
   const openEdit = (t: Template) => {
     setEditing(t); setDraftText(t.template); setDraftLabel(t.label)

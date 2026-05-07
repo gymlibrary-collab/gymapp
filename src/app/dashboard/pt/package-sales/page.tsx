@@ -26,7 +26,6 @@ export default function PackageSalesPage() {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
 
-  useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     logActivity('page_view', 'PT Package Sales', 'Viewed pt package sales')
@@ -72,6 +71,9 @@ export default function PackageSalesPage() {
     setConfirmed(confirmedData || [])
 
   }
+
+  useEffect(() => { loadData() }, [])
+
 
   const handleConfirm = async (pkg: any) => {
     setConfirming(pkg.id)

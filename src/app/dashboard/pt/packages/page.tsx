@@ -47,7 +47,6 @@ export default function PackagesPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { loadPackages() }, [])
 
   const loadPackages = async () => {
     logActivity('page_view', 'PT Package Templates', 'Viewed pt package templates')
@@ -59,6 +58,9 @@ export default function PackagesPage() {
     setPackages(active || [])
     setArchived(arch || [])
   }
+
+  useEffect(() => { loadPackages() }, [])
+
 
   const pricePerSession = (sessions: string, price: string) => {
     const s = parseFloat(sessions)

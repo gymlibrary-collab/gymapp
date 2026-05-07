@@ -55,7 +55,6 @@ export default function RosterPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { loadData() }, [weekStart])
 
   const loadData = async () => {
     logActivity('page_view', 'Duty Roster', 'Viewed duty roster')
@@ -95,6 +94,9 @@ export default function RosterPage() {
     const { data: rData } = await rQ
     setRoster(rData || [])
   }
+
+  useEffect(() => { loadData() }, [weekStart])
+
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(d.getDate() + i)

@@ -26,7 +26,6 @@ export default function PublicHolidaysPage() {
   const { success, error, showMsg, showError, setError } = useToast()
   const years = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
 
-  useEffect(() => { load() }, [selectedYear])
 
   const load = async () => {
     logActivity('page_view', 'Public Holidays', 'Viewed public holidays')
@@ -36,6 +35,9 @@ export default function PublicHolidaysPage() {
       .select('*').eq('year', selectedYear).order('holiday_date')
     setHolidays(data || [])
   }
+
+  useEffect(() => { load() }, [selectedYear])
+
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')

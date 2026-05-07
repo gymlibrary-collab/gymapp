@@ -34,7 +34,6 @@ export default function PtOnboardPage() {
   })
   const [trainerMembers, setTrainerMembers] = useState<any[]>([]) // members with active package by this trainer
 
-  useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     logActivity('page_view', 'PT Onboarding', 'Viewed pt onboarding')
@@ -90,6 +89,9 @@ export default function PtOnboardPage() {
     setTemplates(tmpl || [])
 
   }
+
+  useEffect(() => { loadData() }, [])
+
 
   const selectedTemplate = templates.find(t => t.id === form.template_id)
   const selectedMember = activeMembers.find(m => m.id === form.member_id)

@@ -61,7 +61,6 @@ export default function WhatsAppNotificationsPage() {
   const [configs, setConfigs] = useState<NotifConfig[]>([])
   const [saving, setSaving] = useState<string | null>(null)
 
-  useEffect(() => { load() }, [])
 
   const load = async () => {
     logActivity('page_view', 'WhatsApp Notifications', 'Viewed WhatsApp notification settings')
@@ -71,6 +70,9 @@ export default function WhatsAppNotificationsPage() {
     if (err) { showError('Failed to load config: ' + err.message); return }
     setConfigs(data || [])
   }
+
+  useEffect(() => { load() }, [])
+
 
   const toggle = async (id: string, currentValue: boolean) => {
     setSaving(id)
