@@ -16,7 +16,6 @@ export default function MyRosterPage() {
   const supabase = createClient()
   const router = useRouter()
 
-  if (loading || !user) return null
 
   useEffect(() => {
     if (!user) return
@@ -37,6 +36,8 @@ export default function MyRosterPage() {
     }
     load()
   }, [user])
+
+  if (loading || !user) return null
 
 
   const totalHours = shifts.reduce((s, r) => s + (r.hours_worked || 0), 0)
