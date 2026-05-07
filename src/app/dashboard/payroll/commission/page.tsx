@@ -16,6 +16,9 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionPayoutsPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  if (loading || !user) return null
+
 
   const { logActivity } = useActivityLog()
   const [payouts, setPayouts] = useState<any[]>([])
@@ -38,8 +41,6 @@ export default function CommissionPayoutsPage() {
   const supabase = createClient()
 
   const { success, error, showMsg, showError, setError } = useToast()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
-  if (loading || !user) return null
 
   useEffect(() => { loadData() }, [])
 
