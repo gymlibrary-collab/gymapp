@@ -1,5 +1,5 @@
+import { createAdminClient } from '@/lib/db-server'
 import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -18,6 +18,11 @@ export async function GET(request: Request) {
   // object in Next.js 15, not on the cookieStore, when returning a redirect
   const successRedirect = NextResponse.redirect(`${origin}${next}`)
 
+  // NOTE: createServerClient is used directly here (not via db-server.ts) because
+  // this callback must set cookies on BOTH cookieStore AND the response object
+  // simultaneously. createSupabaseServerClient in db-server.ts only handles
+  // cookieStore. This is a Next.js 15 auth callback requirement — if migrating
+  // providers, this file needs to be updated alongside db-server.ts.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -47,12 +52,8 @@ export async function GET(request: Request) {
 
   const user = data.session.user
 
-  // Use service role client for the users lookup — bypasses RLS entirely
-  const adminClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  // Use admin client for users lookup — bypasses RLS entirely
+  const adminClient = createAdminClient()
 
   const { data: userRecord } = await adminClient
     .from('users')
