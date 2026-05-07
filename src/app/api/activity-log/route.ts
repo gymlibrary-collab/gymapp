@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/db-server'
 
-// Service role client — bypasses RLS for writing logs
-const adminClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Admin client — bypasses RLS for writing logs
+const adminClient = createAdminClient()
 
 // Parse browser, OS and device from user-agent string
 function parseUserAgent(ua: string): { browser: string; os: string; device: string } {
