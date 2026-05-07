@@ -16,7 +16,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtSessionsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops'] })
-  if (loading || !user) return null
 
   const { logActivity } = useActivityLog()
   const [sessions, setSessions] = useState<any[]>([])
@@ -30,6 +29,7 @@ export default function PtSessionsPage() {
   const supabase = createClient()
   const router = useRouter()
   const { isActingAsTrainer } = useViewMode()
+
 
   const loadSessions = async () => {    // detail is reviewed in person with each gym manager.
     // Block roles that should not access session list
@@ -72,6 +72,8 @@ export default function PtSessionsPage() {
   }
 
   useEffect(() => { loadSessions() }, [filter, isActingAsTrainer])
+
+  if (loading || !user) return null
 
   const isManager = user?.role === 'manager' && !isActingAsTrainer
   const isTrainer = user?.role === 'trainer' || isActingAsTrainer
