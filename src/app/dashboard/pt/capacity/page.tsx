@@ -38,8 +38,8 @@ export default function TrainerCapacityPage() {
 
     // Load trainers for this gym
     let trainerQ = supabase.from('users').select('*').eq('role', 'trainer').eq('is_archived', false)
-    if (u.role === 'manager' && u.manager_gym_id) {
-      const { data: tg } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', u.manager_gym_id)
+    if (user.role === 'manager' && user.manager_gym_id) {
+      const { data: tg } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', user.manager_gym_id)
       const tIds = tg?.map((t: any) => t.trainer_id) || []
       if (tIds.length > 0) trainerQ = trainerQ.in('id', tIds)
     }
