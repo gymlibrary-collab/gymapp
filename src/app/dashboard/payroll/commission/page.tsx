@@ -17,7 +17,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionPayoutsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
-  if (loading || !user) return null
 
 
   const { logActivity } = useActivityLog()
@@ -42,7 +41,10 @@ export default function CommissionPayoutsPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
+
   useEffect(() => { loadData() }, [])
+
+  if (loading || !user) return null
 
   const loadData = async () => {
     if (!user) return
