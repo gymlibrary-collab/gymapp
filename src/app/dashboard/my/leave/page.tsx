@@ -47,11 +47,11 @@ export default function MyLeavePage() {
 
       // ── Leave escalation check (configurable threshold) ─────
       const thresholds = await loadEscalationThresholds(supabase)
-      const leaveCount = await runEscalationCheck(supabase, 'leave', thresholds.leave, user.id)
-      await logEscalation(user.full_name, user.role, user.id, 'leave', leaveCount)
+      const leaveCount = await runEscalationCheck(supabase, 'leave', thresholds.leave, user!.id)
+      await logEscalation(user!.full_name, user!.role, user!.id, 'leave', leaveCount)
 
       const { data: apps } = await supabase.from('leave_applications')
-        .select('*').eq('user_id', user.id)
+        .select('*').eq('user_id', user!.id)
         .order('created_at', { ascending: false })
       setApplications(apps || [])
 
