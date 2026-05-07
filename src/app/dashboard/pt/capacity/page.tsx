@@ -12,6 +12,9 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function TrainerCapacityPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  if (loading || !user) return null
+
 
   const { logActivity } = useActivityLog()
   const [trainers, setTrainers] = useState<any[]>([])
@@ -21,8 +24,6 @@ export default function TrainerCapacityPage() {
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
   const router = useRouter()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading || !user) return null
 
   useEffect(() => { load() }, [])
 
