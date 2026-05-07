@@ -11,7 +11,7 @@
 // See ARCHITECTURE.md for full escalation reference.
 // ============================================================
 
-import { SupabaseClient } from '@supabase/supabase-js'
+// SupabaseClient type — replace with your DB client type if migrating providers
 
 export type EscalationType =
   | 'leave'
