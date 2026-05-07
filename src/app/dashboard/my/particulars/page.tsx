@@ -8,34 +8,26 @@ import { formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateAddress, validateAll } from '@/lib/validators'
-import {
-  User, Phone, Shield, Globe, Calendar, MapPin,
-  Save, CheckCircle, AlertCircle,
-} from 'lucide-react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { User, Phone, Shield, Globe, Calendar, MapPin, Save, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function MyParticularsPage() {
+
   const { logActivity } = useActivityLog()
-  const [user, setUser] = useState<any>(null)
   const [form, setForm] = useState({ phone: '', address: '' })
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   const { success, error, showMsg, showError, setError } = useToast()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
+  if (loading || !user) return null
 
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.replace('/dashboard'); return }
-      const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      if (!u) { router.replace('/dashboard'); return }
-      // Admin has no personal HR record in this context
-      if (u.role === 'admin') { router.replace('/dashboard'); return }
-      setUser(u)
+        // Auth guard handled by useCurrentUser hook
       setForm({ phone: u.phone || '', address: u.address || '' })
-      setLoading(false)
     }
     load()
   }, [])
@@ -55,7 +47,7 @@ export default function MyParticularsPage() {
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed to save'); setSaving(false); return }
-    setUser((u: any) => ({ ...u, ...form }))
+    setUser((prev: any) => ({ ...prev, ...form }))
     setSaving(false)
     logActivity('update', 'My Particulars', 'Updated personal particulars')
     showMsg('Particulars updated')
