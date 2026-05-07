@@ -41,7 +41,6 @@ const emptyForm = {
 
 export default function TrainersPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading || !user) return null
 
   const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -59,6 +58,7 @@ export default function TrainersPage() {
   const [completingOffboard, setCompletingOffboard] = useState(false)
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -117,6 +117,8 @@ export default function TrainersPage() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  if (loading || !user) return null
 
   const { success, error, showMsg, showError, setError } = useToast()
 
