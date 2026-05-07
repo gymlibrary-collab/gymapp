@@ -36,7 +36,7 @@ export default function MyPayslipsPage() {
 
       // Load last 13 months of salary payslips (with gym_id)
       const { data: slips } = await supabase.from('payslips')
-        .select('*').eq('user_id', user.id)
+        .select('*').eq('user_id', user!.id)
         .in('status', ['approved', 'paid'])
         .order('year', { ascending: false }).order('month', { ascending: false })
         .limit(26) // more records to account for part-timers with multiple gyms per month
@@ -50,12 +50,12 @@ export default function MyPayslipsPage() {
       await supabase.from('users').update({
         payslip_notif_seen_at: new Date().toISOString(),
         commission_notif_seen_at: new Date().toISOString(),
-      }).eq('id', user.id)
+      }).eq('id', user!.id)
 
       // Load commission payouts — approved and paid only (drafts not visible to staff)
       const { data: payouts } = await supabase.from('commission_payouts')
         .select('*, gym:gyms(name)')
-        .eq('user_id', user.id)
+        .eq('user_id', user!.id)
         .in('status', ['approved', 'paid'])
         .order('period_end', { ascending: false })
         .limit(13)
