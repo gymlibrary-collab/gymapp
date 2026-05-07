@@ -9,6 +9,7 @@ import { Activity, Download, RefreshCw, Search, ChevronLeft, ChevronRight, Alert
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const ACTION_TYPES = ['all', 'login', 'logout', 'page_view', 'create', 'update', 'delete', 'confirm', 'reject', 'approve', 'export', 'other']
 
@@ -157,11 +158,10 @@ export default function ActivityLogsPage() {
   }
 
   const loadLogs = useCallback(async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
+  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
+  if (loading || !user) return null
+    if (!user) return
     if (loading) logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
 
     let q = supabase.from('activity_logs')
       .select('*')
