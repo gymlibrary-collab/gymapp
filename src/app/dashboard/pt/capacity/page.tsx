@@ -13,7 +13,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function TrainerCapacityPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading || !user) return null
 
 
   const { logActivity } = useActivityLog()
@@ -22,10 +21,13 @@ export default function TrainerCapacityPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ max_sessions_per_week: 0, monthly_session_target: 0 })
   const [saving, setSaving] = useState(false)
+
   const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => { load() }, [])
+
+  if (loading || !user) return null
 
   const load = async () => {
       // Auth guard handled by useCurrentUser hook
