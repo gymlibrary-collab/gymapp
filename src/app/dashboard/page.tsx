@@ -1120,8 +1120,8 @@ export default function DashboardPage() {
       // Latest approved commission payout newer than last seen timestamp
       const { data: latestCommission } = await supabase
         .from('commission_payouts')
-        .select('id, month, year, total_commission_sgd, approved_at')
-        .eq('trainer_id', authUser.id)
+        .select('id, period_start, period_end, total_commission_sgd, approved_at')
+        .eq('user_id', authUser.id)
         .eq('status', 'approved')
         .order('approved_at', { ascending: false })
         .limit(1)
@@ -1553,7 +1553,7 @@ export default function DashboardPage() {
           <DollarSign className="w-5 h-5 text-green-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">
-              Commission payout approved — {getMonthName(newCommission.month)} {newCommission.year}
+              Commission payout approved — {newCommission.period_start ? new Date(newCommission.period_start).toLocaleDateString('en-SG', { month: 'long', year: 'numeric' }) : ''}
             </p>
             <p className="text-xs text-green-600 mt-0.5">
               {formatSGD(newCommission.total_commission_sgd)} ready for collection
