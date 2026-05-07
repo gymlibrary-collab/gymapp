@@ -6,8 +6,11 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { Upload, Save, CheckCircle, ImageIcon, Timer, Type } from 'lucide-react'
 import { uploadToStorage } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function AdminSettingsPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
   const { logActivity } = useActivityLog()
   const [appName, setAppName] = useState('GymApp')
   const [loginLogoFile, setLoginLogoFile] = useState<File | null>(null)
@@ -25,10 +28,8 @@ export default function AdminSettingsPage() {
     const load = async () => {
       logActivity('page_view', 'App Settings', 'Viewed app settings')
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'admin')) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
       const { data } = await supabase.from('app_settings')
         .select('login_logo_url, admin_sidebar_logo_url, auto_logout_minutes, app_name')
