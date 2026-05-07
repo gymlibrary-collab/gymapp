@@ -464,7 +464,6 @@ export default function StaffPayrollDetailPage() {
     doc.save(`payslip_${staff?.full_name}_${getMonthName(slip.month)}_${slip.year}.pdf`)
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!staff) return <div className="card p-8 text-center"><p className="text-gray-500">Staff not found</p></div>
 
   const isPartTime = staff.employment_type === 'part_time'
