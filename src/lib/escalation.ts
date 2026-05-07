@@ -11,7 +11,8 @@
 // See ARCHITECTURE.md for full escalation reference.
 // ============================================================
 
-// SupabaseClient type — replace with your DB client type if migrating providers
+// supabase parameter typed as `any` for provider-agnostic compatibility.
+// Replace with your DB client type if migrating providers (e.g. DrizzleDB, PrismaClient).
 
 export type EscalationType =
   | 'leave'
@@ -30,7 +31,7 @@ export interface EscalationThresholds {
 
 // Load escalation thresholds from app_settings
 export async function loadEscalationThresholds(
-  supabase: SupabaseClient
+  supabase: any
 ): Promise<EscalationThresholds> {
   const { data } = await supabase.from('app_settings')
     .select(`
@@ -55,7 +56,7 @@ export async function loadEscalationThresholds(
 // Run escalation check for a given type
 // Returns the number of items escalated
 export async function runEscalationCheck(
-  supabase: SupabaseClient,
+  supabase: any,
   type: EscalationType,
   threshold: number,
   userId: string,
