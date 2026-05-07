@@ -16,8 +16,11 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function StaffPayrollDetailPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
   const { id } = useParams()
   const router = useRouter()
   const { logActivity } = useActivityLog()
@@ -29,7 +32,6 @@ export default function StaffPayrollDetailPage() {
   const [rosterSummary, setRosterSummary] = useState<any[]>([])
   const [cpfRates, setCpfRates] = useState<any>(null)
   const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({ logoUrl: null, companyName: 'Gym Operations', gymName: 'Gym Operations' })
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ payslip: any } | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
@@ -64,12 +66,9 @@ export default function StaffPayrollDetailPage() {
     useEffect(() => { loadData() }, [id])
 
   const loadData = async () => {
-    setLoading(true)
     // Guard — only business_ops can access payroll
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.push('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.push('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
     setIsBizOpsRole(me.role === 'business_ops')
 
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
@@ -111,7 +110,6 @@ export default function StaffPayrollDetailPage() {
     // Resolve payslip branding via central helper
     const branding = await resolvePayslipBranding(supabase, staffData)
     setPayslipBranding({ logoUrl: branding.logoUrl, companyName: branding.companyName, gymName: branding.gymName })
-    setLoading(false)
   }
 
   const handleSavePayroll = async (e: React.FormEvent) => {
@@ -341,7 +339,7 @@ export default function StaffPayrollDetailPage() {
       cpf_adjustment_amount: cpfAdjustmentAmount,
       cpf_adjustment_note: cpfAdjustmentNote || null,
       notes: payslipForm.notes || null, status: 'draft',
-      generated_by: authUser?.id, generated_at: new Date().toISOString(),
+      generated_by: user?.id, generated_at: new Date().toISOString(),
     })
 
     if (err) { setError(err.message); setSaving(false); return }
