@@ -7,8 +7,11 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { Building2, Users, UserCheck, Dumbbell, MapPin, Maximize2, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function AdminGymsPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
   const [gyms, setGyms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const { logActivity } = useActivityLog()
@@ -17,10 +20,8 @@ export default function AdminGymsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.replace('/dashboard'); return }
-      const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-      if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
+        // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
       logActivity('page_view', 'Gym Clubs', 'Viewed gym clubs list')
 
       const { data: gymsData } = await supabase
