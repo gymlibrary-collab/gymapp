@@ -29,7 +29,6 @@ const NON_RENEWAL_REASONS = [
 
 export default function PtSessionNotesPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
-  if (loading || !user) return null
 
 
   const { id } = useParams()
@@ -45,6 +44,7 @@ export default function PtSessionNotesPage() {
   const router = useRouter()
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
+
 
   useEffect(() => {
     const load = async () => {
@@ -67,6 +67,8 @@ export default function PtSessionNotesPage() {
     }
     load()
   }, [id])
+
+  if (loading || !user) return null
 
   // ── Is this the last session? ─────────────────────────────
   // Read directly from the session row — is_last_session is written by
