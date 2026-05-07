@@ -7,7 +7,7 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDateTime } from '@/lib/utils'
 import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock, RefreshCw, XCircle } from 'lucide-react'
-import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
+import { queueWhatsApp } from '@/lib/whatsapp'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -131,51 +131,44 @@ export default function PtSessionNotesPage() {
     // Queue WhatsApp to manager
     const { data: gymManager } = await supabase.from('users')
       .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').single()
-    if (gymManager?.phone && await isWhatsAppEnabled(supabase, 'manager_note_alert')) {
-      const renewalNote = renewalStatus === 'not_renewing'
-        ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
-        : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''
-      const noteMsg = await renderWhatsAppTemplate('manager_note_alert', {
-        manager_name: gymManager.full_name,
+    const renewalNote = renewalStatus === 'not_renewing'
+      ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
+      : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''
+    await queueWhatsApp(supabase, {
+      notificationType: 'manager_note_alert',
+      phone: gymManager?.phone,
+      name: gymManager?.full_name,
+      placeholders: {
+        manager_name: gymManager?.full_name || '',
         trainer_name: currentUser.full_name,
         member_name: session.member?.full_name || '',
         session_date: session.scheduled_at ? new Date(session.scheduled_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
         gym_name: session.gym?.name || '',
-      }, `PT session notes submitted by ${currentUser.full_name} for ${session.member?.full_name}. Please review and confirm.${renewalNote}`)
-      await supabase.from('whatsapp_queue').insert({
-        notification_type: 'manager_note_alert',
-        recipient_phone: gymManager.phone,
-        recipient_name: gymManager.full_name,
-        message: noteMsg,
-        related_id: id,
-        scheduled_for: new Date().toISOString(),
-        status: 'pending',
-      })
-    }
+      },
+      fallbackMessage: `PT session notes submitted by ${currentUser.full_name} for ${session.member?.full_name}. Please review and confirm.${renewalNote}`,
+      relatedId: id,
+    })
 
     // Queue WhatsApp confirmation to member
-    if (session.member?.phone && await isWhatsAppEnabled(supabase, 'session_note_member_confirm')) {
-      const sessionDate = session.scheduled_at ? new Date(session.scheduled_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
-      const sessionTime = session.scheduled_at ? new Date(session.scheduled_at).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' }) : ''
-      const memberMsg = await renderWhatsAppTemplate('session_note_member_confirm', {
-        member_name: session.member.full_name || '',
+    const sessionDate = session.scheduled_at ? new Date(session.scheduled_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+    const sessionTime = session.scheduled_at ? new Date(session.scheduled_at).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' }) : ''
+    await queueWhatsApp(supabase, {
+      notificationType: 'session_note_member_confirm',
+      phone: session.member?.phone,
+      name: session.member?.full_name,
+      placeholders: {
+        member_name: session.member?.full_name || '',
         trainer_name: currentUser.full_name,
         gym_name: session.gym?.name || '',
         session_date: sessionDate,
         session_time: sessionTime,
-      }, `Hi ${session.member.full_name}, your PT session with ${currentUser.full_name} on ${sessionDate} at ${sessionTime} has been completed and recorded. See you next time!`)
-      await supabase.from('whatsapp_queue').insert({
-        notification_type: 'session_note_member_confirm',
-        recipient_phone: session.member.phone,
-        recipient_name: session.member.full_name,
-        message: memberMsg,
-        related_id: id,
-        scheduled_for: new Date().toISOString(),
-        status: 'pending',
-      })
-    }
+      },
+      fallbackMessage: `Hi ${session.member?.full_name}, your PT session with ${currentUser.full_name} on ${sessionDate} at ${sessionTime} has been completed and recorded. See you next time!`,
+      relatedId: id,
+    })
 
     logActivity('update', 'Session Notes', 'Submitted session notes for manager confirmation')
+    logActivity('approve', 'Session Notes', `Manager confirmed session notes for ${session?.member?.full_name || ''}`)
     setLoading(false); setSaved(true)
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
