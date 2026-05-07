@@ -151,7 +151,8 @@ export default function ActivityLogsPage() {
   const [filterAction, setFilterAction] = useState('all')
 
   const loadLogs = useCallback(async () => {
-    if (!user) return
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
     logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
 
     let q = supabase.from('activity_logs')
@@ -170,7 +171,7 @@ export default function ActivityLogsPage() {
     const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()
     setStaffList(names as string[])
     setLastRefresh(new Date())
-  }, [user, filterDateFrom, filterDateTo, filterStaff, filterAction])
+  }, [filterDateFrom, filterDateTo, filterStaff, filterAction])
 
   // Load full 14-day staff list once on mount
   useEffect(() => {
@@ -188,7 +189,7 @@ export default function ActivityLogsPage() {
   useEffect(() => { const t = setInterval(loadLogs, 30000); return () => clearInterval(t) }, [loadLogs])
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return <div className="p-8 text-red-600 text-sm">Auth failed — user is null after loading. Check that your account role is set to &apos;admin&apos; in the database.</div>
+  if (!user) return null
 
   const applyPreset = (p: typeof PRESETS[0]) => {
     setFilterDateFrom(offsetDate(p.from))
