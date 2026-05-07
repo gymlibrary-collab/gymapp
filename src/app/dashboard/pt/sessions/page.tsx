@@ -16,10 +16,8 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtSessionsPage() {
   const { logActivity } = useActivityLog()
-  const [user, setUser] = useState<any>(null)
   const [sessions, setSessions] = useState<any[]>([])
   const [filter, setFilter] = useState('upcoming')
-  const [loading, setLoading] = useState(true)
   const [actionSession, setActionSession] = useState<any>(null)
   const [actionType, setActionType] = useState<'cancel' | 'reschedule' | 'complete' | null>(null)
   const [cancelReason, setCancelReason] = useState('')
@@ -70,7 +68,6 @@ export default function PtSessionsPage() {
 
     const { data } = await q.limit(60)
     setSessions(data || [])
-    setLoading(false)
   }
 
   useEffect(() => { loadSessions() }, [filter, isActingAsTrainer])
