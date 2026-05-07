@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { loadEscalationThresholds, runEscalationCheck, logEscalation } from '@/lib/escalation'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react'
@@ -44,16 +45,10 @@ export default function MyLeavePage() {
       if (!u || u.employment_type === 'part_time' || u.role === 'admin') { router.replace('/dashboard'); return }
       setUser(u)
 
-      // ── 48-hour escalation check ─────────────────────────────
-      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
-      const { data: staleLeave } = await supabase.from('leave_applications')
-        .select('id').eq('user_id', authUser.id).eq('status', 'pending')
-        .eq('escalated_to_biz_ops', false).lt('created_at', cutoff)
-      if (staleLeave && staleLeave.length > 0) {
-        await supabase.from('leave_applications').update({
-          escalated_to_biz_ops: true, escalated_at: new Date().toISOString(),
-        }).in('id', staleLeave.map((l: any) => l.id))
-      }
+      // ── Leave escalation check (configurable threshold) ─────
+      const thresholds = await loadEscalationThresholds(supabase)
+      const leaveCount = await runEscalationCheck(supabase, 'leave', thresholds.leave, authUser.id)
+      await logEscalation(u.full_name, u.role, authUser.id, 'leave', leaveCount)
 
       const { data: apps } = await supabase.from('leave_applications')
         .select('*').eq('user_id', authUser.id)
