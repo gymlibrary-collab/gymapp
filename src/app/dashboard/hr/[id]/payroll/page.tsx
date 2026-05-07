@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD, getMonthName, getRoleLabel } from '@/lib/utils'
-import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
+import { addLogoHeader, PDF_TABLE_STYLE, resolvePayslipBranding } from '@/lib/pdf'
 import { getAgeAsOf, getCpfBracketRates } from '@/lib/cpf'
 import {
   ArrowLeft, DollarSign, Plus, TrendingUp, FileText,
@@ -105,37 +105,12 @@ export default function StaffPayrollDetailPage() {
     }
 
     // Load CPF age brackets
-    const { data: brackets } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
+    const brackets = await loadCpfBrackets(supabase)
     setCpfRates(brackets || [])
 
-    // Load payslip branding:
-    // - Logo: use the staff member's assigned gym logo (not group-level logo)
-    // - business_ops: use company-level logo from app_settings
-    const { data: settings } = await supabase.from('app_settings')
-      .select('payslip_logo_url, company_name').eq('id', 'global').single()
-    const companyName = (settings as any)?.company_name || 'Gym Operations'
-
-    let logoUrl: string | null = null
-    let gymName = companyName
-
-    if (staffData?.role === 'business_ops') {
-      // Biz Ops: group-level logo and company name
-      logoUrl = (settings as any)?.payslip_logo_url || null
-      gymName = companyName
-    } else if (staffData?.manager_gym_id) {
-      // Manager / full-time staff: assigned gym
-      const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', staffData.manager_gym_id).single()
-      if (gym) { gymName = (gym as any).name; logoUrl = (gym as any).logo_url || null }
-    } else if (staffData?.role === 'trainer' || staffData?.role === 'staff') {
-      // Trainer / part-time staff: primary gym
-      const { data: tg } = await supabase.from('trainer_gyms')
-        .select('gyms(name, logo_url)').eq('trainer_id', staffData.id).eq('is_primary', true).single()
-      if (tg && (tg as any).gyms) {
-        gymName = (tg as any).gyms.name
-        logoUrl = (tg as any).gyms.logo_url || null
-      }
-    }
-    setPayslipBranding({ logoUrl, companyName, gymName })
+    // Resolve payslip branding via central helper
+    const branding = await resolvePayslipBranding(supabase, staffData)
+    setPayslipBranding({ logoUrl: branding.logoUrl, companyName: branding.companyName, gymName: branding.gymName })
     setLoading(false)
   }
 
