@@ -9,6 +9,7 @@ import { ArrowLeft, User, CreditCard, CheckCircle, AlertCircle } from 'lucide-re
 import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateFullName, validateMembershipNumber, validateAll } from '@/lib/validators'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function RegisterMemberPage() {
   const { logActivity } = useActivityLog()
@@ -32,19 +33,14 @@ export default function RegisterMemberPage() {
   })
 
   const router = useRouter()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff'] })
+  if (loading || !user) return null
   const supabase = createClient()
+
 
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'New Member', 'Viewed new member registration form')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      // Admin and Biz Ops cannot register members — they have no assigned gym context.
-      if (!userData || ['admin', 'business_ops'].includes(userData.role)) {
-        router.replace('/dashboard/members'); return
-      }
-      setCurrentUser(userData)
 
       const { data: gymsData } = await supabase.from('gyms').select('*').eq('is_active', true).order('name')
       setGyms(gymsData || [])
@@ -53,20 +49,20 @@ export default function RegisterMemberPage() {
       setMembershipTypes(typesData || [])
 
       // Use per-staff membership commission rate, not global config
-      setCommissionPct(userData?.membership_commission_sgd || 0)
+      setCommissionPct(user?.membership_commission_sgd || 0)
 
       // Auto-detect gym — no dropdown for full-time staff/trainer/manager
-      if (userData?.manager_gym_id) {
+      if (user?.manager_gym_id) {
         // Full-time: use assigned gym
-        const gym = gymsData?.find((g: any) => g.id === userData.manager_gym_id)
-        setMemberForm(f => ({ ...f, gym_id: userData.manager_gym_id }))
+        const gym = gymsData?.find((g: any) => g.id === user.manager_gym_id)
+        setMemberForm(f => ({ ...f, gym_id: user.manager_gym_id }))
         setGymName(gym?.name || '')
-      } else if (userData?.employment_type === 'part_time') {
+      } else if (user?.employment_type === 'part_time') {
         // Part-timer: look up today's or next upcoming roster shift
         const today = new Date().toISOString().split('T')[0]
         const { data: rosterShift } = await supabase.from('duty_roster')
           .select('gym_id, gyms:gym_id(name)')
-          .eq('user_id', authUser.id)
+          .eq('user_id', user.id)
           .gte('shift_date', today)
           .order('shift_date', { ascending: true })
           .limit(1)
