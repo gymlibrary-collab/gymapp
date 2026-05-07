@@ -12,6 +12,9 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function NewPtSessionPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
+  if (loading || !user) return null
+
 
   const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -22,7 +25,6 @@ export default function NewPtSessionPage() {
   const [doubleBookingWarning, setDoubleBookingWarning] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
 
   const [form, setForm] = useState({
     member_id: searchParams.get('member') || '',
@@ -36,5 +38,4 @@ export default function NewPtSessionPage() {
   })
 
   const supabase = createClient()
-  if (loading || !user) return null
 }
