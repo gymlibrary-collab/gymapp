@@ -372,12 +372,23 @@ export default function PayrollPage() {
           doc.text(staff.full_name as string, 14, yPos); yPos += 6
 
           const rows: any[] = [
-            ['PT Session Commission', formatSGD(comm.session_commissions_sgd || 0)],
-            ['PT Signup Commission', formatSGD(comm.signup_commissions_sgd || 0)],
+            ['PT Signup Commission', formatSGD(comm.pt_signup_commission_sgd || 0)],
+            ['PT Session Commission', formatSGD(comm.pt_session_commission_sgd || 0)],
+            ['Membership Commission', formatSGD(comm.membership_commission_sgd || 0)],
             ['', ''],
-            ['Total Commission', formatSGD(comm.total_commission_sgd || 0)],
+            ['Gross Commission', formatSGD(comm.total_commission_sgd || 0)],
           ]
+          if (comm.is_cpf_liable && comm.employee_cpf_amount > 0) {
+            rows.push([`Employee CPF — AW (${comm.employee_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)})`, `- ${formatSGD(comm.employee_cpf_amount)}`])
+            rows.push(['', ''])
+            rows.push(['Net Commission', formatSGD(comm.net_commission_sgd ?? (comm.total_commission_sgd - comm.employee_cpf_amount))])
+          }
           autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
+          const commFinalY = (doc as any).lastAutoTable.finalY + 8
+          if (comm.is_cpf_liable && comm.employer_cpf_amount > 0) {
+            doc.setFontSize(9); doc.setTextColor(100)
+            doc.text(`Employer CPF (${comm.employer_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)}): ${formatSGD(comm.employer_cpf_amount)}`, 14, commFinalY)
+          }
           folder!.file(`comm-${MONTHS[commMonth - 1]}.pdf`, doc.output('arraybuffer'))
         }
       }
