@@ -28,7 +28,7 @@ export default function ReportsPage() {
       const monthEnd = new Date(year, month, 0).toISOString().split('T')[0]
 
       // Managers see only their gym's figures; Biz Ops sees all gyms.
-      const gymId = user.role === 'manager' ? user.manager_gym_id : null
+      const gymId = user!.role === 'manager' ? user!.manager_gym_id : null
 
       let memQ = supabase.from('gym_memberships')
         .select('price_sgd, commission_sgd').eq('sale_status','confirmed')
