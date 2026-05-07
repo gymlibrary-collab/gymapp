@@ -167,14 +167,31 @@ export async function PATCH(request: Request) {
         updatePayload.date_of_departure = body.date_of_departure || null
         // Auto-reject all pending leave applications when departure date is set
         if (body.date_of_departure) {
+          const { data: pendingLeave } = await adminClient.from('leave_applications')
+            .select('id, leave_type, start_date, end_date, days_applied')
+            .eq('user_id', userId).eq('status', 'pending')
           await adminClient.from('leave_applications')
             .update({
               status: 'rejected',
               rejection_reason: 'Staff departure — auto-rejected by system',
               rejected_at: new Date().toISOString(),
             })
-            .eq('user_id', userId)
-            .eq('status', 'pending')
+            .eq('user_id', userId).eq('status', 'pending')
+          // Write notification for each auto-rejected application
+          if (pendingLeave && pendingLeave.length > 0) {
+            await adminClient.from('leave_decision_notif').insert(
+              pendingLeave.map((l: any) => ({
+                user_id: userId,
+                leave_type: l.leave_type,
+                start_date: l.start_date,
+                end_date: l.end_date,
+                days_applied: l.days_applied,
+                decision: 'auto_rejected',
+                rejection_reason: 'Staff departure — auto-rejected by system',
+                decided_by_name: 'System',
+              }))
+            )
+          }
         }
       }
       if (body.departure_reason !== undefined)   updatePayload.departure_reason = body.departure_reason || null
