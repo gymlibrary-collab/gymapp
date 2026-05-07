@@ -13,7 +13,6 @@ import { User, Phone, Shield, Globe, Calendar, MapPin, Save, CheckCircle, AlertC
 
 export default function MyParticularsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
-  if (loading || !user) return null
 
 
   const { logActivity } = useActivityLog()
@@ -24,6 +23,7 @@ export default function MyParticularsPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
+
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
@@ -32,6 +32,8 @@ export default function MyParticularsPage() {
     }
     load()
   }, [])
+
+  if (loading || !user) return null
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
