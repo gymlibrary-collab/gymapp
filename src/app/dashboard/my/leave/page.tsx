@@ -10,6 +10,7 @@ import { Calendar, Plus, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const LEAVE_TYPES = [
   { value: 'annual', label: 'Annual Leave', entitlementKey: 'leave_entitlement_days' },
@@ -19,6 +20,7 @@ const LEAVE_TYPES = [
 ]
 
 export default function MyLeavePage() {
+
   const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [applications, setApplications] = useState<any[]>([])
@@ -35,23 +37,21 @@ export default function MyLeavePage() {
   const router = useRouter()
   const supabase = createClient()
   const { success, error, showMsg, showError, setError } = useToast()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+  if (loading || !user) return null
 
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Leave', 'Viewed own leave')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      if (!u || u.employment_type === 'part_time' || u.role === 'admin') { router.replace('/dashboard'); return }
-      setUser(u)
+        // Auth guard handled by useCurrentUser hook
 
       // ── Leave escalation check (configurable threshold) ─────
       const thresholds = await loadEscalationThresholds(supabase)
-      const leaveCount = await runEscalationCheck(supabase, 'leave', thresholds.leave, authUser.id)
-      await logEscalation(u.full_name, u.role, authUser.id, 'leave', leaveCount)
+      const leaveCount = await runEscalationCheck(supabase, 'leave', thresholds.leave, user.id)
+      await logEscalation(user.full_name, user.role, user.id, 'leave', leaveCount)
 
       const { data: apps } = await supabase.from('leave_applications')
-        .select('*').eq('user_id', authUser.id)
+        .select('*').eq('user_id', user.id)
         .order('created_at', { ascending: false })
       setApplications(apps || [])
 
@@ -137,7 +137,7 @@ export default function MyLeavePage() {
 
     const { data: existing } = await supabase.from('leave_applications')
       .select('id, start_date, end_date, status, leave_type')
-      .eq('user_id', authUser!.id).in('status', ['pending', 'approved'])
+      .eq('user_id', user!.id).in('status', ['pending', 'approved'])
       .lte('start_date', form.end_date).gte('end_date', form.start_date)
     if (existing && existing.length > 0) {
       const clash = existing[0]
@@ -161,7 +161,7 @@ export default function MyLeavePage() {
 
     // Reload
     const { data: apps } = await supabase.from('leave_applications')
-      .select('*').eq('user_id', authUser!.id).order('created_at', { ascending: false })
+      .select('*').eq('user_id', user!.id).order('created_at', { ascending: false })
     setApplications(apps || [])
   }
 
@@ -170,7 +170,7 @@ export default function MyLeavePage() {
     await supabase.from('leave_applications').delete().eq('id', id).eq('status', 'pending')
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const { data: apps } = await supabase.from('leave_applications')
-      .select('*').eq('user_id', authUser!.id).order('created_at', { ascending: false })
+      .select('*').eq('user_id', user!.id).order('created_at', { ascending: false })
     setApplications(apps || [])
     showMsg('Application withdrawn')
   }
