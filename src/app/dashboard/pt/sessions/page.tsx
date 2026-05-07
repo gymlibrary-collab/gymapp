@@ -126,6 +126,9 @@ export default function PtSessionsPage() {
       if (isLastSession) pkgUpdate.status = 'completed'
       await supabase.from('packages').update(pkgUpdate).eq('id', session.package_id)
     }
+    const rMemberName = actionSession?.member?.full_name || actionSession?.members?.full_name || ''
+    const newDateStr = new Date(`${rescheduleDate}T${rescheduleTime}`).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })
+    logActivity('update', 'PT Sessions', `Rescheduled session with ${rMemberName} to ${newDateStr}`)
     setActionSession(null); setActionType(null); setSaving(false); loadSessions()
     logActivity('update', 'PT Sessions', 'Marked PT session as completed')
   }
@@ -138,6 +141,9 @@ export default function PtSessionsPage() {
       status: 'cancelled', cancellation_reason: cancelReason,
       cancelled_by: authUser!.id, cancelled_at: new Date().toISOString(),
     }).eq('id', actionSession.id)
+    const memberName = actionSession?.member?.full_name || actionSession?.members?.full_name || ''
+    const sessionDate = actionSession?.scheduled_at ? new Date(actionSession.scheduled_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) : ''
+    logActivity('update', 'PT Sessions', `Cancelled session with ${memberName} on ${sessionDate}`)
     setActionSession(null); setActionType(null); setCancelReason(''); setSaving(false); loadSessions()
   }
 
