@@ -18,7 +18,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MemberProfilePage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
-  if (loading || !user) return null
 
   const { id } = useParams()
   const { logActivity } = useActivityLog()
@@ -50,6 +49,7 @@ export default function MemberProfilePage() {
   const [renewalSaving, setRenewalSaving] = useState(false)
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
+
 
   // ── Auto-expire stale gym memberships ───────────────────────
   const expireStaleGymMemberships = async (memberships: any[]) => {
@@ -161,6 +161,8 @@ export default function MemberProfilePage() {
   }
 
   useEffect(() => { load() }, [id])
+
+  if (loading || !user) return null
 
   // ── Edit member ───────────────────────────────────────────
   const handleSaveMember = async (e: React.FormEvent) => {
