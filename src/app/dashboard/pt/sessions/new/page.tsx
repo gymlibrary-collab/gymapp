@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, cn } from '@/lib/utils'
-import { renderWhatsAppTemplate } from '@/lib/whatsapp'
+import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
 import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -166,7 +166,7 @@ export default function NewPtSessionPage() {
     const reminderAt = new Date(scheduledAt.getTime() - 24 * 60 * 60 * 1000)
     if (reminderAt > new Date()) {
       const member = members.find(m => m.id === form.member_id)
-      if (currentUser.phone) {
+      if (currentUser.phone && await isWhatsAppEnabled(supabase, 'pt_reminder_trainer_24h')) {
         await supabase.from('whatsapp_queue').insert({
           notification_type: 'pt_reminder_24h',
           recipient_phone: currentUser.phone,
