@@ -134,6 +134,7 @@ export default function ActivityLogsPage() {
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
+  const hasLoggedPageView = useRef(false)
 
   const [logs, setLogs] = useState<any[]>([])
   const [staffList, setStaffList] = useState<string[]>([])
@@ -159,7 +160,10 @@ export default function ActivityLogsPage() {
   const loadLogs = useCallback(async () => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
-    if (loading) logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
+    if (!hasLoggedPageView.current) {
+      hasLoggedPageView.current = true
+      logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
+    }
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
     if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
 

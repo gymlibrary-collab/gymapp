@@ -47,7 +47,7 @@ export default function AdminStaffPage() {
 
 
   const loadData = async () => {
-    logActivity('page_view', 'Admin Staff', 'Viewed admin staff')
+    logActivity('page_view', 'Business Ops Staff', 'Viewed Business Ops staff')
 
     const { data: active } = await supabase.from('users').select('*')
       .eq('role', 'business_ops').eq('is_archived', false).order('full_name')
@@ -115,7 +115,7 @@ export default function AdminStaffPage() {
       })
       const result = await res.json()
       if (!res.ok) { setError(result.error || 'Failed to update'); setSaving(false); return }
-      logActivity('update', 'Admin Staff', 'Updated Business Ops staff account')
+      logActivity('update', 'Business Ops Staff', 'Updated Business Ops staff account')
     showMsg('Account updated')
     } else {
       const res = await fetch('/api/trainers', {
@@ -125,7 +125,7 @@ export default function AdminStaffPage() {
       })
       const result = await res.json()
       if (!res.ok) { setError(result.error || 'Failed to create'); setSaving(false); return }
-      logActivity('create', 'Admin Staff', 'Created Business Ops staff account')
+      logActivity('create', 'Business Ops Staff', 'Created Business Ops staff account')
     showMsg('Business Ops account created')
     }
 
@@ -147,7 +147,7 @@ export default function AdminStaffPage() {
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
     await loadData(); setSaving(false)
-    logActivity('update', 'Admin Staff', 'Archived Business Ops staff account')
+    logActivity('update', 'Business Ops Staff', 'Archived Business Ops staff account')
     showMsg(`${user!.full_name} archived`)
   }
 
