@@ -1602,6 +1602,29 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Annual payroll archive reminder (1 Apr onwards) ── */}
+      {isBizOps && (() => {
+        const now = new Date()
+        const isAprilOnwards = now.getMonth() >= 3 // April = month 3
+        const dismissedYear = parseInt(localStorage?.getItem('payroll_archive_dismissed') || '0')
+        const alreadyDismissed = dismissedYear >= now.getFullYear()
+        if (!isAprilOnwards || alreadyDismissed) return null
+        const archiveYear = now.getFullYear() - 1
+        return (
+          <div className="card p-3 bg-amber-50 border border-amber-200 flex items-center gap-3">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <p className="text-sm text-amber-800 flex-1">
+              Annual payroll archive reminder — download and store {archiveYear} payslips and commission payouts offsite.
+            </p>
+            <Link href="/dashboard/payroll" className="text-xs text-amber-700 font-medium underline flex-shrink-0">Download</Link>
+            <button onClick={() => {
+              localStorage.setItem('payroll_archive_dismissed', String(new Date().getFullYear()))
+              window.location.reload()
+            }} className="text-xs text-amber-600 hover:text-amber-800 flex-shrink-0">Dismiss</button>
+          </div>
+        )
+      })()}
+
       {/* ── Membership sale pending banner ── */}
       {pendingMemSales > 0 && (
         <div className="card p-3 bg-amber-50 border border-amber-200 flex items-center gap-3">
