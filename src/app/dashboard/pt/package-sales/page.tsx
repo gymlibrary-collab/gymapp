@@ -30,9 +30,10 @@ export default function PackageSalesPage() {
 
   const loadData = async () => {
       // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
-    const isBizOps = user.role === 'business_ops'
-    const gymId = user.manager_gym_id || ''
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
+    const isBizOps = user!.role === 'business_ops'
+    const gymId = user!.manager_gym_id || ''
     if (!isBizOps && !gymId) { return }
 
     // Pending: split by role — manager sees non-escalated, Biz Ops sees escalated

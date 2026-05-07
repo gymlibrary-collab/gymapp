@@ -39,22 +39,22 @@ export default function PtSessionsPage() {
       .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(full_name), gym:gyms(name), package:packages(package_name, total_sessions, sessions_used)')
       .order('scheduled_at', { ascending: filter === 'upcoming' })
 
-    const isTrainer = user.role === 'trainer' || isActingAsTrainer
-    const isStaff = user.role === 'staff'
-    const gymId = user.manager_gym_id
+    const isTrainer = user!.role === 'trainer' || isActingAsTrainer
+    const isStaff = user!.role === 'staff'
+    const gymId = user!.manager_gym_id
 
     if (gymId && !isStaff) q = q.eq('gym_id', gymId)
-    else if (isStaff && user.manager_gym_id) {
+    else if (isStaff && user!.manager_gym_id) {
       // Staff sees upcoming scheduled sessions at their gym only (for operational support)
-      q = q.eq('gym_id', user.manager_gym_id).eq('status', 'scheduled')
+      q = q.eq('gym_id', user!.manager_gym_id).eq('status', 'scheduled')
     }
-    else if (user.role === 'trainer') {
+    else if (user!.role === 'trainer') {
       // My Sessions: own sessions only, all statuses, all assigned gyms
-      q = q.eq('trainer_id', user.id)
+      q = q.eq('trainer_id', user!.id)
     }
 
     // isActingAsTrainer (manager in trainer view): always own sessions
-    if (isActingAsTrainer) q = q.eq('trainer_id', user.id)
+    if (isActingAsTrainer) q = q.eq('trainer_id', user!.id)
 
     const now = new Date().toISOString()
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
@@ -62,7 +62,7 @@ export default function PtSessionsPage() {
       q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
       const isBizOpsRole = user?.role === 'business_ops'
       q = q.eq('escalated_to_biz_ops', isBizOpsRole)
-      if (!isBizOpsRole && user?.manager_gym_id) q = q.eq('gym_id', user.manager_gym_id)
+      if (!isBizOpsRole && user?.manager_gym_id) q = q.eq('gym_id', user!.manager_gym_id)
     }
     else if (filter === 'completed') q = q.eq('status', 'completed').eq('manager_confirmed', true)
     else if (filter === 'cancelled') q = q.in('status', ['cancelled', 'no_show'])
@@ -73,7 +73,8 @@ export default function PtSessionsPage() {
 
   useEffect(() => { loadSessions() }, [filter, isActingAsTrainer])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const isManager = user?.role === 'manager' && !isActingAsTrainer
   const isTrainer = user?.role === 'trainer' || isActingAsTrainer

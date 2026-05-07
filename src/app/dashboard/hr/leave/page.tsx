@@ -37,23 +37,24 @@ export default function LeaveManagementPage() {
 
   useEffect(() => { load() }, [filter])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const load = async () => {
 
     // Get staff IDs this user can approve for
     let staffIds: string[] = []
-    if (user.role === 'manager' && user.manager_gym_id) {
+    if (user!.role === 'manager' && user!.manager_gym_id) {
       // Manager approves: full-time trainers + ops staff at their gym
       // Part-timers do NOT apply for leave in this system
       const { data: opsStaff } = await supabase.from('users')
-        .select('id').eq('manager_gym_id', user.manager_gym_id)
-        .eq('role', 'staff').neq('id', user.id)
+        .select('id').eq('manager_gym_id', user!.manager_gym_id)
+        .eq('role', 'staff').neq('id', user!.id)
       const { data: gymTrainers } = await supabase.from('trainer_gyms')
-        .select('trainer_id').eq('gym_id', user.manager_gym_id)
+        .select('trainer_id').eq('gym_id', user!.manager_gym_id)
       // Full-time trainers only — filter out part-timers
       const rawTrainerIds = (gymTrainers?.map((t: any) => t.trainer_id) || [])
-        .filter((id: string) => id !== user.id)
+        .filter((id: string) => id !== user!.id)
       let ftTrainerIds: string[] = []
       if (rawTrainerIds.length > 0) {
         const { data: ftOnly } = await supabase.from('users')
@@ -63,12 +64,12 @@ export default function LeaveManagementPage() {
       }
       const opsIds = opsStaff?.map((s: any) => s.id) || []
       staffIds = Array.from(new Set([...opsIds, ...ftTrainerIds]))
-    } else if (user.role === 'business_ops') {
+    } else if (user!.role === 'business_ops') {
       // Biz Ops approves managers' leave
       const { data: managers } = await supabase.from('users')
         .select('id').eq('role', 'manager')
       staffIds = managers?.map((m: any) => m.id) || []
-    } else if (user.role === 'admin') {
+    } else if (user!.role === 'admin') {
       // Admin approves Business Ops leave
       const { data: bizOps } = await supabase.from('users')
         .select('id').eq('role', 'business_ops')
@@ -82,7 +83,7 @@ export default function LeaveManagementPage() {
       .in('user_id', staffIds)
       .order('created_at', { ascending: false })
     if (filter === 'pending') {
-      q = q.eq('status', 'pending').eq('escalated_to_biz_ops', user.role === 'business_ops')
+      q = q.eq('status', 'pending').eq('escalated_to_biz_ops', user!.role === 'business_ops')
     } else if (filter !== 'all') {
       q = q.eq('status', filter)
     }
@@ -203,7 +204,7 @@ export default function LeaveManagementPage() {
         end_date: app.end_date,
         days_applied: app.days_applied,
         decision: 'approved',
-        decided_by_name: user.full_name || 'Manager',
+        decided_by_name: user!.full_name || 'Manager',
       })
     }
     await load(); showMsg('Leave approved')

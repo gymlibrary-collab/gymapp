@@ -44,7 +44,8 @@ export default function CommissionPayoutsPage() {
 
   useEffect(() => { loadData() }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const loadData = async () => {
     if (!user) return
@@ -53,12 +54,12 @@ export default function CommissionPayoutsPage() {
     let q = supabase.from('commission_payouts')
       .select('*, user:users!commission_payouts_user_id_fkey(full_name, role), gym:gyms(name)')
       .order('period_end', { ascending: false })
-    if (user.role === 'manager' && user.manager_gym_id) q = q.eq('gym_id', user.manager_gym_id)
+    if (user!.role === 'manager' && user!.manager_gym_id) q = q.eq('gym_id', user!.manager_gym_id)
     const { data: payoutData } = await q
     setPayouts(payoutData || [])
 
     // Load staff for generation (business_ops)
-    if (user.role === 'business_ops') {
+    if (user!.role === 'business_ops') {
       const { data: staffData } = await supabase.from('users')
         .select('*, trainer_gyms(gym_id), staff_payroll(is_cpf_liable)')
         .eq('is_archived', false).neq('role', 'admin').order('full_name')

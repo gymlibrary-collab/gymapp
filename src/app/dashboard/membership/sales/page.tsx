@@ -32,22 +32,23 @@ export default function MembershipSalesPage() {
 
   useEffect(() => { load() }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const load = async () => {
       // Auth guard handled by useCurrentUser hook
 
     const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 
-    if (user.role === 'manager') {
+    if (user!.role === 'manager') {
       // Manager sees non-escalated pending gym sales for confirmation
       const { data: gymSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
-        .eq('gym_id', user.manager_gym_id)
+        .eq('gym_id', user!.manager_gym_id)
         .order('created_at', { ascending: false })
       setAllGymSales(gymSales || [])
       setTab('confirm')
-    } else if (user.role === 'business_ops') {
+    } else if (user!.role === 'business_ops') {
       // Biz Ops sees:
       // 1. Escalated pending sales from trainer/staff (manager not actioned within threshold)
       // 2. Pending sales from managers (manager cannot confirm own sales)
@@ -76,7 +77,7 @@ export default function MembershipSalesPage() {
       // Trainer / Staff — own sales only
       const { data: ownSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
-        .eq('sold_by_user_id', user.id)
+        .eq('sold_by_user_id', user!.id)
         .order('created_at', { ascending: false })
       setMySales(ownSales || [])
     }

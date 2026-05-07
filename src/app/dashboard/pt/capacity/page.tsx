@@ -27,7 +27,8 @@ export default function TrainerCapacityPage() {
 
   useEffect(() => { load() }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const load = async () => {
       // Auth guard handled by useCurrentUser hook
@@ -41,8 +42,8 @@ export default function TrainerCapacityPage() {
 
     // Load trainers for this gym
     let trainerQ = supabase.from('users').select('*').eq('role', 'trainer').eq('is_archived', false)
-    if (user.role === 'manager' && user.manager_gym_id) {
-      const { data: tg } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', user.manager_gym_id)
+    if (user!.role === 'manager' && user!.manager_gym_id) {
+      const { data: tg } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', user!.manager_gym_id)
       const tIds = tg?.map((t: any) => t.trainer_id) || []
       if (tIds.length > 0) trainerQ = trainerQ.in('id', tIds)
     }

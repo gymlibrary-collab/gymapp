@@ -69,8 +69,8 @@ export default function TrainersPage() {
     // Biz Ops: sees all staff across all gyms (scoped by RLS).
     // Manager: scoped to staff in their gym only — trainers via trainer_gyms,
     //   full-time ops staff via manager_gym_id. Excludes admin and biz ops roles.
-    const isManager = user.role === 'manager'
-    const gymId = user.manager_gym_id
+    const isManager = user!.role === 'manager'
+    const gymId = user!.manager_gym_id
 
     // Biz Ops sees all staff except admin and business_ops accounts.
     // Using .in() with the allowed roles is more reliable than .not().in()
@@ -118,7 +118,8 @@ export default function TrainersPage() {
 
   useEffect(() => { loadData() }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const { success, error, showMsg, showError, setError } = useToast()
 
