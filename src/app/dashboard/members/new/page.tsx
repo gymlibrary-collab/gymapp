@@ -54,15 +54,15 @@ export default function RegisterMemberPage() {
       // Auto-detect gym — no dropdown for full-time staff/trainer/manager
       if (user?.manager_gym_id) {
         // Full-time: use assigned gym
-        const gym = gymsData?.find((g: any) => g.id === user.manager_gym_id)
-        setMemberForm(f => ({ ...f, gym_id: user.manager_gym_id ?? '' }))
+        const gym = gymsData?.find((g: any) => g.id === user!.manager_gym_id)
+        setMemberForm(f => ({ ...f, gym_id: user!.manager_gym_id ?? '' }))
         setGymName(gym?.name || '')
       } else if (user?.employment_type === 'part_time') {
         // Part-timer: look up today's or next upcoming roster shift
         const today = new Date().toISOString().split('T')[0]
         const { data: rosterShift } = await supabase.from('duty_roster')
           .select('gym_id, gyms:gym_id(name)')
-          .eq('user_id', user.id)
+          .eq('user_id', user!.id)
           .gte('shift_date', today)
           .order('shift_date', { ascending: true })
           .limit(1)
