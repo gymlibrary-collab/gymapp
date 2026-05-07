@@ -72,3 +72,55 @@ export async function addLogoHeader(
   doc.setFont('helvetica', 'normal')
   return 30
 }
+
+// ── resolvePayslipBranding ───────────────────────────────────
+// Resolves the logo URL and gym/company name for payslip PDFs
+// based on staff role:
+//   - business_ops  → group-level logo from app_settings
+//   - manager/staff → their assigned gym via manager_gym_id
+//   - trainer       → their primary gym via trainer_gyms
+// Returns { logoUrl, gymName, companyName }.
+export async function resolvePayslipBranding(
+  supabase: any,
+  staffData: { role: string; manager_gym_id?: string | null; id: string }
+): Promise<{ logoUrl: string | null; gymName: string; companyName: string }> {
+  const { data: settings } = await supabase
+    .from('app_settings')
+    .select('payslip_logo_url, company_name')
+    .eq('id', 'global')
+    .single()
+  const companyName: string = settings?.company_name || 'Gym Operations'
+
+  if (staffData.role === 'business_ops') {
+    return { logoUrl: settings?.payslip_logo_url || null, gymName: companyName, companyName }
+  }
+
+  if (staffData.manager_gym_id) {
+    const { data: gym } = await supabase
+      .from('gyms')
+      .select('name, logo_url')
+      .eq('id', staffData.manager_gym_id)
+      .single()
+    return {
+      logoUrl: gym?.logo_url || null,
+      gymName: gym?.name || companyName,
+      companyName,
+    }
+  }
+
+  if (staffData.role === 'trainer' || staffData.role === 'staff') {
+    const { data: tg } = await supabase
+      .from('trainer_gyms')
+      .select('gyms(name, logo_url)')
+      .eq('trainer_id', staffData.id)
+      .eq('is_primary', true)
+      .single()
+    return {
+      logoUrl: (tg as any)?.gyms?.logo_url || null,
+      gymName: (tg as any)?.gyms?.name || companyName,
+      companyName,
+    }
+  }
+
+  return { logoUrl: null, gymName: companyName, companyName }
+}
