@@ -348,7 +348,17 @@ export default function PayrollPage() {
           }
           rows.push(['', ''])
           rows.push(['Net Pay', formatSGD(slip.net_salary)])
-          autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
+          const netPayIdx = rows.length - 1
+          autoTable(doc, {
+            startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE,
+            didParseCell: (data: any) => {
+              if (data.row.index === netPayIdx) {
+                data.cell.styles.fillColor = [234, 243, 222]
+                data.cell.styles.textColor = [39, 80, 10]
+                data.cell.styles.fontStyle = 'bold'
+              }
+            },
+          })
           folder!.file(`payslip-${MONTHS[slip.month - 1]}.pdf`, doc.output('arraybuffer'))
         }
 
@@ -371,24 +381,33 @@ export default function PayrollPage() {
           doc.setTextColor(0)
           doc.text(staff.full_name as string, 14, yPos); yPos += 6
 
-          const rows: any[] = [
+          const commBodyRows: any[] = [
             ['PT Signup Commission', formatSGD(comm.pt_signup_commission_sgd || 0)],
             ['PT Session Commission', formatSGD(comm.pt_session_commission_sgd || 0)],
             ['Membership Commission', formatSGD(comm.membership_commission_sgd || 0)],
             ['', ''],
             ['Gross Commission', formatSGD(comm.total_commission_sgd || 0)],
+            ['', ''],
           ]
           if (comm.is_cpf_liable && comm.employee_cpf_amount > 0) {
-            rows.push([`Employee CPF — AW (${comm.employee_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)})`, `- ${formatSGD(comm.employee_cpf_amount)}`])
-            rows.push(['', ''])
-            rows.push(['Net Commission', formatSGD(comm.net_commission_sgd ?? (comm.total_commission_sgd - comm.employee_cpf_amount))])
+            commBodyRows.push([`Employee CPF — AW (${comm.employee_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)})`, `- ${formatSGD(comm.employee_cpf_amount)}`])
+            commBodyRows.push([`Employer CPF — AW (${comm.employer_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)})`, formatSGD(comm.employer_cpf_amount)])
+            commBodyRows.push(['', ''])
+            commBodyRows.push(['Net commission (after employee CPF)', formatSGD(comm.net_commission_sgd ?? (comm.total_commission_sgd - comm.employee_cpf_amount))])
+          } else if (!comm.is_cpf_liable) {
+            commBodyRows.push(['CPF', 'Not applicable'])
           }
-          autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
-          const commFinalY = (doc as any).lastAutoTable.finalY + 8
-          if (comm.is_cpf_liable && comm.employer_cpf_amount > 0) {
-            doc.setFontSize(9); doc.setTextColor(100)
-            doc.text(`Employer CPF (${comm.employer_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)}): ${formatSGD(comm.employer_cpf_amount)}`, 14, commFinalY)
-          }
+          const netCommIdx = commBodyRows.length - 1
+          autoTable(doc, {
+            startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: commBodyRows, ...PDF_TABLE_STYLE,
+            didParseCell: (data: any) => {
+              if (comm.is_cpf_liable && comm.employee_cpf_amount > 0 && data.row.index === netCommIdx) {
+                data.cell.styles.fillColor = [234, 243, 222]
+                data.cell.styles.textColor = [39, 80, 10]
+                data.cell.styles.fontStyle = 'bold'
+              }
+            },
+          })
           folder!.file(`comm-${MONTHS[commMonth - 1]}.pdf`, doc.output('arraybuffer'))
         }
       }
