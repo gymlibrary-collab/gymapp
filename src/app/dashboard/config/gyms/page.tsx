@@ -38,8 +38,6 @@ export default function GymManagementPage() {
 
   const load = async () => {
     // Route guard — Business Ops only
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data } = await supabase.from('gyms').select('*').order('name')
     setGyms(data || [])
