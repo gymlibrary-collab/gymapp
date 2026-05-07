@@ -6,8 +6,11 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD } from '@/lib/utils'
 import { Save, CheckCircle, Info, DollarSign } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionConfigPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [config, setConfig] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
@@ -21,10 +24,8 @@ export default function CommissionConfigPage() {
     const load = async () => {
       logActivity('page_view', 'Commission Rates', 'Viewed commission rates configuration')
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
       const { data } = await supabase.from('commission_config').select('*')
       const cfg: Record<string, any> = {}
