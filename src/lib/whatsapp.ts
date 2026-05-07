@@ -77,3 +77,51 @@ export async function isWhatsAppEnabled(
     return false
   }
 }
+
+/**
+ * Central WhatsApp queue helper.
+ * Checks isWhatsAppEnabled, renders the template, and inserts into
+ * whatsapp_queue in one call. Returns true if queued, false if skipped.
+ *
+ * Usage:
+ *   await queueWhatsApp(supabase, {
+ *     notificationType: 'leave_approved',
+ *     phone: applicant.phone,
+ *     name: applicant.full_name,
+ *     placeholders: { staff_name: '...', leave_dates: '...' },
+ *     fallbackMessage: 'Your leave has been approved.',
+ *     relatedId: leave.id,
+ *   })
+ */
+export async function queueWhatsApp(
+  supabase: any,
+  opts: {
+    notificationType: string
+    phone: string | null | undefined
+    name?: string | null
+    placeholders: Record<string, string>
+    fallbackMessage: string
+    relatedId?: string | null
+    scheduledFor?: string
+  }
+): Promise<boolean> {
+  const { notificationType, phone, name, placeholders, fallbackMessage, relatedId, scheduledFor } = opts
+  if (!phone) return false
+  try {
+    const enabled = await isWhatsAppEnabled(supabase, notificationType)
+    if (!enabled) return false
+    const message = await renderWhatsAppTemplate(notificationType, placeholders, fallbackMessage)
+    await supabase.from('whatsapp_queue').insert({
+      notification_type: notificationType,
+      recipient_phone: phone,
+      recipient_name: name || null,
+      message,
+      related_id: relatedId || null,
+      scheduled_for: scheduledFor || new Date().toISOString(),
+      status: 'pending',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
