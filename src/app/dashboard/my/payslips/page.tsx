@@ -8,16 +8,18 @@ import { formatSGD, getMonthName } from '@/lib/utils'
 import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
 import { FileText, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MyPayslipsPage() {
+
   const [payslips, setPayslips] = useState<any[]>([])
   const [commissionPayouts, setCommissionPayouts] = useState<any[]>([])
-  const [user, setUser] = useState<any>(null)
   const { logActivity } = useActivityLog()
-  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'salary' | 'commission'>('salary')
   const supabase = createClient()
   const router = useRouter()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+  if (loading || !user) return null
 
   const [selectedMonth, setSelectedMonth] = useState<string>('') // 'YYYY-MM' format
   const [gymsMap, setGymsMap] = useState<Record<string, any>>({}) // gymId -> gym object
@@ -25,12 +27,7 @@ export default function MyPayslipsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Payslips', 'Viewed own payslips')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      // Admin has no payroll record — redirect rather than show empty page
-      if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
-      setUser(userData)
+        // Auth guard handled by useCurrentUser hook
 
       // Load gyms map for logo lookup
       const { data: gymsData } = await supabase.from('gyms').select('id, name, logo_url')
@@ -40,7 +37,7 @@ export default function MyPayslipsPage() {
 
       // Load last 13 months of salary payslips (with gym_id)
       const { data: slips } = await supabase.from('payslips')
-        .select('*').eq('user_id', authUser.id)
+        .select('*').eq('user_id', user.id)
         .in('status', ['approved', 'paid'])
         .order('year', { ascending: false }).order('month', { ascending: false })
         .limit(26) // more records to account for part-timers with multiple gyms per month
@@ -54,18 +51,16 @@ export default function MyPayslipsPage() {
       await supabase.from('users').update({
         payslip_notif_seen_at: new Date().toISOString(),
         commission_notif_seen_at: new Date().toISOString(),
-      }).eq('id', authUser.id)
+      }).eq('id', user.id)
 
       // Load commission payouts — approved and paid only (drafts not visible to staff)
       const { data: payouts } = await supabase.from('commission_payouts')
         .select('*, gym:gyms(name)')
-        .eq('user_id', authUser.id)
+        .eq('user_id', user.id)
         .in('status', ['approved', 'paid'])
         .order('period_end', { ascending: false })
         .limit(13)
       setCommissionPayouts(payouts || [])
-
-      setLoading(false)
     }
     load()
   }, [])
