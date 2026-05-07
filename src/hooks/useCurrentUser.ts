@@ -38,6 +38,9 @@ export interface CurrentUser {
   date_of_birth: string | null
   nric: string | null
   employment_type: string | null
+  // Extended fields — present in DB but accessed via (user as any) in pages
+  // that need them. Add here when ready to type them properly.
+  [key: string]: any
 }
 
 interface UseCurrentUserOptions {
