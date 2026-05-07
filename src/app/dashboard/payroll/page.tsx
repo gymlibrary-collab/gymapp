@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass } from '@/lib/utils'
 import { getAgeAsOf, getCpfBracketRates } from '@/lib/cpf'
-import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle , Trash2 } from 'lucide-react'
+import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle , Trash2, Download } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +25,11 @@ export default function PayrollPage() {
   const [bulkGenerating, setBulkGenerating] = useState(false)
   const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[], deleted?: boolean} | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
+  const [archiveYear, setArchiveYear] = useState(new Date().getFullYear() - 1)
+  const [archiveGym, setArchiveGym] = useState('')
+  const [archiveGyms, setArchiveGyms] = useState<any[]>([])
+  const [archiveProgress, setArchiveProgress] = useState('')
+  const [archiveGenerating, setArchiveGenerating] = useState(false)
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const router = useRouter()
   const supabase = createClient()
@@ -47,6 +52,11 @@ export default function PayrollPage() {
       .neq('role', 'admin')
       .order('employment_type').order('full_name')
     setStaffList(staff || [])
+
+    // Load gyms for archive download
+    const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
+    setArchiveGyms(gymsData || [])
+    if (gymsData && gymsData.length > 0 && !archiveGym) setArchiveGym(gymsData[0].id)
 
     // Load roster totals for part-timers for selected month/year
     const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`
@@ -241,6 +251,121 @@ export default function PayrollPage() {
   const noSalary = fullTimers.filter(s => !s.staff_payroll?.current_salary).length
 
   
+  const handleArchiveDownload = async () => {
+    if (!archiveGym) return
+    setArchiveGenerating(true)
+    setArchiveProgress('Loading payslip data...')
+
+    const { default: jsPDF } = await import('jspdf')
+    const { default: autoTable } = await import('jspdf-autotable')
+    const { addLogoHeader, PDF_TABLE_STYLE } = await import('@/lib/pdf')
+
+    const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', archiveGym).single()
+    const { data: appSettings } = await supabase.from('app_settings').select('company_name').eq('id', 'global').single()
+    const gymName = (gym as any)?.name || 'Gym'
+    const logoUrl = (gym as any)?.logo_url || (appSettings as any)?.company_name
+
+    const { data: staffData } = await supabase.from('users')
+      .select('id, full_name, nric, employment_type')
+      .eq('manager_gym_id', archiveGym)
+      .eq('is_archived', false)
+      .neq('role', 'admin')
+      .order('full_name')
+
+    if (!staffData || staffData.length === 0) {
+      setArchiveProgress('No staff found for this gym')
+      setArchiveGenerating(false)
+      return
+    }
+
+    setArchiveProgress('Loading zip library...')
+    const JSZip = await new Promise<any>((resolve, reject) => {
+      if ((window as any).JSZip) { resolve((window as any).JSZip); return }
+      const script = document.createElement('script')
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
+      script.onload = () => resolve((window as any).JSZip)
+      script.onerror = reject
+      document.head.appendChild(script)
+    })
+
+    const zip = new JSZip()
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+    for (const staff of staffData) {
+      setArchiveProgress(`Generating PDFs for ${staff.full_name}...`)
+      const folderName = (staff.full_name as string).replace(/[^a-zA-Z0-9 ]/g, '').trim()
+      const folder = zip.folder(folderName)
+
+      const { data: payslips } = await supabase.from('payslips')
+        .select('*').eq('user_id', staff.id).eq('year', archiveYear)
+        .in('status', ['approved', 'paid']).order('month')
+
+      for (const slip of payslips || []) {
+        const doc = new jsPDF()
+        let yPos = await addLogoHeader(doc, logoUrl, 'PAYSLIP')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10); doc.setTextColor(100)
+        doc.text(gymName, 14, yPos); yPos += 6
+        doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos); yPos += 10
+        doc.setTextColor(0)
+        doc.text(`${staff.full_name} · ${staff.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
+        if (staff.nric) { doc.text(`NRIC: ${staff.nric}`, 14, yPos); yPos += 6 }
+        const rows: any[] = []
+        if (staff.employment_type === 'part_time' && slip.total_hours > 0) {
+          rows.push([`Hours: ${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used)}/h`, formatSGD(slip.basic_salary)])
+        } else {
+          rows.push(['Basic Salary', formatSGD(slip.basic_salary)])
+        }
+        if (slip.bonus_amount > 0) rows.push(['Bonus', formatSGD(slip.bonus_amount)])
+        rows.push(['Gross Salary', formatSGD(slip.gross_salary)])
+        rows.push(['', ''])
+        if (slip.is_cpf_liable && !slip.low_income_flag) {
+          rows.push([`Employee CPF (${slip.employee_cpf_rate}%)`, `- ${formatSGD(slip.employee_cpf_amount)}`])
+        } else {
+          rows.push(['CPF', slip.is_cpf_liable ? 'Exempt (low income)' : 'Not applicable'])
+        }
+        rows.push(['', ''])
+        rows.push(['Net Pay', formatSGD(slip.net_salary)])
+        autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
+        folder!.file(`payslip-${MONTHS[slip.month - 1]}.pdf`, doc.output('arraybuffer'))
+      }
+
+      const { data: commissions } = await supabase.from('commission_payouts')
+        .select('*').eq('user_id', staff.id).eq('year', archiveYear)
+        .in('status', ['approved', 'paid']).order('month')
+
+      for (const comm of commissions || []) {
+        const doc = new jsPDF()
+        let yPos = await addLogoHeader(doc, logoUrl, 'COMMISSION PAYOUT')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10); doc.setTextColor(100)
+        doc.text(gymName, 14, yPos); yPos += 6
+        doc.text(`${getMonthName(comm.month)} ${comm.year}`, 14, yPos); yPos += 10
+        doc.setTextColor(0)
+        doc.text(staff.full_name as string, 14, yPos); yPos += 6
+        const rows: any[] = [
+          ['PT Session Commission', formatSGD(comm.session_commission_sgd || 0)],
+          ['PT Signup Commission', formatSGD(comm.signup_commission_sgd || 0)],
+          ['Membership Commission', formatSGD(comm.membership_commission_sgd || 0)],
+          ['', ''],
+          ['Total Commission', formatSGD(comm.total_commission_sgd || 0)],
+        ]
+        autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
+        folder!.file(`comm-${MONTHS[comm.month - 1]}.pdf`, doc.output('arraybuffer'))
+      }
+    }
+
+    setArchiveProgress('Zipping files...')
+    const content = await zip.generateAsync({ type: 'blob' })
+    const url = URL.createObjectURL(content)
+    const a = document.createElement('a'); a.href = url
+    a.download = `${gymName.replace(/\s+/g, '_')}_Payroll_${archiveYear}.zip`
+    a.click(); URL.revokeObjectURL(url)
+    logActivity('export', 'Monthly Payroll', `Downloaded bulk payroll archive for ${gymName} ${archiveYear}`)
+    setArchiveProgress(`Done — ${staffData.length} staff folders zipped and downloaded`)
+    setArchiveGenerating(false)
+  }
+
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
@@ -444,6 +569,48 @@ export default function PayrollPage() {
           )
         })}
       </div>
+
+    {/* ── Annual Payroll Archive Download ── */}
+    <div className="card p-4 space-y-4">
+      <div className="flex items-center gap-2">
+        <Download className="w-4 h-4 text-red-600" />
+        <h2 className="font-semibold text-gray-900 text-sm">Annual Payroll Archive Download</h2>
+      </div>
+      <p className="text-xs text-gray-500">Download all payslips and commission payouts for a year, grouped by staff member, as a zip file for offsite storage.</p>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="label">Year</label>
+          <select className="input" value={archiveYear} onChange={e => setArchiveYear(parseInt(e.target.value))}>
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 - i).map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Gym Outlet</label>
+          <select className="input" value={archiveGym} onChange={e => setArchiveGym(e.target.value)}>
+            {archiveGyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
+        <button onClick={handleArchiveDownload} disabled={archiveGenerating || !archiveGym}
+          className="btn-primary flex items-center gap-2 disabled:opacity-50">
+          <Download className="w-4 h-4" />
+          {archiveGenerating ? 'Generating...' : 'Download Zip'}
+        </button>
+      </div>
+      {archiveProgress && (
+        <div className={cn('text-xs px-3 py-2 rounded-lg', archiveProgress.startsWith('Done') ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700')}>
+          {archiveProgress.startsWith('Done') ? '✓ ' : '⏳ '}{archiveProgress}
+        </div>
+      )}
+      <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 space-y-1">
+        <p className="font-medium text-gray-700">Zip structure:</p>
+        <p className="font-mono">GymName_Payroll_{archiveYear}.zip/</p>
+        <p className="font-mono ml-4">StaffName/</p>
+        <p className="font-mono ml-8">payslip-Jan.pdf · payslip-Feb.pdf · ...</p>
+        <p className="font-mono ml-8">comm-Jan.pdf · comm-Mar.pdf · ...</p>
+      </div>
     </div>
+  </div>
   )
 }
