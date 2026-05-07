@@ -30,3 +30,25 @@ export async function renderWhatsAppTemplate(
     return fallbackMessage
   }
 }
+
+/**
+ * Check whether a WhatsApp notification type is enabled in
+ * whatsapp_notifications_config. Returns false if not found
+ * or if the table doesn't exist yet.
+ * Always call this before inserting into whatsapp_queue.
+ */
+export async function isWhatsAppEnabled(
+  supabase: any,
+  notificationType: string
+): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('whatsapp_notifications_config')
+      .select('is_enabled')
+      .eq('id', notificationType)
+      .single()
+    return data?.is_enabled === true
+  } catch {
+    return false
+  }
+}
