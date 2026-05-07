@@ -5,101 +5,104 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
-import { Calendar, Plus, CheckCircle, Clock, XCircle, X, AlertCircle } from 'lucide-react'
+import { Calendar, Plus, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 
 const LEAVE_TYPES = [
-  { value: 'annual', label: 'Annual Leave' },
-  { value: 'medical', label: 'Medical Leave' },
-  { value: 'hospitalisation', label: 'Hospitalisation Leave' },
-  { value: 'other', label: 'Other' },
+  { value: 'annual', label: 'Annual Leave', entitlementKey: 'leave_entitlement_days' },
+  { value: 'medical', label: 'Medical Leave', entitlementKey: 'medical_leave_entitlement_days' },
+  { value: 'hospitalisation', label: 'Hospitalisation Leave', entitlementKey: 'hospitalisation_leave_entitlement_days' },
+  { value: 'other', label: 'Other', entitlementKey: 'leave_entitlement_days' },
 ]
 
 export default function MyLeavePage() {
   const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [applications, setApplications] = useState<any[]>([])
-  const [takenDays, setTakenDays] = useState(0)
-  const [pendingDays, setPendingDays] = useState(0)
+  const [takenByType, setTakenByType] = useState<Record<string, number>>({})
+  const [pendingByType, setPendingByType] = useState<Record<string, number>>({})
   const [holidays, setHolidays] = useState<string[]>([])
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     leave_type: 'annual', start_date: '', end_date: '', reason: '',
+    is_half_day: false, half_day_period: 'morning' as 'morning' | 'afternoon',
   })
 
   const router = useRouter()
   const supabase = createClient()
-
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const load = async () => {
+      logActivity('page_view', 'My Leave', 'Viewed own leave')
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) return
+      const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      if (!u || u.employment_type === 'part_time' || u.role === 'admin') { router.replace('/dashboard'); return }
+      setUser(u)
 
-  const load = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Part-timers and admin are not eligible for leave — redirect to dashboard
-    if (!u || u.employment_type === 'part_time' || u.role === 'admin') { router.replace('/dashboard'); return }
-    setUser(u)
+      // ── 48-hour escalation check ─────────────────────────────
+      const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+      const { data: staleLeave } = await supabase.from('leave_applications')
+        .select('id').eq('user_id', authUser.id).eq('status', 'pending')
+        .eq('escalated_to_biz_ops', false).lt('created_at', cutoff)
+      if (staleLeave && staleLeave.length > 0) {
+        await supabase.from('leave_applications').update({
+          escalated_to_biz_ops: true, escalated_at: new Date().toISOString(),
+        }).in('id', staleLeave.map((l: any) => l.id))
+      }
 
-    const { data: apps } = await supabase.from('leave_applications')
-      .select('*').eq('user_id', authUser.id)
-      .order('created_at', { ascending: false })
-    setApplications(apps || [])
+      const { data: apps } = await supabase.from('leave_applications')
+        .select('*').eq('user_id', authUser.id)
+        .order('created_at', { ascending: false })
+      setApplications(apps || [])
 
-    const currentYear = new Date().getFullYear()
+      const currentYear = new Date().getFullYear()
+      const countDaysInYear = (app: any, year: number) => {
+        const yearEnd = `${year}-12-31`
+        const yearStart = `${year}-01-01`
+        const start = app.start_date > yearStart ? app.start_date : yearStart
+        const end = app.end_date < yearEnd ? app.end_date : yearEnd
+        if (end < start) return 0
+        const appDays = (new Date(app.end_date).getTime() - new Date(app.start_date).getTime()) / 86400000 + 1
+        const inYearDays = (new Date(end).getTime() - new Date(start).getTime()) / 86400000 + 1
+        return appDays > 0 ? Number((app.days_applied * inYearDays / appDays).toFixed(1)) : 0
+      }
 
-    // Count only days falling within the current calendar year
-    // Handles cross-year leave by prorating days_applied proportionally
-    const countDaysInYear = (app: any, year: number) => {
-      const yearEnd = `${year}-12-31`
-      const yearStart = `${year}-01-01`
-      const start = app.start_date > yearStart ? app.start_date : yearStart
-      const end = app.end_date < yearEnd ? app.end_date : yearEnd
-      if (end < start) return 0
-      // Prorate days_applied proportionally
-      const appDays = (new Date(app.end_date).getTime() - new Date(app.start_date).getTime()) / 86400000 + 1
-      const inYearDays = (new Date(end).getTime() - new Date(start).getTime()) / 86400000 + 1
-      return appDays > 0 ? Math.round(app.days_applied * inYearDays / appDays) : 0
+      // Calculate taken and pending per leave type
+      const taken: Record<string, number> = {}
+      const pending: Record<string, number> = {}
+      apps?.filter(a => a.start_date <= `${currentYear}-12-31` && a.end_date >= `${currentYear}-01-01`)
+        .forEach((a: any) => {
+          const days = countDaysInYear(a, currentYear)
+          if (a.status === 'approved') taken[a.leave_type] = (taken[a.leave_type] || 0) + days
+          if (a.status === 'pending') pending[a.leave_type] = (pending[a.leave_type] || 0) + days
+        })
+      setTakenByType(taken)
+      setPendingByType(pending)
+
+      const { data: ph } = await supabase.from('public_holidays')
+        .select('holiday_date').in('year', [currentYear, currentYear + 1])
+      setHolidays(ph?.map((h: any) => h.holiday_date) || [])
     }
+    load()
+  }, [])
 
-    const taken = apps?.filter(a =>
-        a.status === 'approved' &&
-        a.start_date <= `${currentYear}-12-31` &&
-        a.end_date >= `${currentYear}-01-01`
-      ).reduce((s: number, a: any) => s + countDaysInYear(a, currentYear), 0) || 0
-    setTakenDays(taken)
-
-    const pending = apps?.filter(a =>
-        a.status === 'pending' &&
-        a.start_date <= `${currentYear}-12-31` &&
-        a.end_date >= `${currentYear}-01-01`
-      ).reduce((s: number, a: any) => s + countDaysInYear(a, currentYear), 0) || 0
-    setPendingDays(pending)
-
-    // Load public holidays for leave day calculation
-    const { data: ph } = await supabase.from('public_holidays')
-      .select('holiday_date').in('year', [currentYear, currentYear + 1])
-    setHolidays(ph?.map((h: any) => h.holiday_date) || [])
-  }
-
-  const calcDays = (start: string, end: string) => {
+  const calcDays = (start: string, end: string, isHalfDay: boolean) => {
     if (!start || !end) return 0
-    // Parse as local date to avoid UTC timezone off-by-one in SGT (UTC+8)
+    if (isHalfDay) return 0.5
     const [sy, sm, sd] = start.split('-').map(Number)
     const [ey, em, ed] = end.split('-').map(Number)
     const s = new Date(sy, sm - 1, sd)
     const e = new Date(ey, em - 1, ed)
     if (e < s) return 0
-    // Count weekdays excluding public holidays
     let days = 0
     const cur = new Date(s)
     while (cur <= e) {
       const day = cur.getDay()
-      // Build local date string without timezone conversion
       const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
       if (day !== 0 && day !== 6 && !holidays.includes(dateStr)) days++
       cur.setDate(cur.getDate() + 1)
@@ -107,30 +110,43 @@ export default function MyLeavePage() {
     return days
   }
 
+  // Get entitlement for a given leave type
+  const getEntitlement = (leaveType: string) => {
+    const lt = LEAVE_TYPES.find(t => t.value === leaveType)
+    if (!lt || !user) return { entitlement: 0, carryForward: 0, total: 0, taken: 0, pending: 0, available: 0, notSet: true }
+    const entitlement = user[lt.entitlementKey] ?? 0
+    const carryForward = leaveType === 'annual' ? (user.leave_carry_forward_days ?? 0) : 0
+    const total = entitlement + carryForward
+    const taken = takenByType[leaveType] || 0
+    const pending = pendingByType[leaveType] || 0
+    const available = Math.max(0, total - taken - pending)
+    const notSet = user[lt.entitlementKey] == null
+    return { entitlement, carryForward, total, taken, pending, available, notSet }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const days = calcDays(form.start_date, form.end_date)
+    const days = calcDays(form.start_date, form.end_date, form.is_half_day)
     if (days === 0) { setError('Invalid date range'); setSaving(false); return }
-    if (user?.leave_entitlement_days == null) {
-      setError('Your leave entitlement has not been configured. Please contact Business Operations before applying for leave.')
+
+    const lt = getEntitlement(form.leave_type)
+    if (lt.notSet && form.leave_type === 'annual') {
+      setError('Your leave entitlement has not been configured. Please contact Business Operations.')
       setSaving(false); return
     }
-    const entitlementDays = (user.leave_entitlement_days ?? 0) + (user.leave_carry_forward_days ?? 0)
-    const availableBalance = Math.max(0, entitlementDays - takenDays - pendingDays)
-    if (availableBalance === 0) { setError('No leave balance remaining. Contact Business Operations if you believe this is incorrect.'); setSaving(false); return }
-    if (days > availableBalance) { setError(`Insufficient leave balance. You have ${availableBalance} day${availableBalance !== 1 ? 's' : ''} available${pendingDays > 0 ? ` (${pendingDays} day${pendingDays !== 1 ? 's' : ''} pending approval)` : ''}.`); setSaving(false); return }
+    if (days > lt.available) {
+      setError(`Insufficient ${LEAVE_TYPES.find(t => t.value === form.leave_type)?.label} balance. You have ${lt.available} day${lt.available !== 1 ? 's' : ''} available.`)
+      setSaving(false); return
+    }
 
-    // Check for overlapping pending or approved leave
     const { data: existing } = await supabase.from('leave_applications')
       .select('id, start_date, end_date, status, leave_type')
-      .eq('user_id', authUser!.id)
-      .in('status', ['pending', 'approved'])
-      .lte('start_date', form.end_date)
-      .gte('end_date', form.start_date)
+      .eq('user_id', authUser!.id).in('status', ['pending', 'approved'])
+      .lte('start_date', form.end_date).gte('end_date', form.start_date)
     if (existing && existing.length > 0) {
       const clash = existing[0]
-      setError(`Overlapping leave application exists (${LEAVE_TYPES.find(t => t.value === clash.leave_type)?.label || clash.leave_type}, ${formatDate(clash.start_date)} — ${formatDate(clash.end_date)}, ${clash.status}). Please withdraw or wait for a decision on that application first.`)
+      setError(`Overlapping leave exists (${LEAVE_TYPES.find(t => t.value === clash.leave_type)?.label}, ${formatDate(clash.start_date)} — ${formatDate(clash.end_date)}, ${clash.status}).`)
       setSaving(false); return
     }
 
@@ -138,179 +154,216 @@ export default function MyLeavePage() {
       user_id: authUser!.id, leave_type: form.leave_type,
       start_date: form.start_date, end_date: form.end_date,
       days_applied: days, reason: form.reason || null, status: 'pending',
+      is_half_day: form.is_half_day,
+      half_day_period: form.is_half_day ? form.half_day_period : null,
     })
     if (err) { setError(err.message); setSaving(false); return }
 
-    await load(); setShowForm(false); setForm({ leave_type: 'annual', start_date: '', end_date: '', reason: '' })
+    setShowForm(false)
+    setForm({ leave_type: 'annual', start_date: '', end_date: '', reason: '', is_half_day: false, half_day_period: 'morning' })
     setSaving(false); showMsg('Leave application submitted')
     logActivity('create', 'My Leave', 'Submitted leave application')
+
+    // Reload
+    const { data: apps } = await supabase.from('leave_applications')
+      .select('*').eq('user_id', authUser!.id).order('created_at', { ascending: false })
+    setApplications(apps || [])
   }
 
   const handleCancel = async (id: string) => {
-    if (!confirm('Cancel this leave application?')) return
+    if (!confirm('Withdraw this leave application?')) return
     await supabase.from('leave_applications').delete().eq('id', id).eq('status', 'pending')
-    await load(); showMsg('Application withdrawn')
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const { data: apps } = await supabase.from('leave_applications')
+      .select('*').eq('user_id', authUser!.id).order('created_at', { ascending: false })
+    setApplications(apps || [])
+    showMsg('Application withdrawn')
   }
 
-  // If entitlement not set, treat as 0 to force escalation — do not use fallback 14
-  const entitlementNotSet = user != null && user.leave_entitlement_days == null
-  const entitlement = user?.leave_entitlement_days ?? 0
-  const carryForward = user?.leave_carry_forward_days ?? 0
-  const totalEntitlement = entitlement + carryForward
-  const balance = entitlementNotSet ? 0 : Math.max(0, totalEntitlement - takenDays)
-  const available = entitlementNotSet ? 0 : Math.max(0, totalEntitlement - takenDays - pendingDays)
-  const days = calcDays(form.start_date, form.end_date)
+  const formDays = calcDays(form.start_date, form.end_date, form.is_half_day)
+  const isHalfDayEligible = form.start_date && form.end_date && form.start_date === form.end_date
+  const currentLtStats = getEntitlement(form.leave_type)
 
-  const recentDecisions = applications.filter(a => {
-    if (a.status === 'pending') return false
-    const decided = a.approved_at || a.rejected_at
-    if (!decided) return false
-    return (Date.now() - new Date(decided).getTime()) < 7 * 24 * 60 * 60 * 1000
-  })
-
-  const statusIcon = (s: string) => s === 'approved' ? <CheckCircle className="w-4 h-4 text-green-600" /> : s === 'pending' ? <Clock className="w-4 h-4 text-amber-500" /> : <XCircle className="w-4 h-4 text-red-500" />
+  const statusIcon = (s: string) => s === 'approved'
+    ? <CheckCircle className="w-4 h-4 text-green-600" />
+    : s === 'pending' ? <Clock className="w-4 h-4 text-amber-500" />
+    : <XCircle className="w-4 h-4 text-red-500" />
 
   return (
     <div className="space-y-5 max-w-lg mx-auto">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-gray-900">My Leave</h1><p className="text-sm text-gray-500">{new Date().getFullYear()} leave summary</p></div>
-        <button onClick={() => setShowForm(!showForm)} disabled={entitlementNotSet}
-          className="btn-primary flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-          title={entitlementNotSet ? 'Leave entitlement not set — contact Business Ops' : undefined}>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">My Leave</h1>
+          <p className="text-sm text-gray-500">{new Date().getFullYear()} leave summary</p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)}
+          className="btn-primary flex items-center gap-1.5">
           <Plus className="w-4 h-4" /> Apply
         </button>
       </div>
 
-      <StatusBanner success={success} />
+      <StatusBanner success={success} error={error} onDismissError={() => setError('')} />
 
-      {/* In-app indicator for recent decisions */}
-      {recentDecisions.filter(a => a.status === 'approved').length > 0 && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
-          <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-          <p className="text-sm text-green-700 font-medium">
-            {recentDecisions.filter(a => a.status === 'approved').length} leave application{recentDecisions.filter(a => a.status === 'approved').length > 1 ? 's' : ''} approved recently
-          </p>
-        </div>
-      )}
-      {recentDecisions.filter(a => a.status === 'rejected').length > 0 && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
-          <XCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-          <p className="text-sm text-red-700 font-medium">
-            {recentDecisions.filter(a => a.status === 'rejected').length} leave application{recentDecisions.filter(a => a.status === 'rejected').length > 1 ? 's' : ''} rejected — see below for reason
-          </p>
-        </div>
-      )}
-
-      {/* Balance card */}
-      <div className="card p-4">
-        <div className="grid grid-cols-2 gap-3 text-center" style={{gridTemplateColumns: "1fr 1fr"}}>
-          <div className="bg-red-50 rounded-xl p-3">
-            <p className="text-2xl font-bold text-red-700">{entitlementNotSet ? '—' : totalEntitlement}</p>
-            {carryForward > 0 && <p className="text-xs text-gray-400 mt-0.5">{entitlement} + {carryForward} carried forward</p>}
-            <p className="text-xs text-red-600 mt-1">Entitled</p>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-3">
-            <p className="text-2xl font-bold text-gray-700">{takenDays}</p>
-            <p className="text-xs text-gray-500 mt-1">Approved & Taken</p>
-          </div>
-          {pendingDays > 0 && (
-            <div className="bg-amber-50 rounded-xl p-3 col-span-2">
-              <p className="text-2xl font-bold text-amber-700">{pendingDays}</p>
-              <p className="text-xs text-amber-600 mt-1">Pending Approval</p>
+      {/* Leave balance cards — one per type */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { type: 'annual', label: 'Annual Leave' },
+          { type: 'medical', label: 'Medical' },
+          { type: 'hospitalisation', label: 'Hospitalisation' },
+        ].map(({ type, label }) => {
+          const lt = getEntitlement(type)
+          return (
+            <div key={type} className="stat-card">
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className="text-xl font-bold text-gray-900">{lt.available}</p>
+              <p className="text-xs text-gray-400">of {lt.total} available</p>
+              {lt.taken > 0 && <p className="text-xs text-gray-400">{lt.taken} taken</p>}
+              {lt.pending > 0 && <p className="text-xs text-amber-500">{lt.pending} pending</p>}
+              {type === 'annual' && lt.carryForward > 0 && (
+                <p className="text-xs text-gray-400">{lt.entitlement} + {lt.carryForward} c/f</p>
+              )}
             </div>
-          )}
-          <div className={cn('rounded-xl p-3 col-span-2', balance < 3 ? 'bg-amber-50' : 'bg-green-50')}>
-            <p className={cn('text-2xl font-bold', balance < 3 ? 'text-amber-700' : 'text-green-700')}>{balance}</p>
-            <p className={cn('text-xs mt-1', balance < 3 ? 'text-amber-600' : 'text-green-600')}>Current Balance (approved only)</p>
-          </div>
-        </div>
-        {pendingDays > 0 && (
-          <p className="text-xs text-amber-600 text-center">Available after pending approved: <strong>{Math.max(0, entitlement - takenDays - pendingDays)}</strong> days</p>
-        )}
-        {entitlementNotSet && (
-          <p className="text-xs text-red-600 text-center mt-2 font-medium">
-            Your leave entitlement has not been set. Please contact Business Operations to rectify this before applying for leave.
-          </p>
-        )}
-        <p className="text-xs text-gray-400 text-center mt-1">Excludes weekends & public holidays. Resets on 1 Jan — unused leave does not carry forward.</p>
+          )
+        })}
       </div>
 
-      {/* Apply form */}
+      {/* Application form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="card p-4 space-y-4 border-red-200">
-          <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Apply for Leave</h2><button type="button" onClick={() => setShowForm(false)}><X className="w-4 h-4 text-gray-400" /></button></div>
-
-          <div>
-            <label className="label">Leave Type *</label>
-            <select className="input" value={form.leave_type} onChange={e => setForm(f => ({ ...f, leave_type: e.target.value }))}>
-              {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">From *</label><input className="input" type="date" required value={form.start_date} min={new Date().toISOString().split('T')[0]} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
-            <div><label className="label">To *</label><input className="input" type="date" required value={form.end_date} min={form.start_date || new Date().toISOString().split('T')[0]} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
-          </div>
-
-          {form.start_date && form.end_date && (() => {
-            const start = new Date(form.start_date)
-            const end = new Date(form.end_date)
-            const holidaysInRange = holidays.filter(h => {
-              const d = new Date(h); return d >= start && d <= end
-            })
-            if (!holidaysInRange.length) return null
-            return (
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700">
-                <p className="font-medium mb-1">Public holidays in this period (not counted as leave):</p>
-                {holidaysInRange.map(h => (
-                  <p key={h}>· {new Date(h).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-                ))}
-              </div>
-            )
-          })()}
-
-          {days > 0 && (
-            <div className={cn('rounded-lg p-3 text-sm font-medium text-center', days > available ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700')}>
-              {days} working day{days !== 1 ? 's' : ''} (excl. weekends & public holidays)
-              {days > available && ` — exceeds your available balance of ${available} days`}
+        <div className="card p-4 space-y-3 bg-blue-50 border border-blue-100">
+          <p className="text-sm font-semibold text-gray-900">New Leave Application</p>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div>
+              <label className="label">Leave Type</label>
+              <select className="input" value={form.leave_type}
+                onChange={e => setForm(f => ({ ...f, leave_type: e.target.value, is_half_day: false }))}>
+                {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label">Start Date</label>
+                <input className="input" type="date" required value={form.start_date}
+                  onChange={e => setForm(f => ({ ...f, start_date: e.target.value, is_half_day: false }))} />
+              </div>
+              <div>
+                <label className="label">End Date</label>
+                <input className="input" type="date" required value={form.end_date}
+                  min={form.start_date}
+                  onChange={e => setForm(f => ({ ...f, end_date: e.target.value, is_half_day: false }))} />
+              </div>
+            </div>
 
-          <div><label className="label">Reason</label><textarea className="input min-h-[70px] resize-none" value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Optional reason or notes" /></div>
+            {/* Half-day option — only when start = end */}
+            {isHalfDayEligible && (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={form.is_half_day}
+                    onChange={e => setForm(f => ({ ...f, is_half_day: e.target.checked }))}
+                    className="rounded border-gray-300 text-red-600" />
+                  <span className="text-sm text-gray-700">Half day (0.5 days)</span>
+                </label>
+                {form.is_half_day && (
+                  <div className="flex gap-2 ml-6">
+                    {(['morning', 'afternoon'] as const).map(p => (
+                      <label key={p} className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer text-sm',
+                        form.half_day_period === p ? 'border-red-500 bg-white text-red-700' : 'border-gray-200 text-gray-600')}>
+                        <input type="radio" name="half_day_period" value={p}
+                          checked={form.half_day_period === p}
+                          onChange={() => setForm(f => ({ ...f, half_day_period: p }))} />
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-          {error && <div className="flex items-center gap-2 text-xs text-red-600"><AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />{error}</div>}
+            {formDays > 0 && (
+              <div className="bg-white rounded-lg border border-blue-200 p-3 text-xs space-y-1">
+                <div className="flex justify-between"><span className="text-gray-500">Days applied</span><span className="font-medium">{formDays}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Balance after</span>
+                  <span className={cn('font-medium', currentLtStats.available - formDays < 0 ? 'text-red-600' : 'text-gray-900')}>
+                    {(currentLtStats.available - formDays).toFixed(1)}
+                  </span>
+                </div>
+              </div>
+            )}
 
-          <div className="flex gap-2">
-            <button type="submit" disabled={saving || days > available} className="btn-primary flex-1 disabled:opacity-50">{saving ? 'Submitting...' : 'Submit Application'}</button>
-            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
-          </div>
-        </form>
+            {/* Public holidays note */}
+            {holidays.length > 0 && form.start_date && form.end_date && (
+              (() => {
+                const ph = holidays.filter(h => h >= form.start_date && h <= form.end_date)
+                return ph.length > 0 ? (
+                  <div className="bg-blue-100 rounded-lg p-2 text-xs text-blue-700">
+                    Public holidays within range (excluded from count): {ph.map(h => formatDate(h)).join(', ')}
+                  </div>
+                ) : null
+              })()
+            )}
+
+            <div>
+              <label className="label">Reason (optional)</label>
+              <textarea className="input min-h-[60px]" value={form.reason}
+                onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="Optional — add context for your manager" />
+            </div>
+
+            <div className="flex gap-2">
+              <button type="submit" disabled={saving || formDays === 0}
+                className="btn-primary flex-1 disabled:opacity-50">
+                {saving ? 'Submitting...' : 'Submit Application'}
+              </button>
+              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Applications list */}
-      {applications.length === 0 ? (
-        <div className="card p-8 text-center"><Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No leave applications yet</p></div>
-      ) : (
-        <div className="space-y-2">
-          {applications.map(app => (
-            <div key={app.id} className="card p-4 flex items-start gap-3">
-              <div className="mt-0.5 flex-shrink-0">{statusIcon(app.status)}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-gray-900">{LEAVE_TYPES.find(t => t.value === app.leave_type)?.label}</p>
-                  <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', app.status === 'approved' ? 'bg-green-100 text-green-700' : app.status === 'pending' ? 'badge-pending' : 'badge-danger')}>{app.status}</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">{formatDate(app.start_date)} — {formatDate(app.end_date)} · {app.days_applied} day{app.days_applied !== 1 ? 's' : ''}</p>
-                {app.reason && <p className="text-xs text-gray-400">{app.reason}</p>}
-                {app.rejection_reason && <p className="text-xs text-red-500">Rejected: {app.rejection_reason}</p>}
-              </div>
-              {app.status === 'pending' && (
-                <button onClick={() => handleCancel(app.id)} className="text-xs text-gray-400 hover:text-red-500 flex-shrink-0">Withdraw</button>
-              )}
-            </div>
-          ))}
+      <div className="card">
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900 text-sm">My Applications</h2>
         </div>
-      )}
+        {applications.length === 0 ? (
+          <div className="p-8 text-center">
+            <Calendar className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm text-gray-500">No leave applications yet</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {applications.map(a => (
+              <div key={a.id} className="p-4 flex items-start gap-3">
+                {statusIcon(a.status)}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900">
+                      {LEAVE_TYPES.find(t => t.value === a.leave_type)?.label}
+                    </p>
+                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+                      a.status === 'approved' ? 'bg-green-100 text-green-700' :
+                      a.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}>
+                      {a.status}
+                    </span>
+                    {a.escalated_to_biz_ops && a.status === 'pending' && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Escalated to Biz Ops</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formatDate(a.start_date)} — {formatDate(a.end_date)} ·
+                    {a.is_half_day ? ` ${a.half_day_period} (0.5 day)` : ` ${a.days_applied} day${a.days_applied !== 1 ? 's' : ''}`}
+                  </p>
+                  {a.reason && <p className="text-xs text-gray-400 mt-0.5">{a.reason}</p>}
+                  {a.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Reason: {a.rejection_reason}</p>}
+                </div>
+                {a.status === 'pending' && (
+                  <button onClick={() => handleCancel(a.id)}
+                    className="text-xs text-red-500 hover:underline flex-shrink-0">Withdraw</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
