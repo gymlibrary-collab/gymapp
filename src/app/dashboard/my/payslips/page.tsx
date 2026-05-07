@@ -115,16 +115,25 @@ export default function MyPayslipsPage() {
     rows.push(['', ''])
     rows.push(['Net Pay', formatSGD(slip.net_salary)])
 
-    autoTable(doc, { startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
+    if (slip.is_cpf_liable && !slip.low_income_flag) {
+      rows.splice(rows.length - 2, 0, [`Employer CPF (${slip.employer_cpf_rate}%)`, formatSGD(slip.employer_cpf_amount)])
+    }
+    const netPayRowIdx = rows.length - 1
+    autoTable(doc, {
+      startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE,
+      didParseCell: (data: any) => {
+        if (data.row.index === netPayRowIdx) {
+          data.cell.styles.fillColor = [234, 243, 222]
+          data.cell.styles.textColor = [39, 80, 10]
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
 
     const finalY = (doc as any).lastAutoTable.finalY + 10
-    if (slip.is_cpf_liable) {
-      doc.setFontSize(9); doc.setTextColor(100)
-      doc.text(`Employer CPF (${slip.employer_cpf_rate}%): ${formatSGD(slip.employer_cpf_amount)}`, 14, finalY)
-    }
     doc.setFontSize(10); doc.setTextColor(0)
-    doc.text(`Status: ${slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}`, 14, finalY + 14)
-    if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 20)
+    doc.text(`Status: ${slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}`, 14, finalY)
+    if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
 
     // ── YTD Table (calendar year Jan to payslip month) ────────
     const ytdY = finalY + 32
@@ -189,31 +198,38 @@ export default function MyPayslipsPage() {
       ['Membership Sale Commissions', payout.membership_sales_count || 0, formatSGD(payout.membership_commission_sgd)],
       ['', '', ''],
       ['Gross Commission', '', formatSGD(payout.total_commission_sgd)],
+      ['', '', ''],
     ]
+    const cpfBody: any[] = [...commRows]
     if (payout.is_cpf_liable && payout.employee_cpf_amount > 0) {
-      commRows.push([`Employee CPF — AW (${payout.employee_cpf_rate}% on ${formatSGD(payout.aw_subject_to_cpf)})`, '', `- ${formatSGD(payout.employee_cpf_amount)}`])
-      commRows.push(['', '', ''])
-      commRows.push(['Net Commission', '', formatSGD(payout.net_commission_sgd ?? (payout.total_commission_sgd - payout.employee_cpf_amount))])
+      cpfBody.push([`Employee CPF — AW (${payout.employee_cpf_rate}% on ${formatSGD(payout.aw_subject_to_cpf)})`, '', `- ${formatSGD(payout.employee_cpf_amount)}`])
+      cpfBody.push([`Employer CPF — AW (${payout.employer_cpf_rate}% on ${formatSGD(payout.aw_subject_to_cpf)})`, '', formatSGD(payout.employer_cpf_amount)])
+      cpfBody.push(['', '', ''])
+      cpfBody.push(['Net commission (after employee CPF)', '', formatSGD(payout.net_commission_sgd ?? (payout.total_commission_sgd - payout.employee_cpf_amount))])
+    } else if (!payout.is_cpf_liable) {
+      cpfBody.push(['CPF', '', 'Not applicable'])
     }
+    const netCommRowIdx = cpfBody.length - 1
     autoTable(doc, {
       startY: yPos + 2,
       head: [['Description', 'Count', 'Amount (SGD)']],
-      body: commRows,
+      body: cpfBody,
       styles: { fontSize: 10 },
       headStyles: { fillColor: [220, 38, 38] },
       columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } },
+      didParseCell: (data: any) => {
+        if (payout.is_cpf_liable && payout.employee_cpf_amount > 0 && data.row.index === netCommRowIdx) {
+          data.cell.styles.fillColor = [234, 243, 222] // light green — same as success bg
+          data.cell.styles.textColor = [39, 80, 10]
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
     })
 
     const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(10)
-    if (payout.is_cpf_liable && payout.employer_cpf_amount > 0) {
-      doc.setTextColor(100)
-      doc.text(`Employer CPF (${payout.employer_cpf_rate}% on ${formatSGD(payout.aw_subject_to_cpf)}): ${formatSGD(payout.employer_cpf_amount)}`, 14, finalY)
-      doc.setTextColor(0)
-    }
-    const statusY = (payout.is_cpf_liable && payout.employer_cpf_amount > 0) ? finalY + 8 : finalY
-    doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, statusY)
-    if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, statusY + 6)
+    doc.setFontSize(10); doc.setTextColor(0)
+    doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, finalY)
+    if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
 
     doc.save(`commission_${payout.period_start}_${payout.period_end}.pdf`)
   }
