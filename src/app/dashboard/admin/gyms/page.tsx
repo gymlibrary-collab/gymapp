@@ -13,7 +13,6 @@ export default function AdminGymsPage() {
 
   const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
   const [gyms, setGyms] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
@@ -48,7 +47,6 @@ export default function AdminGymsPage() {
       }))
 
       setGyms(rows)
-      setLoading(false)
     }
     load()
   }, [])
