@@ -43,7 +43,6 @@ export default function MyLeavePage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Leave', 'Viewed own leave')
-        // Auth guard handled by useCurrentUser hook
 
       // ── Leave escalation check (configurable threshold) ─────
       const thresholds = await loadEscalationThresholds(supabase)
@@ -86,7 +85,8 @@ export default function MyLeavePage() {
     load()
   }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const calcDays = (start: string, end: string, isHalfDay: boolean) => {
     if (!start || !end) return 0

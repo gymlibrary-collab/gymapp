@@ -25,8 +25,6 @@ export default function MyGymPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Gym', 'Viewed gym details')
-        // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
       const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user!.manager_gym_id).single()
       setGym(gymData)

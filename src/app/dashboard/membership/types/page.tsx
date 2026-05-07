@@ -29,8 +29,6 @@ export default function MembershipTypesPage() {
 
   const load = async () => {
     // Route guard — Business Ops only
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data } = await supabase.from('membership_types').select('*').order('price_sgd')
     setTypes(data || [])

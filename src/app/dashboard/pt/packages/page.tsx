@@ -50,9 +50,6 @@ export default function PackagesPage() {
   useEffect(() => { loadPackages() }, [])
 
   const loadPackages = async () => {
-    // Route guard — Business Ops only
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data: active } = await supabase.from('package_templates')
       .select('*').eq('is_archived', false).order('effective_from', { ascending: false })

@@ -67,9 +67,6 @@ export default function StaffPayrollDetailPage() {
 
   const loadData = async () => {
     // Guard — only business_ops can access payroll
-      // Auth guard handled by useCurrentUser hook
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
     setIsBizOpsRole(user!.role === 'business_ops')
 
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()

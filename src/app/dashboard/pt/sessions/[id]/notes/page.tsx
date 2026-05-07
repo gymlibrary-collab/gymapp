@@ -48,7 +48,6 @@ export default function PtSessionNotesPage() {
 
   useEffect(() => {
     const load = async () => {
-        // Auth guard handled by useCurrentUser hook
       const { data } = await supabase.from('sessions')
         .select('*, member:members!sessions_member_id_fkey(full_name, phone), attending_member:members!sessions_attending_member_id_fkey(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions, is_shared, secondary_member_id), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
         .eq('id', id).single()

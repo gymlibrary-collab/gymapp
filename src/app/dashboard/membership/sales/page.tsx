@@ -36,7 +36,6 @@ export default function MembershipSalesPage() {
   if (!user) return null
 
   const load = async () => {
-      // Auth guard handled by useCurrentUser hook
 
     const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 

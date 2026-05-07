@@ -27,9 +27,6 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'App Settings', 'Viewed app settings')
-    // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
       const { data } = await supabase.from('app_settings')
         .select('login_logo_url, admin_sidebar_logo_url, auto_logout_minutes, app_name')

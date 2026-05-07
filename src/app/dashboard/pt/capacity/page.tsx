@@ -31,7 +31,6 @@ export default function TrainerCapacityPage() {
   if (!user) return null
 
   const load = async () => {
-      // Auth guard handled by useCurrentUser hook
 
     const now = new Date()
     // Week bounds (Mon-Sun)

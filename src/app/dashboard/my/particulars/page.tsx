@@ -27,13 +27,13 @@ export default function MyParticularsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
-        // Auth guard handled by useCurrentUser hook
       setForm({ phone: user!.phone || '', address: (user as any).address || '' })
     }
     load()
   }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')

@@ -26,8 +26,6 @@ export default function PayslipAuditPage() {
   useEffect(() => { loadData() }, [filterYear, filterMonth])
 
   const loadData = async () => {
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     let query = supabase
       .from('payslip_deletions')

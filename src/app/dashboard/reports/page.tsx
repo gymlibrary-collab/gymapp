@@ -20,9 +20,6 @@ export default function ReportsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'Reports', 'Viewed summary reports')
-    // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
       const monthStart = `${year}-${String(month).padStart(2,'0')}-01`
       const monthEnd = new Date(year, month, 0).toISOString().split('T')[0]

@@ -48,9 +48,6 @@ export default function AdminStaffPage() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
-    // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data: active } = await supabase.from('users').select('*')
       .eq('role', 'business_ops').eq('is_archived', false).order('full_name')

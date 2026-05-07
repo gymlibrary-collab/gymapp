@@ -26,7 +26,6 @@ export default function MyPayslipsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Payslips', 'Viewed own payslips')
-        // Auth guard handled by useCurrentUser hook
 
       // Load gyms map for logo lookup
       const { data: gymsData } = await supabase.from('gyms').select('id, name, logo_url')
@@ -64,7 +63,8 @@ export default function MyPayslipsPage() {
     load()
   }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const downloadPayslip = async (slip: any) => {
     const { default: jsPDF } = await import('jspdf')

@@ -59,9 +59,6 @@ export default function RosterPage() {
 
   const loadData = async () => {
     // Route guard — manager (full access) or Biz Ops (read-only for payroll reconciliation).
-      // Auth guard handled by useCurrentUser hook
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = user!.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {

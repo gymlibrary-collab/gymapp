@@ -19,8 +19,6 @@ export default function AdminGymsPage() {
 
   useEffect(() => {
     const load = async () => {
-        // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
       logActivity('page_view', 'Gym Clubs', 'Viewed gym clubs list')
 
       const { data: gymsData } = await supabase
