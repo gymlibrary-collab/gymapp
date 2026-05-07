@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const DEFAULT_PRESETS = [
   { label: 'Morning', shift_start: '08:00', shift_end: '13:00' },
@@ -22,6 +23,8 @@ const DEFAULT_PRESETS = [
 ]
 
 export default function RosterPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
   const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [gymId, setGymId] = useState<string | null>(null)
@@ -56,13 +59,8 @@ export default function RosterPage() {
 
   const loadData = async () => {
     // Route guard — manager (full access) or Biz Ops (read-only for payroll reconciliation).
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
-
-    const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    setCurrentUser(u)
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = u.manager_gym_id || null
     if (me.role === 'business_ops' && !gId) {
@@ -174,7 +172,7 @@ export default function RosterPage() {
           shift_date: date, shift_start: times.start, shift_end: times.end,
           hours_worked: Math.max(hours, 0), hourly_rate: rate,
           gross_pay: Math.max(hours, 0) * rate,
-          status: 'scheduled', created_by: currentUser?.id,
+          status: 'scheduled', created_by: user?.id,
         })
       }
     }
@@ -196,7 +194,7 @@ export default function RosterPage() {
     await supabase.from('roster_shift_presets').insert({
       gym_id: gymId, label: presetForm.label,
       shift_start: presetForm.shift_start, shift_end: presetForm.shift_end,
-      sort_order: presets.length, created_by: currentUser?.id,
+      sort_order: presets.length, created_by: user?.id,
     })
     await loadData(); setShowPresetForm(false); setPresetForm({ label: '', shift_start: '', shift_end: '' })
     logActivity('create', 'Duty Roster', 'Saved roster shift preset')
@@ -206,7 +204,7 @@ export default function RosterPage() {
   const handleLock = async (entry: any) => {
     if (!confirm(`Lock shift for ${entry.user?.full_name}?`)) return
     await supabase.from('duty_roster').update({
-      is_locked: true, locked_at: new Date().toISOString(), locked_by: currentUser?.id, status: 'completed'
+      is_locked: true, locked_at: new Date().toISOString(), locked_by: user?.id, status: 'completed'
     }).eq('id', entry.id)
     logActivity('update', 'Duty Roster', 'Locked roster shift')
     await loadData(); showMsg('Shift locked')
@@ -224,7 +222,7 @@ export default function RosterPage() {
 
   const totalHours = roster.reduce((s, r) => s + (r.hours_worked || 0), 0)
   const totalPay = roster.reduce((s, r) => s + (r.gross_pay || 0), 0)
-  const isBizOps = currentUser?.role === 'business_ops'
+  const isBizOps = user?.role === 'business_ops'
   const overlap = showBulkForm ? checkOverlaps() : null
 
   return (
