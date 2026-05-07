@@ -513,6 +513,7 @@ export default function DashboardPage() {
   const [newCommission, setNewCommission] = useState<any>(null) // latest unseen approved commission
   const [rejectionNotifs, setRejectionNotifs] = useState<any[]>([]) // unseen PT package rejections
   const [memRejectionNotifs, setMemRejectionNotifs] = useState<any[]>([]) // unseen membership rejection notifications
+  const [leaveDecisionNotifs, setLeaveDecisionNotifs] = useState<any[]>([]) // unseen leave decisions
   const [pendingMemSales, setPendingMemSales] = useState<number>(0) // own pending membership sales
 
   const supabase = createClient()
@@ -861,6 +862,16 @@ export default function DashboardPage() {
         setMemRejectionNotifs(memRejections || [])
       }
 
+      // ── Leave decision notifications ─────────────────────────
+      if (['trainer', 'staff', 'manager'].includes(u.role)) {
+        const { data: leaveNotifs } = await supabase.from('leave_decision_notif')
+          .select('id, leave_type, start_date, end_date, days_applied, decision, rejection_reason, decided_by_name')
+          .eq('user_id', authUser.id)
+          .is('seen_at', null)
+          .order('decided_at', { ascending: false })
+        setLeaveDecisionNotifs(leaveNotifs || [])
+      }
+
       // ── PT package rejection notifications ──────────────
       // Show to trainers, staff and managers whose packages were rejected
       if (['trainer', 'staff', 'manager'].includes(u.role)) {
@@ -970,6 +981,16 @@ export default function DashboardPage() {
     ))
     setNonRenewalModal(null)
     setNonRenewalSaving(false)
+  }
+
+  const dismissLeaveNotifs = async () => {
+    if (leaveDecisionNotifs.length === 0) return
+    const supabase = createClient()
+    const now = new Date().toISOString()
+    for (const n of leaveDecisionNotifs) {
+      await supabase.from('leave_decision_notif').update({ seen_at: now }).eq('id', n.id)
+    }
+    setLeaveDecisionNotifs([])
   }
 
   const dismissMemRejections = async () => {
@@ -1162,6 +1183,26 @@ export default function DashboardPage() {
             className="text-xs text-red-600 underline mt-1">
             Dismiss
           </button>
+        </div>
+      )}
+
+      {/* ── Leave decision notifications ── */}
+      {leaveDecisionNotifs.length > 0 && (
+        <div className={cn('card p-4 space-y-2',
+          leaveDecisionNotifs.some(n => n.decision === 'rejected') ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200')}>
+          <p className={cn('text-sm font-medium flex items-center gap-2',
+            leaveDecisionNotifs.some(n => n.decision === 'rejected') ? 'text-red-800' : 'text-green-800')}>
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            {leaveDecisionNotifs.length} leave application{leaveDecisionNotifs.length > 1 ? 's' : ''} updated
+          </p>
+          {leaveDecisionNotifs.map((n: any) => (
+            <p key={n.id} className={cn('text-xs', n.decision === 'rejected' ? 'text-red-700' : 'text-green-700')}>
+              · {n.decision === 'approved' ? '✓' : '✗'} {n.leave_type} leave {formatDate(n.start_date)}–{formatDate(n.end_date)} ({n.days_applied} days)
+              {n.decision === 'rejected' && n.rejection_reason && ` — ${n.rejection_reason}`}
+              {n.decided_by_name && ` · by ${n.decided_by_name}`}
+            </p>
+          ))}
+          <button onClick={dismissLeaveNotifs} className="text-xs underline mt-1">Dismiss</button>
         </div>
       )}
 
