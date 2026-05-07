@@ -14,10 +14,8 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 export default function TrainerCapacityPage() {
 
   const { logActivity } = useActivityLog()
-  const [user, setUser] = useState<any>(null)
   const [trainers, setTrainers] = useState<any[]>([])
   const { success, showMsg } = useToast()
-  const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ max_sessions_per_week: 0, monthly_session_target: 0 })
   const [saving, setSaving] = useState(false)
@@ -93,7 +91,6 @@ export default function TrainerCapacityPage() {
     }))
 
     setTrainers(enriched)
-    setLoading(false)
   }
 
   const handleSaveCapacity = async (trainerId: string) => {
