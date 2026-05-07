@@ -27,7 +27,7 @@ export default function MyParticularsPage() {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
         // Auth guard handled by useCurrentUser hook
-      setForm({ phone: u.phone || '', address: u.address || '' })
+      setForm({ phone: user.phone || '', address: (user as any).address || '' })
     }
     load()
   }, [])
