@@ -47,7 +47,6 @@ export default function MyParticularsPage() {
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed to save'); setSaving(false); return }
-    setProfile((prev: any) => ({ ...prev, ...form }))
     setSaving(false)
     logActivity('update', 'My Particulars', 'Updated personal particulars')
     showMsg('Particulars updated')
