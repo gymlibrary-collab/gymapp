@@ -162,17 +162,27 @@ function BizOpsGymTabs() {
           .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
           .lt('end_date', now.toISOString().split('T')[0])
 
-        // Expiring memberships
+        // Escalate unactioned memberships expiring within 7 days
+        const in7DaysBizOps = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const { data: bizOpsEscalate } = await supabase.from('gym_memberships')
+          .select('id').eq('gym_id', g.id).eq('status', 'active')
+          .eq('sale_status', 'confirmed').eq('membership_actioned', false)
+          .eq('escalated_to_biz_ops', false)
+          .lte('end_date', in7DaysBizOps).gte('end_date', now.toISOString().split('T')[0])
+        if (bizOpsEscalate && bizOpsEscalate.length > 0) {
+          await supabase.from('gym_memberships')
+            .update({ escalated_to_biz_ops: true, escalated_at: now.toISOString() })
+            .in('id', bizOpsEscalate.map((m: any) => m.id))
+        }
+
+        // Expiring memberships — Biz Ops sees escalated + unactioned only
+        const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         const { data: expiringMems } = await supabase.from('gym_memberships')
-          .select('id, end_date, member_id, member:members(full_name), membership_type_name')
+          .select('id, end_date, member_id, membership_type_name, membership_actioned, escalated_to_biz_ops, member:members(full_name)')
           .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
-          .lte('end_date', in30Days).gte('end_date', now.toISOString().split('T')[0]).limit(10)
-        const renewedIds = new Set(
-          expiringMems?.filter((m: any) => expiringMems!.some((m2: any) =>
-            m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date)
-          )).map((m: any) => m.member_id)
-        )
-        const filteredExpiringMems = (expiringMems || []).filter((m: any) => !renewedIds.has(m.member_id))
+          .eq('escalated_to_biz_ops', true).eq('membership_actioned', false)
+          .lte('end_date', in30DaysBizOps).gte('end_date', now.toISOString().split('T')[0]).limit(10)
+        const filteredExpiringMems = expiringMems || []
 
         // Financials
         const { count: members } = await supabase.from('members')
@@ -483,6 +493,10 @@ export default function DashboardPage() {
   const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
   const [calendarOffset, setCalendarOffset] = useState(0) // days offset from today
   const [calendarModal, setCalendarModal] = useState<any>(null)
+  const [nonRenewalModal, setNonRenewalModal] = useState<any>(null) // expiring membership to record non-renewal
+  const [nonRenewalReason, setNonRenewalReason] = useState('')
+  const [nonRenewalOther, setNonRenewalOther] = useState('')
+  const [nonRenewalSaving, setNonRenewalSaving] = useState(false)
   const [pendingMemberships, setPendingMemberships] = useState(0)
   const [pendingSessions, setPendingSessions] = useState(0)
 
@@ -726,6 +740,26 @@ export default function DashboardPage() {
           .limit(10)
         setExpiringPackages(expPkgs || [])
 
+        // ── Membership expiry escalation check ──────────────────
+        // Runs on manager AND Biz Ops dashboard load — whichever fires first
+        // Escalate to Biz Ops if expiring within 7 days AND not actioned
+        const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        const todayStr = now.toISOString().split('T')[0]
+        const { data: toEscalate } = await supabase.from('gym_memberships')
+          .select('id')
+          .eq('gym_id', gymId)
+          .eq('status', 'active')
+          .eq('sale_status', 'confirmed')
+          .eq('membership_actioned', false)
+          .eq('escalated_to_biz_ops', false)
+          .lte('end_date', in7Days)
+          .gte('end_date', todayStr)
+        if (toEscalate && toEscalate.length > 0) {
+          await supabase.from('gym_memberships')
+            .update({ escalated_to_biz_ops: true, escalated_at: now.toISOString() })
+            .in('id', toEscalate.map((m: any) => m.id))
+        }
+
         // Gym memberships expiring within 30 days
         // Auto-expire any memberships past their end_date
         await supabase.from('gym_memberships')
@@ -737,7 +771,7 @@ export default function DashboardPage() {
 
         const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         const { data: expiringMems } = await supabase.from('gym_memberships')
-          .select('id, end_date, member_id, member:members(full_name), membership_type_name')
+          .select('id, end_date, member_id, membership_type_name, membership_actioned, escalated_to_biz_ops, member:members(id, full_name)')
           .eq('gym_id', gymId)
           .eq('status', 'active')
           .eq('sale_status', 'confirmed')
@@ -890,6 +924,54 @@ export default function DashboardPage() {
   const now = new Date()
   const todayStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' })
   const isAdmin = user.role === 'admin'
+  const handleNonRenewal = async () => {
+    if (!nonRenewalModal || !nonRenewalReason) return
+    if (nonRenewalReason === 'Other' && !nonRenewalOther.trim()) return
+    setNonRenewalSaving(true)
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+
+    // Write non-renewal record
+    const { error: err } = await supabase.from('non_renewal_records').insert({
+      member_id: nonRenewalModal.member_id,
+      gym_membership_id: nonRenewalModal.id,
+      gym_id: nonRenewalModal.gym_id || null,
+      reason: nonRenewalReason,
+      reason_other: nonRenewalReason === 'Other' ? nonRenewalOther.trim() : null,
+      recorded_by: authUser!.id,
+    })
+    if (err) { setNonRenewalSaving(false); return }
+
+    // Mark membership as actioned
+    await supabase.from('gym_memberships')
+      .update({ membership_actioned: true })
+      .eq('id', nonRenewalModal.id)
+
+    // Log activity via API (dashboard component doesn't use useActivityLog hook)
+    const { data: actingUser } = await supabase.from('users').select('full_name, role').eq('id', authUser!.id).single()
+    if (actingUser) {
+      fetch('/api/activity-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: authUser!.id,
+          user_name: (actingUser as any).full_name,
+          role: (actingUser as any).role,
+          action_type: 'update',
+          page: 'Dashboard',
+          description: 'Recorded membership non-renewal from dashboard',
+        }),
+      }).catch(() => {})
+    }
+
+    // Update expiringMemberships state — remove actioned item from banner
+    setExpiringMemberships(prev => prev.map((m: any) =>
+      m.id === nonRenewalModal.id ? { ...m, membership_actioned: true } : m
+    ))
+    setNonRenewalModal(null)
+    setNonRenewalSaving(false)
+  }
+
   const dismissMemRejections = async () => {
     if (memRejectionNotifs.length === 0) return
     const supabase = createClient()
@@ -1109,6 +1191,50 @@ export default function DashboardPage() {
             </p>
           ))}
           <button onClick={dismissMemRejections} className="text-xs text-red-600 underline mt-1">Dismiss</button>
+        </div>
+      )}
+
+      {/* ── Non-renewal modal ── */}
+      {nonRenewalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setNonRenewalModal(null)}>
+          <div className="fixed inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 text-sm">Record Non-Renewal</h3>
+              <button onClick={() => setNonRenewalModal(null)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Member</p>
+              <p className="text-sm font-medium text-gray-900">{nonRenewalModal.member?.full_name}</p>
+              <p className="text-xs text-gray-400">{nonRenewalModal.membership_type_name} · expires {formatDate(nonRenewalModal.end_date)}</p>
+            </div>
+            <div>
+              <label className="label">Reason for non-renewal *</label>
+              <select className="input" value={nonRenewalReason} onChange={e => setNonRenewalReason(e.target.value)}>
+                <option value="">Select reason...</option>
+                {['Relocating', 'Financial', 'Health', 'Schedule', 'Switched gym', 'Travel', 'Completed fitness goals', 'Dissatisfied with service', 'Temporary pause', 'Other'].map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            {nonRenewalReason === 'Other' && (
+              <div>
+                <label className="label">Please specify *</label>
+                <textarea className="input min-h-[70px]" value={nonRenewalOther}
+                  onChange={e => setNonRenewalOther(e.target.value)}
+                  placeholder="Describe the reason..." />
+              </div>
+            )}
+            <p className="text-xs text-amber-600">Membership remains active until {formatDate(nonRenewalModal.end_date)}. Member profile will become inactive after that date.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setNonRenewalModal(null)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleNonRenewal}
+                disabled={!nonRenewalReason || (nonRenewalReason === 'Other' && !nonRenewalOther.trim()) || nonRenewalSaving}
+                className="btn-primary flex-1 disabled:opacity-50">
+                {nonRenewalSaving ? 'Saving...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1467,16 +1593,39 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Expiring packages */}
-          {expiringMemberships.length > 0 && (
-        <div className="card p-4 bg-amber-50 border border-amber-200">
-          <p className="text-sm font-medium text-amber-800 mb-2">⚠ {expiringMemberships.length} membership{expiringMemberships.length > 1 ? 's' : ''} expiring within 30 days</p>
-          {expiringMemberships.slice(0, 5).map((m: any) => (
-            <p key={m.id} className="text-xs text-amber-700">· {m.member?.full_name} — {m.membership_type_name}: expires {formatDate(m.end_date)}</p>
-          ))}
-          {expiringMemberships.length > 5 && <p className="text-xs text-amber-600 mt-1">+{expiringMemberships.length - 5} more</p>}
-        </div>
-      )}
+          {/* Expiring memberships — non-dismissible, manager must action each */}
+          {expiringMemberships.filter((m: any) => !m.membership_actioned).length > 0 && (
+            <div className="card border border-amber-300 overflow-hidden">
+              <div className="bg-amber-500 px-4 py-2 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-white flex-shrink-0" />
+                <p className="text-sm font-semibold text-white">
+                  {expiringMemberships.filter((m: any) => !m.membership_actioned).length} membership{expiringMemberships.filter((m: any) => !m.membership_actioned).length > 1 ? 's' : ''} expiring — action required
+                </p>
+              </div>
+              <div className="divide-y divide-amber-100">
+                {expiringMemberships.filter((m: any) => !m.membership_actioned).map((m: any) => (
+                  <div key={m.id} className="flex items-center gap-3 p-3 bg-amber-50">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{m.member?.full_name}</p>
+                      <p className="text-xs text-amber-700">{m.membership_type_name} · expires {formatDate(m.end_date)}
+                        {m.escalated_to_biz_ops && <span className="ml-2 text-red-600 font-medium">⚠ Escalated to Biz Ops</span>}
+                      </p>
+                    </div>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Link href={`/dashboard/members/${m.member_id}`}
+                        className="text-xs bg-red-600 text-white px-2.5 py-1.5 rounded-lg font-medium hover:bg-red-700">
+                        Renew
+                      </Link>
+                      <button onClick={() => { setNonRenewalModal(m); setNonRenewalReason(''); setNonRenewalOther('') }}
+                        className="text-xs bg-white text-amber-700 border border-amber-300 px-2.5 py-1.5 rounded-lg font-medium hover:bg-amber-50">
+                        Non-Renewal
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
       {expiringPackages.length > 0 && (
             <div className="card">
