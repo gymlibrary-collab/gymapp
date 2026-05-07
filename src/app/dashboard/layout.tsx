@@ -46,6 +46,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/config/leave-policy', label: 'Leave Policy', icon: CalendarDays },
   { href: '/dashboard/config/escalation', label: 'Escalation Settings', icon: AlertCircle },
   { href: '/dashboard/config/whatsapp-templates', label: 'WhatsApp Templates', icon: MessageSquare },
+  { href: '/dashboard/config/whatsapp-notifications', label: 'WhatsApp Notifications', icon: MessageSquare },
   { label: 'Reports', header: true },
   { href: '/dashboard/reports', label: 'Summary Reports', icon: BarChart3 },
   { label: 'My Account', header: true },
