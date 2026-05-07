@@ -30,8 +30,6 @@ export default function PublicHolidaysPage() {
 
   const load = async () => {
     // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data } = await supabase.from('public_holidays')
       .select('*').eq('year', selectedYear).order('holiday_date')
