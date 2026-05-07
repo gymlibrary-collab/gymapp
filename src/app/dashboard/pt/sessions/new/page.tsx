@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, cn } from '@/lib/utils'
-import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
+import { queueWhatsApp } from '@/lib/whatsapp'
 import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -166,16 +166,20 @@ export default function NewPtSessionPage() {
     const reminderAt = new Date(scheduledAt.getTime() - 24 * 60 * 60 * 1000)
     if (reminderAt > new Date()) {
       const member = members.find(m => m.id === form.member_id)
-      if (currentUser.phone && await isWhatsAppEnabled(supabase, 'pt_reminder_trainer_24h')) {
-        await supabase.from('whatsapp_queue').insert({
-          notification_type: 'pt_reminder_24h',
-          recipient_phone: currentUser.phone,
-          recipient_name: currentUser.full_name,
-          message: `Reminder: PT session tomorrow at ${scheduledAt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} with ${member?.full_name}`,
-          scheduled_for: reminderAt.toISOString(),
-          status: 'pending',
-        })
-      }
+      await queueWhatsApp(supabase, {
+        notificationType: 'pt_reminder_trainer_24h',
+        phone: currentUser.phone,
+        name: currentUser.full_name,
+        placeholders: {
+          trainer_name: currentUser.full_name || '',
+          member_name: member?.full_name || '',
+          session_time: scheduledAt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' }),
+          session_date: scheduledAt.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }),
+        },
+        fallbackMessage: `Reminder: PT session tomorrow at ${scheduledAt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} with ${member?.full_name}`,
+        relatedId: null,
+        scheduledFor: reminderAt.toISOString(),
+      })
     }
 
     router.push('/dashboard/pt/sessions')
