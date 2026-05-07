@@ -172,6 +172,7 @@ export default function MyPayslipsPage() {
     })
 
     doc.save(`payslip_${getMonthName(slip.month)}_${slip.year}.pdf`)
+    logActivity('export', 'My Payslips', `Downloaded payslip PDF — ${getMonthName(slip.month)} ${slip.year}`)
   }
 
   const downloadCommissionSlip = async (payout: any) => {
@@ -232,6 +233,7 @@ export default function MyPayslipsPage() {
     if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
 
     doc.save(`commission_${payout.period_start}_${payout.period_end}.pdf`)
+    logActivity('export', 'My Payslips', `Downloaded commission PDF — ${payout.period_start} to ${payout.period_end}`)
   }
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
