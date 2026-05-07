@@ -5,8 +5,11 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName } from '@/lib/utils'
 import { BarChart3, CreditCard, Package, Banknote } from 'lucide-react'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function ReportsPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
   const { logActivity } = useActivityLog()
   const [stats, setStats] = useState<any>({})
   const [month] = useState(new Date().getMonth() + 1)
@@ -18,17 +21,14 @@ export default function ReportsPage() {
     const load = async () => {
       logActivity('page_view', 'Reports', 'Viewed summary reports')
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'manager' && me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
       const monthStart = `${year}-${String(month).padStart(2,'0')}-01`
       const monthEnd = new Date(year, month, 0).toISOString().split('T')[0]
 
       // Managers see only their gym's figures; Biz Ops sees all gyms.
-      const { data: meDetail } = await supabase.from('users').select('manager_gym_id').eq('id', authUser.id).single()
-      const gymId = me.role === 'manager' ? meDetail?.manager_gym_id : null
+      const gymId = user.role === 'manager' ? user.manager_gym_id : null
 
       let memQ = supabase.from('gym_memberships')
         .select('price_sgd, commission_sgd').eq('sale_status','confirmed')
