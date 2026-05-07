@@ -79,7 +79,7 @@ export async function runEscalationCheck(
       if (stale && stale.length > 0) {
         await supabase.from('leave_applications')
           .update({ escalated_to_biz_ops: true, escalated_at: escalatedAt })
-          .in('id', stale.map(r => r.id))
+          .in('id', stale.map((r: any) => r.id))
         escalatedCount = stale.length
       }
     }
@@ -97,7 +97,7 @@ export async function runEscalationCheck(
       if (stale && stale.length > 0) {
         await supabase.from('packages')
           .update({ escalated_to_biz_ops: true, escalated_at: escalatedAt })
-          .in('id', stale.map(r => r.id))
+          .in('id', stale.map((r: any) => r.id))
         escalatedCount = stale.length
       }
     }
@@ -115,7 +115,7 @@ export async function runEscalationCheck(
       if (stale && stale.length > 0) {
         await supabase.from('sessions')
           .update({ escalated_to_biz_ops: true, escalated_at: escalatedAt })
-          .in('id', stale.map(r => r.id))
+          .in('id', stale.map((r: any) => r.id))
         escalatedCount = stale.length
       }
     }
@@ -132,7 +132,7 @@ export async function runEscalationCheck(
       if (stale && stale.length > 0) {
         await supabase.from('gym_memberships')
           .update({ escalated_to_biz_ops: true, escalated_at: escalatedAt })
-          .in('id', stale.map(r => r.id))
+          .in('id', stale.map((r: any) => r.id))
         escalatedCount = stale.length
       }
     }
@@ -154,7 +154,7 @@ export async function runEscalationCheck(
       if (stale && stale.length > 0) {
         await supabase.from('gym_memberships')
           .update({ escalated_to_biz_ops: true, escalated_at: escalatedAt })
-          .in('id', stale.map(r => r.id))
+          .in('id', stale.map((r: any) => r.id))
         escalatedCount = stale.length
       }
     }
