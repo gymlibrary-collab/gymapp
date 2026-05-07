@@ -69,7 +69,7 @@ export default function StaffPayrollDetailPage() {
     // Guard — only business_ops can access payroll
       // Auth guard handled by useCurrentUser hook
   if (loading || !user) return null
-    setIsBizOpsRole(me.role === 'business_ops')
+    setIsBizOpsRole(user.role === 'business_ops')
 
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
     setStaff(staffData)
