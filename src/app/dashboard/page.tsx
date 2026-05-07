@@ -267,13 +267,6 @@ function BizOpsGymTabs() {
     loadBizComm()
   }, [bizCommOffset, bizDrillGym])
 
-  // Reload drill-down when month offset changes while modal is open
-  useEffect(() => {
-    if (bizDrillDown) {
-      loadBizDrillDown(bizDrillGym || undefined, bizDrillGroupBy)
-    }
-  }, [bizCommOffset])
-
   const loadBizDrillDown = async (gymId?: string, groupBy: 'staff' | 'type' = 'staff') => {
     setBizDrillLoading(true)
 
@@ -332,6 +325,15 @@ function BizOpsGymTabs() {
     }
     setBizDrillLoading(false)
   }
+
+
+  // Reload drill-down when month offset changes while modal is open
+  useEffect(() => {
+    if (bizDrillDown) {
+      loadBizDrillDown(bizDrillGym || undefined, bizDrillGroupBy)
+    }
+  }, [bizCommOffset])
+
 
   if (gyms.length === 0) return null
   const g = gyms.find(x => x.id === selectedGym) || gyms[0]
@@ -1136,7 +1138,89 @@ export default function DashboardPage() {
     load()
   }, [isActingAsTrainer])
 
-  // Reload commission stats when month offset changes
+  // ── Commission drill-down loader ──────────────────────────
+  const loadDrillDown = async (periodStart: string, periodEnd: string, groupBy: 'staff' | 'type', gymFilter?: string) => {
+    setDrillDownLoading(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data: u } = await supabase.from('users').select('role, manager_gym_id, full_name').eq('id', authUser.id).single()
+    if (!u) return
+
+    const isManagerRole = u.role === 'manager' && !isActingAsTrainer
+    const gymId = isManagerRole ? u.manager_gym_id : gymFilter
+
+    // Log drill-down access — use API route directly (not hook, as this runs outside component scope)
+    fetch('/api/activity-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: authUser.id,
+        user_name: u.full_name || 'Manager',
+        role: u.role,
+        action_type: 'other',
+        page: 'Commission Breakdown',
+        description: `Viewed commission breakdown by ${groupBy}`,
+      }),
+    }).catch(() => {})
+
+    // Sequential awaits — no Promise.all with Supabase
+    let sessQ = supabase.from('sessions')
+      .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name), gym_id')
+      .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+      .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
+    if (gymId) sessQ = sessQ.eq('gym_id', gymId)
+    const sessData = await sessQ
+
+    let pkgQ = supabase.from('packages')
+      .select('signup_commission_sgd, trainer_id, trainer:users!packages_trainer_id_fkey(full_name), gym_id')
+      .eq('manager_confirmed', true)
+      .gte('created_at', periodStart).lte('created_at', periodEnd)
+    if (gymId) pkgQ = pkgQ.eq('gym_id', gymId)
+    const pkgData = await pkgQ
+
+    let memQ = supabase.from('gym_memberships')
+      .select('commission_sgd, sold_by_user_id, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name), gym_id')
+      .eq('sale_status', 'confirmed')
+      .gte('created_at', periodStart).lte('created_at', periodEnd)
+    if (gymId) memQ = memQ.eq('gym_id', gymId)
+    const memData = await memQ
+
+    if (groupBy === 'staff') {
+      const byStaff: Record<string, any> = {}
+      sessData.data?.forEach((s: any) => {
+        const id = s.trainer_id; const name = s.trainer?.full_name || 'Unknown'
+        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].session += s.session_commission_sgd || 0
+        byStaff[id].total += s.session_commission_sgd || 0
+      })
+      pkgData.data?.forEach((p: any) => {
+        const id = p.trainer_id; const name = p.trainer?.full_name || 'Unknown'
+        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].signup += p.signup_commission_sgd || 0
+        byStaff[id].total += p.signup_commission_sgd || 0
+      })
+      memData.data?.forEach((m: any) => {
+        const id = m.sold_by_user_id; const name = m.sold_by?.full_name || 'Unknown'
+        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].membership += m.commission_sgd || 0
+        byStaff[id].total += m.commission_sgd || 0
+      })
+      setDrillDownData(Object.values(byStaff).sort((a, b) => b.total - a.total))
+    } else {
+      const totSession = sessData.data?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+      const totSignup = pkgData.data?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+      const totMem = memData.data?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+      setDrillDownData([
+        { name: 'PT Session', amount: totSession, count: sessData.data?.length || 0 },
+        { name: 'PT Signup', amount: totSignup, count: pkgData.data?.length || 0 },
+        { name: 'Membership Sales', amount: totMem, count: memData.data?.length || 0 },
+      ])
+    }
+    setDrillDownLoading(false)
+  }
+
+
+    // Reload commission stats when month offset changes
   useEffect(() => {
     if (!user) return
     const d = new Date()
@@ -1286,86 +1370,6 @@ export default function DashboardPage() {
     setCommissionLoading(false)
   }
 
-  // ── Commission drill-down loader ──────────────────────────
-  const loadDrillDown = async (periodStart: string, periodEnd: string, groupBy: 'staff' | 'type', gymFilter?: string) => {
-    setDrillDownLoading(true)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: u } = await supabase.from('users').select('role, manager_gym_id, full_name').eq('id', authUser.id).single()
-    if (!u) return
-
-    const isManagerRole = u.role === 'manager' && !isActingAsTrainer
-    const gymId = isManagerRole ? u.manager_gym_id : gymFilter
-
-    // Log drill-down access — use API route directly (not hook, as this runs outside component scope)
-    fetch('/api/activity-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: authUser.id,
-        user_name: u.full_name || 'Manager',
-        role: u.role,
-        action_type: 'other',
-        page: 'Commission Breakdown',
-        description: `Viewed commission breakdown by ${groupBy}`,
-      }),
-    }).catch(() => {})
-
-    // Sequential awaits — no Promise.all with Supabase
-    let sessQ = supabase.from('sessions')
-      .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name), gym_id')
-      .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
-      .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
-    if (gymId) sessQ = sessQ.eq('gym_id', gymId)
-    const sessData = await sessQ
-
-    let pkgQ = supabase.from('packages')
-      .select('signup_commission_sgd, trainer_id, trainer:users!packages_trainer_id_fkey(full_name), gym_id')
-      .eq('manager_confirmed', true)
-      .gte('created_at', periodStart).lte('created_at', periodEnd)
-    if (gymId) pkgQ = pkgQ.eq('gym_id', gymId)
-    const pkgData = await pkgQ
-
-    let memQ = supabase.from('gym_memberships')
-      .select('commission_sgd, sold_by_user_id, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name), gym_id')
-      .eq('sale_status', 'confirmed')
-      .gte('created_at', periodStart).lte('created_at', periodEnd)
-    if (gymId) memQ = memQ.eq('gym_id', gymId)
-    const memData = await memQ
-
-    if (groupBy === 'staff') {
-      const byStaff: Record<string, any> = {}
-      sessData.data?.forEach((s: any) => {
-        const id = s.trainer_id; const name = s.trainer?.full_name || 'Unknown'
-        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
-        byStaff[id].session += s.session_commission_sgd || 0
-        byStaff[id].total += s.session_commission_sgd || 0
-      })
-      pkgData.data?.forEach((p: any) => {
-        const id = p.trainer_id; const name = p.trainer?.full_name || 'Unknown'
-        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
-        byStaff[id].signup += p.signup_commission_sgd || 0
-        byStaff[id].total += p.signup_commission_sgd || 0
-      })
-      memData.data?.forEach((m: any) => {
-        const id = m.sold_by_user_id; const name = m.sold_by?.full_name || 'Unknown'
-        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
-        byStaff[id].membership += m.commission_sgd || 0
-        byStaff[id].total += m.commission_sgd || 0
-      })
-      setDrillDownData(Object.values(byStaff).sort((a, b) => b.total - a.total))
-    } else {
-      const totSession = sessData.data?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
-      const totSignup = pkgData.data?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
-      const totMem = memData.data?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
-      setDrillDownData([
-        { name: 'PT Session', amount: totSession, count: sessData.data?.length || 0 },
-        { name: 'PT Signup', amount: totSignup, count: pkgData.data?.length || 0 },
-        { name: 'Membership Sales', amount: totMem, count: memData.data?.length || 0 },
-      ])
-    }
-    setDrillDownLoading(false)
-  }
 
   const dismissLeaveNotifs = async () => {
     if (leaveDecisionNotifs.length === 0) return
