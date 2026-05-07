@@ -11,6 +11,7 @@ import { queueWhatsApp } from '@/lib/whatsapp'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const EDIT_WINDOW_MINUTES = 30
 
@@ -27,6 +28,7 @@ const NON_RENEWAL_REASONS = [
 ]
 
 export default function PtSessionNotesPage() {
+
   const { id } = useParams()
   const { logActivity } = useActivityLog()
   const [session, setSession] = useState<any>(null)
@@ -41,16 +43,12 @@ export default function PtSessionNotesPage() {
   const router = useRouter()
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
+  if (loading || !user) return null
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      // Only trainers and managers can view session notes
-      const canView = userData?.role === 'trainer' || userData?.role === 'manager'
-      if (!userData || !canView) { router.replace('/dashboard'); return }
-      setCurrentUser(userData)
+        // Auth guard handled by useCurrentUser hook
       const { data } = await supabase.from('sessions')
         .select('*, member:members!sessions_member_id_fkey(full_name, phone), attending_member:members!sessions_attending_member_id_fkey(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions, is_shared, secondary_member_id), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
         .eq('id', id).single()
@@ -86,9 +84,9 @@ export default function PtSessionNotesPage() {
   }
 
   const isLocked = () => {
-    if (!session || !currentUser) return false
-    if (currentUser.role === 'manager' && !isActingAsTrainer) return false
-    if (currentUser.role === 'business_ops') return false
+    if (!session || !user) return false
+    if (user.role === 'manager' && !isActingAsTrainer) return false
+    if (user.role === 'business_ops') return false
     if (packageIsClosed()) return true
     if (session.notes_submitted_at) {
       const elapsed = (Date.now() - new Date(session.notes_submitted_at).getTime()) / 1000 / 60
@@ -140,12 +138,12 @@ export default function PtSessionNotesPage() {
       name: gymManager?.full_name,
       placeholders: {
         manager_name: gymManager?.full_name || '',
-        trainer_name: currentUser.full_name,
+        trainer_name: user.full_name,
         member_name: session.member?.full_name || '',
         session_date: session.scheduled_at ? new Date(session.scheduled_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
         gym_name: session.gym?.name || '',
       },
-      fallbackMessage: `PT session notes submitted by ${currentUser.full_name} for ${session.member?.full_name}. Please review and confirm.${renewalNote}`,
+      fallbackMessage: `PT session notes submitted by ${user.full_name} for ${session.member?.full_name}. Please review and confirm.${renewalNote}`,
       relatedId: id as string,
     })
 
@@ -158,12 +156,12 @@ export default function PtSessionNotesPage() {
       name: session.member?.full_name,
       placeholders: {
         member_name: session.member?.full_name || '',
-        trainer_name: currentUser.full_name,
+        trainer_name: user.full_name,
         gym_name: session.gym?.name || '',
         session_date: sessionDate,
         session_time: sessionTime,
       },
-      fallbackMessage: `Hi ${session.member?.full_name}, your PT session with ${currentUser.full_name} on ${sessionDate} at ${sessionTime} has been completed and recorded. See you next time!`,
+      fallbackMessage: `Hi ${session.member?.full_name}, your PT session with ${user.full_name} on ${sessionDate} at ${sessionTime} has been completed and recorded. See you next time!`,
       relatedId: id as string,
     })
 
@@ -186,15 +184,15 @@ export default function PtSessionNotesPage() {
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
 
-  if (!session || !currentUser) return (
+  if (!session || !user) return (
     <div className="flex items-center justify-center h-48">
       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
     </div>
   )
 
   const locked = isLocked()
-  const isManagerView = currentUser.role === 'manager' && !isActingAsTrainer
-  const isOwnSession = session.trainer_id === currentUser.id
+  const isManagerView = user.role === 'manager' && !isActingAsTrainer
+  const isOwnSession = session.trainer_id === user.id
   const lastSession = isLastSession()
   // isLastSessionFlag is true even after the package is closed — used to
   // override the pkgClosed gate so the renewal widget always shows on the
