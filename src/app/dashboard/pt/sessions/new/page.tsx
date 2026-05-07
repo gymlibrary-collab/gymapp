@@ -90,7 +90,8 @@ export default function NewPtSessionPage() {
     checkOverlap()
   }, [form.scheduled_at_date, form.scheduled_at_time, form.duration_minutes, user])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -167,7 +168,7 @@ export default function NewPtSessionPage() {
         await supabase.from('whatsapp_queue').insert({
           notification_type: 'pt_reminder_24h',
           recipient_phone: user!.phone,
-          recipient_name: currentUser.full_name,
+          recipient_name: user!.full_name,
           message: `Reminder: PT session tomorrow at ${scheduledAt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} with ${member?.full_name}`,
           scheduled_for: reminderAt.toISOString(),
           status: 'pending',
