@@ -39,7 +39,6 @@ export default function MyRosterPage() {
     load()
   }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   const totalHours = shifts.reduce((s, r) => s + (r.hours_worked || 0), 0)
   const totalPay = shifts.reduce((s, r) => s + (r.gross_pay || 0), 0)
