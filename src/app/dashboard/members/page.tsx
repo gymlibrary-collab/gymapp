@@ -73,7 +73,6 @@ export default function MembersPage() {
 
   const canAddMember = user?.role === 'manager' || user?.role === 'business_ops' || isActingAsTrainer || user?.role === 'trainer' || user?.role === 'staff'
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
     <div className="space-y-4">
