@@ -17,9 +17,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionPayoutsPage() {
 
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
-  const [currentUser, setCurrentUser] = useState<any>(null)
   const [payouts, setPayouts] = useState<any[]>([])
   const [staff, setStaff] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
@@ -40,27 +38,24 @@ export default function CommissionPayoutsPage() {
   const supabase = createClient()
 
   const { success, error, showMsg, showError, setError } = useToast()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  if (loading || !user) return null
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
-    // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
-
-    const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    setCurrentUser(userData)
+    if (!user) return
 
     // Load payouts
     let q = supabase.from('commission_payouts')
       .select('*, user:users!commission_payouts_user_id_fkey(full_name, role), gym:gyms(name)')
       .order('period_end', { ascending: false })
-    if (userData.role === 'manager' && userData.manager_gym_id) q = q.eq('gym_id', userData.manager_gym_id)
+    if (user.role === 'manager' && user.manager_gym_id) q = q.eq('gym_id', user.manager_gym_id)
     const { data: payoutData } = await q
     setPayouts(payoutData || [])
 
     // Load staff for generation (business_ops)
-    if (userData.role === 'business_ops') {
+    if (user.role === 'business_ops') {
       const { data: staffData } = await supabase.from('users')
         .select('*, trainer_gyms(gym_id), staff_payroll(is_cpf_liable)')
         .eq('is_archived', false).neq('role', 'admin').order('full_name')
@@ -215,8 +210,6 @@ export default function CommissionPayoutsPage() {
   const handleSavePayouts = async () => {
     if (preview.length === 0) return
     setSaving(true); setError('')
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-
     // Derive period dates from month/year selection
     const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
     const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
@@ -253,7 +246,7 @@ export default function CommissionPayoutsPage() {
         employee_cpf_amount: item.employee_cpf_amount,
         employer_cpf_amount: item.employer_cpf_amount,
         status: 'draft',
-        generated_by: authUser!.id,
+        generated_by: user!.id,
         generated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,period_start,period_end' })
     }
@@ -270,9 +263,8 @@ export default function CommissionPayoutsPage() {
   }
 
   const handleStatusChange = async (payoutId: string, newStatus: 'approved' | 'paid') => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
     const update: any = { status: newStatus }
-    if (newStatus === 'approved') { update.approved_by = authUser!.id; update.approved_at = new Date().toISOString() }
+    if (newStatus === 'approved') { update.approved_by = user!.id; update.approved_at = new Date().toISOString() }
     if (newStatus === 'paid') {
       update.paid_at = new Date().toISOString()
       // Mark related items as paid
