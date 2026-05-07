@@ -14,6 +14,9 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PayrollPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  if (loading || !user) return null
+
   const [staffList, setStaffList] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('all')
@@ -37,8 +40,6 @@ export default function PayrollPage() {
   const [archiveGenerating, setArchiveGenerating] = useState(false)
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const router = useRouter()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
-  if (loading || !user) return null
   const supabase = createClient()
 
   useEffect(() => { load() }, [selectedMonth, selectedYear])
