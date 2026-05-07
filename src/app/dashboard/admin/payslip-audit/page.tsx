@@ -8,15 +8,17 @@ import { formatSGD, formatDateTime, getMonthName } from '@/lib/utils'
 import { Shield, ChevronDown, ChevronUp } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PayslipAuditPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
   const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
   const { success, error } = useToast()
 
   const [records, setRecords] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const [filterYear, setFilterYear] = useState(new Date().getFullYear())
   const [filterMonth, setFilterMonth] = useState(0) // 0 = all months
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -24,11 +26,8 @@ export default function PayslipAuditPage() {
   useEffect(() => { loadData() }, [filterYear, filterMonth])
 
   const loadData = async () => {
-    setLoading(true)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     let query = supabase
       .from('payslip_deletions')
@@ -40,7 +39,6 @@ export default function PayslipAuditPage() {
 
     const { data } = await query
     setRecords(data || [])
-    setLoading(false)
   }
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
