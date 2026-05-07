@@ -109,7 +109,7 @@ export default function MyLeavePage() {
     const lt = LEAVE_TYPES.find(t => t.value === leaveType)
     if (!lt || !user) return { entitlement: 0, carryForward: 0, total: 0, taken: 0, pending: 0, available: 0, notSet: true }
     const entitlement = user[lt.entitlementKey] ?? 0
-    const carryForward = leaveType === 'annual' ? (user.leave_carry_forward_days ?? 0) : 0
+    const carryForward = leaveType === 'annual' ? ((user as any).leave_carry_forward_days ?? 0) : 0
     const total = entitlement + carryForward
     const taken = takenByType[leaveType] || 0
     const pending = pendingByType[leaveType] || 0
