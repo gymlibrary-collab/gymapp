@@ -18,12 +18,10 @@ const LEAVE_TYPES: Record<string, string> = {
 }
 
 export default function LeaveManagementPage() {
-  const [user, setUser] = useState<any>(null)
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
   const [filter, setFilter] = useState('pending')
   const { logActivity } = useActivityLog()
-  const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [tab, setTab] = useState<'pending' | 'calendar' | 'history'>('pending')
@@ -74,7 +72,7 @@ export default function LeaveManagementPage() {
       staffIds = bizOps?.map((b: any) => b.id) || []
     }
 
-    if (staffIds.length === 0) { setLoading(false); return }
+    if (staffIds.length === 0) { return }
 
     let q = supabase.from('leave_applications')
       .select('*, user:users!leave_applications_user_id_fkey(full_name, role, leave_entitlement_days, medical_leave_entitlement_days, hospitalisation_leave_entitlement_days)')
@@ -143,7 +141,6 @@ export default function LeaveManagementPage() {
         : 0,
     })) || [])
 
-    setLoading(false)
   }
 
   const handleApprove = async (id: string) => {
