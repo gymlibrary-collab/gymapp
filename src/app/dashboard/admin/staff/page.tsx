@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateNric, validateNationality, validateAddress, validateAll } from '@/lib/validators'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface BizOpsUser {
   id: string
@@ -29,11 +30,12 @@ interface BizOpsUser {
 const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '', address: '' }
 
 export default function AdminStaffPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
   const { logActivity } = useActivityLog()
   const [staff, setStaff] = useState<BizOpsUser[]>([])
   const [archived, setArchived] = useState<BizOpsUser[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingUser, setEditingUser] = useState<BizOpsUser | null>(null)
@@ -47,10 +49,8 @@ export default function AdminStaffPage() {
 
   const loadData = async () => {
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'admin')) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data: active } = await supabase.from('users').select('*')
       .eq('role', 'business_ops').eq('is_archived', false).order('full_name')
@@ -58,7 +58,6 @@ export default function AdminStaffPage() {
       .eq('role', 'business_ops').eq('is_archived', true).order('full_name')
     setStaff(active || [])
     setArchived(arch || [])
-    setLoading(false)
   }
 
   const openCreate = () => {
