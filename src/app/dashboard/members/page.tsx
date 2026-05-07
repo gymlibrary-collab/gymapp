@@ -9,29 +9,24 @@ import { formatDate } from '@/lib/utils'
 import { Search, Plus, Users, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembersPage() {
-  const [user, setUser] = useState<any>(null)
+
   const [members, setMembers] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
-  const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const { isActingAsTrainer } = useViewMode()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  if (loading || !user) return null
 
   useEffect(() => {
+    if (!user) return
     const load = async () => {
       logActivity('page_view', 'Members', 'Viewed members list')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      // Business Ops does not have direct access to member records. They review
-      // membership activity via the Dashboard tile and the Membership Sales page.
-      // Admin and Biz Ops do not access member records directly
-      if (!userData || ['business_ops', 'admin'].includes(userData.role)) { router.replace('/dashboard'); return }
-      setUser(userData)
 
       // Load members with their current active membership
       let q = supabase.from('members')
@@ -48,18 +43,17 @@ export default function MembersPage() {
       // Scope by role/view
       // Trainers see all active members at their gym — not just ones they created.
       // This allows them to renew memberships and onboard any active gym member onto PT.
-      if ((userData.role === 'manager' || userData.role === 'staff' || userData.role === 'trainer') && userData.manager_gym_id) {
-        q = q.eq('gym_id', userData.manager_gym_id)
-      } else if (isActingAsTrainer && userData.manager_gym_id) {
-        q = q.eq('gym_id', userData.manager_gym_id)
+      if ((user.role === 'manager' || user.role === 'staff' || user.role === 'trainer') && user.manager_gym_id) {
+        q = q.eq('gym_id', user.manager_gym_id)
+      } else if (isActingAsTrainer && user.manager_gym_id) {
+        q = q.eq('gym_id', user.manager_gym_id)
       }
 
       const { data } = await q
       setMembers(data || [])
-      setLoading(false)
     }
     load()
-  }, [isActingAsTrainer])
+  }, [user, isActingAsTrainer])
 
   const getActiveMembership = (member: any) => {
     const memberships = member.gym_memberships || []
