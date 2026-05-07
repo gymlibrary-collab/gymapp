@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, formatDate, getMonthName , getRoleLabel } from '@/lib/utils'
+import { getCpfBracketRates } from '@/lib/cpf'
 import {
   TrendingUp, Plus, CheckCircle, AlertCircle, X,
   Download, Users, DollarSign, Calendar, Search
@@ -29,6 +30,7 @@ export default function CommissionPayoutsPage() {
     user_ids: [] as string[], gym_id: '',
   })
   const [preview, setPreview] = useState<any[]>([])
+  const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const [existingDrafts, setExistingDrafts] = useState<string[]>([]) // user names with existing drafts
   const [showDraftWarning, setShowDraftWarning] = useState(false)
   const router = useRouter()
@@ -58,9 +60,15 @@ export default function CommissionPayoutsPage() {
 
     // Load staff for generation (business_ops)
     if (userData.role === 'business_ops') {
-      const { data: staffData } = await supabase.from('users').select('*, trainer_gyms(gym_id)')
+      const { data: staffData } = await supabase.from('users')
+        .select('*, trainer_gyms(gym_id), staff_payroll(is_cpf_liable)')
         .eq('is_archived', false).neq('role', 'admin').order('full_name')
       setStaff(staffData || [])
+
+      // Load CPF brackets for AW calculation
+      const { data: brackets } = await supabase.from('cpf_age_brackets')
+        .select('*').order('effective_from', { ascending: false })
+      setCpfBrackets(brackets || [])
     }
   }
 
@@ -116,8 +124,51 @@ export default function CommissionPayoutsPage() {
       const total = ptSignup + ptSession + membership
 
       if (total > 0) {
-        // Determine gym_id (use most common gym from transactions)
         const gymId = packages?.[0]?.gym_id || sessions?.[0]?.gym_id || memSales?.[0]?.gym_id || member.manager_gym_id || (member.trainer_gyms?.[0]?.gym_id)
+
+        // ── CPF on commission (Additional Wages) ──────────────
+        const isCpfLiable = !!member.staff_payroll?.is_cpf_liable
+        let empCpfRate = 0, erCpfRate = 0, awSubject = 0, empCpf = 0, erCpf = 0
+
+        if (isCpfLiable && cpfBrackets.length > 0) {
+          const rates = getCpfBracketRates(cpfBrackets, member.date_of_birth, genForm.period_year, genForm.period_month)
+          empCpfRate = rates.employee_rate
+          erCpfRate = rates.employer_rate
+
+          // Load YTD ordinary wages to compute remaining AW ceiling
+          // AW ceiling = $102,000 - projected full-year OW
+          // Also load low_income_flag to check CPF exemption
+          const { data: ytdSlips } = await supabase.from('payslips')
+            .select('basic_salary, employee_cpf_rate, low_income_flag')
+            .eq('user_id', member.id).eq('year', genForm.period_year)
+            .in('status', ['approved', 'paid'])
+          // If ALL payslips this year are low-income exempt, skip commission CPF
+          // (staff earning below $50/month total are fully exempt)
+          const allLowIncome = ytdSlips && ytdSlips.length > 0 && ytdSlips.every((p: any) => p.low_income_flag)
+          if (allLowIncome) {
+            empCpfRate = 0; erCpfRate = 0; awSubject = 0; empCpf = 0; erCpf = 0
+          } else {
+          const ytdOW = ytdSlips?.reduce((s: number, p: any) => s + (p.basic_salary || 0), 0) || 0
+          const remainingMonths = 12 - (genForm.period_month - 1)
+          const estMonthlyOW = ytdSlips && ytdSlips.length > 0
+            ? ytdOW / ytdSlips.length : 0
+          const projectedOW = ytdOW + (estMonthlyOW * remainingMonths)
+          const awCeiling = Math.max(0, 102000 - projectedOW)
+
+          // Load YTD AW already subjected to CPF from prior commission payouts
+          const { data: priorPayouts } = await supabase.from('commission_payouts')
+            .select('aw_subject_to_cpf')
+            .eq('user_id', member.id).eq('is_cpf_liable', true)
+            .in('status', ['approved', 'paid'])
+            .gte('period_start', `${genForm.period_year}-01-01`)
+            .lt('period_start', period_start)
+          const ytdAWCpf = priorPayouts?.reduce((s: number, p: any) => s + (p.aw_subject_to_cpf || 0), 0) || 0
+          const awRemaining = Math.max(0, awCeiling - ytdAWCpf)
+          awSubject = Math.min(total, awRemaining)
+          empCpf = Math.floor(awSubject * empCpfRate / 100)
+          erCpf = Math.round(awSubject * erCpfRate / 100)
+          } // end else (not all low income)
+        }
 
         results.push({
           user_id: member.id, user_name: member.full_name, user_role: member.role,
@@ -127,6 +178,11 @@ export default function CommissionPayoutsPage() {
           pt_signups_count: packages?.length || 0,
           pt_sessions_count: sessions?.length || 0,
           membership_sales_count: memSales?.length || 0,
+          is_cpf_liable: isCpfLiable,
+          employee_cpf_rate: empCpfRate, employer_cpf_rate: erCpfRate,
+          aw_subject_to_cpf: awSubject,
+          employee_cpf_amount: empCpf, employer_cpf_amount: erCpf,
+          net_commission_sgd: total - empCpf,
         })
       }
     }
@@ -161,6 +217,20 @@ export default function CommissionPayoutsPage() {
     setSaving(true); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
+    // Block: check for any approved/paid payouts in this period — never overwrite finalised records
+    const userIds = preview.map(i => i.user_id)
+    const { data: finalised } = await supabase.from('commission_payouts')
+      .select('user_id, user:users!commission_payouts_user_id_fkey(full_name), status')
+      .in('user_id', userIds)
+      .eq('period_start', period_start).eq('period_end', period_end)
+      .in('status', ['approved', 'paid'])
+    if (finalised && finalised.length > 0) {
+      const names = finalised.map((p: any) => `${p.user?.full_name} (${p.status})`).join(', ')
+      showError(`Cannot overwrite finalised payouts: ${names}. Void them first before regenerating.`)
+      setSaving(false)
+      return
+    }
+
     // Derive period dates from month/year selection
     const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
     const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
@@ -176,6 +246,12 @@ export default function CommissionPayoutsPage() {
         pt_signups_count: item.pt_signups_count,
         pt_sessions_count: item.pt_sessions_count,
         membership_sales_count: item.membership_sales_count,
+        is_cpf_liable: item.is_cpf_liable,
+        employee_cpf_rate: item.employee_cpf_rate,
+        employer_cpf_rate: item.employer_cpf_rate,
+        aw_subject_to_cpf: item.aw_subject_to_cpf,
+        employee_cpf_amount: item.employee_cpf_amount,
+        employer_cpf_amount: item.employer_cpf_amount,
         status: 'draft',
         generated_by: authUser!.id,
         generated_at: new Date().toISOString(),
@@ -336,15 +412,22 @@ export default function CommissionPayoutsPage() {
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
                         {item.pt_signups_count > 0 && <span>PT Signups: {formatSGD(item.pt_signup_commission_sgd)}</span>}
                         {item.pt_sessions_count > 0 && <span>PT Sessions: {formatSGD(item.pt_session_commission_sgd)}</span>}
-                        {item.membership_sales_count > 0 && <span>Membership ({item.membership_sales_count} sales): {formatSGD(item.membership_commission_sgd)}</span>}
+                        {item.membership_sales_count > 0 && <span>Membership: {formatSGD(item.membership_commission_sgd)}</span>}
+                        {item.is_cpf_liable && item.employee_cpf_amount > 0 && <span className="text-amber-600">Employee CPF ({item.employee_cpf_rate}%): -{formatSGD(item.employee_cpf_amount)}</span>}
                       </div>
                     </div>
-                    <p className="text-sm font-bold text-green-700 flex-shrink-0">{formatSGD(item.total_commission_sgd)}</p>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-green-700">{formatSGD(item.net_commission_sgd)}</p>
+                      {item.is_cpf_liable && item.employee_cpf_amount > 0 && <p className="text-xs text-gray-400">Gross: {formatSGD(item.total_commission_sgd)}</p>}
+                    </div>
                   </div>
                 ))}
                 <div className="p-3 bg-gray-50 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-900">Total</p>
-                  <p className="text-sm font-bold text-green-700">{formatSGD(preview.reduce((s, i) => s + i.total_commission_sgd, 0))}</p>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-green-700">{formatSGD(preview.reduce((s, i) => s + i.net_commission_sgd, 0))}</p>
+                    {preview.some(i => i.employee_cpf_amount > 0) && <p className="text-xs text-gray-400">Gross: {formatSGD(preview.reduce((s, i) => s + i.total_commission_sgd, 0))}</p>}
+                  </div>
                 </div>
               </div>
               <button onClick={handleSavePayouts} disabled={saving} className="btn-primary w-full">
