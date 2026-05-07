@@ -25,6 +25,8 @@ export default function LeaveManagementPage() {
   const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [tab, setTab] = useState<'pending' | 'calendar' | 'history'>('pending')
+  const [calendarOffset, setCalendarOffset] = useState(0) // days offset for 7-day view
   const router = useRouter()
   const supabase = createClient()
 
@@ -79,10 +81,14 @@ export default function LeaveManagementPage() {
     if (staffIds.length === 0) { setLoading(false); return }
 
     let q = supabase.from('leave_applications')
-      .select('*, user:users!leave_applications_user_id_fkey(full_name, role, leave_entitlement_days)')
+      .select('*, user:users!leave_applications_user_id_fkey(full_name, role, leave_entitlement_days, medical_leave_entitlement_days, hospitalisation_leave_entitlement_days)')
       .in('user_id', staffIds)
       .order('created_at', { ascending: false })
-    if (filter !== 'all') q = q.eq('status', filter)
+    if (filter === 'pending') {
+      q = q.eq('status', 'pending').eq('escalated_to_biz_ops', u.role === 'business_ops')
+    } else if (filter !== 'all') {
+      q = q.eq('status', filter)
+    }
     const { data } = await q
     setApplications(data || [])
 
@@ -196,11 +202,28 @@ export default function LeaveManagementPage() {
       }
     }
     logActivity('approve', 'Leave Management', 'Approved leave application')
+    // Write in-app decision notification
+    if (app) {
+      const { data: approver } = await supabase.from('users').select('full_name').eq('id', authUser!.id).single()
+      await supabase.from('leave_decision_notif').insert({
+        user_id: app.user_id,
+        leave_type: app.leave_type,
+        start_date: app.start_date,
+        end_date: app.end_date,
+        days_applied: app.days_applied,
+        decision: 'approved',
+        decided_by_name: (approver as any)?.full_name || 'Manager',
+      })
+    }
     await load(); showMsg('Leave approved')
   }
 
   const handleReject = async () => {
     if (!rejectId || !rejectReason.trim()) return
+    const { data: rejectedApp } = await supabase.from('leave_applications')
+      .select('user_id, leave_type, start_date, end_date, days_applied').eq('id', rejectId).single()
+    const { data: { user: authUser3 } } = await supabase.auth.getUser()
+    const { data: me3 } = await supabase.from('users').select('full_name').eq('id', authUser3!.id).single()
     await supabase.from('leave_applications').update({
       status: 'rejected', rejection_reason: rejectReason,
       rejected_at: new Date().toISOString(),
@@ -228,6 +251,19 @@ export default function LeaveManagementPage() {
       }
     }
     logActivity('reject', 'Leave Management', 'Rejected leave application')
+    // Write in-app decision notification
+    if (rejectedApp) {
+      await supabase.from('leave_decision_notif').insert({
+        user_id: rejectedApp.user_id,
+        leave_type: rejectedApp.leave_type,
+        start_date: rejectedApp.start_date,
+        end_date: rejectedApp.end_date,
+        days_applied: rejectedApp.days_applied,
+        decision: 'rejected',
+        rejection_reason: rejectReason,
+        decided_by_name: (me3 as any)?.full_name || 'Manager',
+      })
+    }
     setRejectId(null); setRejectReason(''); await load(); showMsg('Leave rejected')
   }
 
@@ -248,12 +284,173 @@ export default function LeaveManagementPage() {
 
       <StatusBanner success={success} />
 
+      {/* View tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+        <button onClick={() => setTab('pending')}
+          className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors relative',
+            tab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+          Pending
+          {applications.filter(a => a.status === 'pending').length > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center">
+              {applications.filter(a => a.status === 'pending').length}
+            </span>
+          )}
+        </button>
+        <button onClick={() => setTab('calendar')}
+          className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors',
+            tab === 'calendar' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+          Calendar
+        </button>
+        <button onClick={() => setTab('history')}
+          className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors',
+            tab === 'history' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
+          History
+        </button>
+      </div>
+
+      {/* Calendar tab — 7-day rolling leave view */}
+      {tab === 'calendar' && (() => {
+        const LEAVE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+          annual: { bg: '#E6F1FB', text: '#0C447C', label: 'Annual' },
+          medical: { bg: '#EAF3DE', text: '#27500A', label: 'Medical' },
+          hospitalisation: { bg: '#FAEEDA', text: '#633806', label: 'Hospitalisation' },
+          other: { bg: '#F1EFE8', text: '#444441', label: 'Other' },
+        }
+        const today = new Date(); today.setHours(0,0,0,0)
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date(today); d.setDate(d.getDate() + calendarOffset + i); return d
+        })
+        const startStr = days[0].toISOString().split('T')[0]
+        const endStr = days[6].toISOString().split('T')[0]
+
+        return (
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900 text-sm">Leave Calendar</h2>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setCalendarOffset(o => o - 7)}
+                  className="text-xs text-gray-500 px-2 py-1 rounded border border-gray-200">← Prev</button>
+                <button onClick={() => setCalendarOffset(0)}
+                  className="text-xs text-red-600 px-2 py-1 rounded border border-red-200">Today</button>
+                <button onClick={() => setCalendarOffset(o => o + 7)}
+                  className="text-xs text-gray-500 px-2 py-1 rounded border border-gray-200">Next →</button>
+              </div>
+            </div>
+            {/* Legend */}
+            <div className="flex gap-3 px-4 py-2 border-b border-gray-100 bg-gray-50 flex-wrap">
+              {Object.entries(LEAVE_COLORS).map(([k, v]) => (
+                <span key={k} className="flex items-center gap-1.5 text-xs" style={{ color: v.text }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: v.bg, border: `0.5px solid ${v.text}33`, display: 'inline-block' }} />
+                  {v.label}
+                </span>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                <thead>
+                  <tr style={{ background: 'var(--color-background-secondary)', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                    <th style={{ width: 100, textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500, borderRight: '0.5px solid var(--color-border-tertiary)' }}>Staff</th>
+                    {days.map(d => {
+                      const isToday = d.toDateString() === new Date().toDateString()
+                      const isWeekend = d.getDay() === 0 || d.getDay() === 6
+                      return (
+                        <th key={d.toISOString()} style={{ padding: '6px 4px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: isToday ? '#E24B4A' : isWeekend ? '#E24B4A' : 'var(--color-text-secondary)', background: isToday ? '#E24B4A' : 'transparent', borderRight: '0.5px solid var(--color-border-tertiary)' }}>
+                          <span style={{ color: isToday ? 'white' : undefined }}>
+                            {d.toLocaleDateString('en-SG', { weekday: 'short' })}<br />
+                            {d.toLocaleDateString('en-SG', { day: '2-digit', month: 'short' })}
+                          </span>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffBalances.map(s => {
+                    // Get approved leave for this staff in the 7-day window
+                    const staffLeave = applications.filter(a =>
+                      a.user_id === s.id && a.status === 'approved' &&
+                      a.start_date <= endStr && a.end_date >= startStr
+                    )
+                    return (
+                      <tr key={s.id} style={{ borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+                        <td style={{ padding: '6px 8px', fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary)', borderRight: '0.5px solid var(--color-border-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {s.full_name.split(' ')[0]}
+                        </td>
+                        {days.map(d => {
+                          const dStr = d.toISOString().split('T')[0]
+                          const isWeekend = d.getDay() === 0 || d.getDay() === 6
+                          const onLeave = staffLeave.find(a => a.start_date <= dStr && a.end_date >= dStr)
+                          const col = onLeave ? LEAVE_COLORS[onLeave.leave_type] || LEAVE_COLORS.other : null
+                          return (
+                            <td key={dStr} style={{ padding: '4px', borderRight: '0.5px solid var(--color-border-tertiary)', background: isWeekend ? 'var(--color-background-secondary)' : 'transparent', textAlign: 'center', minHeight: 40, verticalAlign: 'middle' }}>
+                              {col && (
+                                <div style={{ background: col.bg, color: col.text, fontSize: 10, fontWeight: 500, padding: '2px 4px', borderRadius: 3 }}>
+                                  {onLeave.is_half_day ? '½' : col.label}
+                                </div>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Conflict warning */}
+            {(() => {
+              const conflicts: string[] = []
+              days.forEach(d => {
+                const dStr = d.toISOString().split('T')[0]
+                if (d.getDay() === 0 || d.getDay() === 6) return
+                const onLeave = staffBalances.filter(s =>
+                  applications.some(a => a.user_id === s.id && a.status === 'approved' && a.start_date <= dStr && a.end_date >= dStr)
+                )
+                if (onLeave.length >= 2) conflicts.push(`${d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}: ${onLeave.map(s => s.full_name.split(' ')[0]).join(', ')} on leave`)
+              })
+              return conflicts.length > 0 ? (
+                <div style={{ padding: '8px 12px', background: '#FAEEDA', borderTop: '0.5px solid #FAC775' }}>
+                  {conflicts.map((c, i) => <p key={i} style={{ fontSize: 11, color: '#633806' }}>⚠ {c}</p>)}
+                </div>
+              ) : null
+            })()}
+          </div>
+        )
+      })()}
+
+      {/* History tab */}
+      {tab === 'history' && (() => {
+        const history = applications.filter(a => a.status !== 'pending')
+        return (
+          <div className="card">
+            <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm">Leave History</h2></div>
+            {history.length === 0 ? <p className="p-6 text-sm text-gray-400 text-center">No historical records</p> : (
+              <div className="divide-y divide-gray-100">
+                {history.map(a => (
+                  <div key={a.id} className="p-3 flex items-start gap-3">
+                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0', a.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{a.status}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{a.user?.full_name}</p>
+                      <p className="text-xs text-gray-500">{a.leave_type} · {formatDate(a.start_date)} — {formatDate(a.end_date)} · {a.days_applied} days</p>
+                      {a.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Reason: {a.rejection_reason}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Pending tab — existing content */}
+      {tab === 'pending' && <>
+
       {/* Context banner */}
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
         <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <p>
           {user?.role === 'manager' && 'You are reviewing leave from full-time trainers and operations staff at your gym. Approved leave will be deducted from their annual entitlement.'}
-          {user?.role === 'business_ops' && 'You are reviewing leave from gym managers across all gym clubs. Manager leave goes to you for approval.'}
+          {user?.role === 'business_ops' && 'Showing leave escalated after 48 hours without manager action — and managers\' own leave applications.'}
           {user?.role === 'admin' && 'You are reviewing leave from Business Operations staff. Their leave escalates to you for approval.'}
         </p>
       </div>
@@ -344,6 +541,7 @@ export default function LeaveManagementPage() {
           ))}
         </div>
       )}
+      </> }
     </div>
   )
 }
