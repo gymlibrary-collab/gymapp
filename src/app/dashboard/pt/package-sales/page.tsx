@@ -31,8 +31,8 @@ export default function PackageSalesPage() {
   const loadData = async () => {
       // Auth guard handled by useCurrentUser hook
   if (loading || !user) return null
-    const isBizOps = me.role === 'business_ops'
-    const gymId = me.manager_gym_id || ''
+    const isBizOps = user.role === 'business_ops'
+    const gymId = user.manager_gym_id || ''
     if (!isBizOps && !gymId) { return }
 
     // Pending: split by role — manager sees non-escalated, Biz Ops sees escalated
