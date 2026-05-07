@@ -18,7 +18,6 @@ export default function PayrollPage() {
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('all')
   const { logActivity } = useActivityLog()
-  const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [rosterTotals, setRosterTotals] = useState<Record<string, any>>({})
@@ -45,7 +44,6 @@ export default function PayrollPage() {
   useEffect(() => { load() }, [selectedMonth, selectedYear])
 
   const load = async () => {
-    setLoading(true)
     // Issue 7: Guard — only business_ops can access payroll
     // Load all active staff with payroll profile — exclude admin (no payroll)
     const { data: staff } = await supabase
@@ -96,7 +94,6 @@ export default function PayrollPage() {
     })
     setYtdOW(ytdMap)
 
-    setLoading(false)
   }
 
   const filtered = staffList.filter(s => {
