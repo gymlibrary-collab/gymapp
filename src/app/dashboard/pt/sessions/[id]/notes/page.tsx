@@ -189,8 +189,8 @@ export default function PtSessionNotesPage() {
   )
 
   const locked = isLocked()
-  const isManagerView = user.role === 'manager' && !isActingAsTrainer
-  const isOwnSession = session.trainer_id === user.id
+  const isManagerView = user!.role === 'manager' && !isActingAsTrainer
+  const isOwnSession = session.trainer_id === user!.id
   const lastSession = isLastSession()
   // isLastSessionFlag is true even after the package is closed — used to
   // override the pkgClosed gate so the renewal widget always shows on the
