@@ -168,7 +168,6 @@ export default function PtSessionsPage() {
     no_show: 'bg-red-100 text-red-700',
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
     <div className="space-y-4">
