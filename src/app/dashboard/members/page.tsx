@@ -44,10 +44,10 @@ export default function MembersPage() {
       // Scope by role/view
       // Trainers see all active members at their gym — not just ones they created.
       // This allows them to renew memberships and onboard any active gym member onto PT.
-      if ((user.role === 'manager' || user.role === 'staff' || user.role === 'trainer') && user.manager_gym_id) {
-        q = q.eq('gym_id', user.manager_gym_id)
-      } else if (isActingAsTrainer && user.manager_gym_id) {
-        q = q.eq('gym_id', user.manager_gym_id)
+      if ((user!.role === 'manager' || user!.role === 'staff' || user!.role === 'trainer') && user!.manager_gym_id) {
+        q = q.eq('gym_id', user!.manager_gym_id)
+      } else if (isActingAsTrainer && user!.manager_gym_id) {
+        q = q.eq('gym_id', user!.manager_gym_id)
       }
 
       const { data } = await q
