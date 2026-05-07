@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const ALL_ROLES = [
   { value: 'admin', label: 'Admin', description: 'App settings only' },
@@ -56,23 +57,19 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const router = useRouter()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  if (loading || !user) return null
   const supabase = createClient()
 
   const loadData = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.push('/dashboard'); return }
-    const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // admin manages Biz Ops accounts via admin/staff — not this page
-    if (!userData || !['manager', 'business_ops'].includes(userData.role)) {
-      router.push('/dashboard'); return
-    }
-    setCurrentUser(userData)
+    if (!user) return
+    
 
     // Biz Ops: sees all staff across all gyms (scoped by RLS).
     // Manager: scoped to staff in their gym only — trainers via trainer_gyms,
     //   full-time ops staff via manager_gym_id. Excludes admin and biz ops roles.
-    const isManager = userData.role === 'manager'
-    const gymId = userData.manager_gym_id
+    const isManager = user.role === 'manager'
+    const gymId = user.manager_gym_id
 
     // Biz Ops sees all staff except admin and business_ops accounts.
     // Using .in() with the allowed roles is more reliable than .not().in()
@@ -220,9 +217,6 @@ export default function TrainersPage() {
   const handleConfirmOffboarding = async () => {
     if (!offboardingChecklist) return
     setCompletingOffboard(true)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { setCompletingOffboard(false); return }
-
     // Save departure date + mark offboarding complete
     const res = await fetch('/api/trainers', {
       method: 'PATCH',
@@ -292,9 +286,9 @@ export default function TrainersPage() {
     return 'All Gyms'
   }
 
-  const isSelf = (m: any) => m.id === currentUser?.id
-  const isBizOps = currentUser?.role === 'business_ops'
-  const isManagerRole = currentUser?.role === 'manager'
+  const isSelf = (m: any) => m.id === user?.id
+  const isBizOps = user?.role === 'business_ops'
+  const isManagerRole = user?.role === 'manager'
 
   // Filter
   let filteredStaff = tab === 'active' ? staff : archived
