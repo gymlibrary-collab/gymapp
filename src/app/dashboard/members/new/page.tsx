@@ -12,6 +12,9 @@ import { validatePhone, validateFullName, validateMembershipNumber, validateAll 
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function RegisterMemberPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff'] })
+  if (loading || !user) return null
+
   const { logActivity } = useActivityLog()
   const [step, setStep] = useState<'member' | 'membership'>('member')
   const [gyms, setGyms] = useState<any[]>([])
@@ -32,8 +35,6 @@ export default function RegisterMemberPage() {
   })
 
   const router = useRouter()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff'] })
-  if (loading || !user) return null
   const supabase = createClient()
 
 
