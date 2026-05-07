@@ -43,7 +43,7 @@ export default function NewPtSessionPage() {
       const { data: pkgData } = await supabase
         .from('packages')
         .select('*, member:members!packages_member_id_fkey(full_name, phone), secondary_member:members!packages_secondary_member_id_fkey(full_name)')
-        .eq('trainer_id', user.id)
+        .eq('trainer_id', user!.id)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
       setPackages(pkgData || [])
