@@ -167,18 +167,12 @@ export default function ActivityLogsPage() {
     if (queryErr) { showError('Failed to load logs: ' + queryErr.message); return }
     setLogs(data || [])
 
-    // Current period staff for display
     const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()
     setStaffList(names as string[])
-
     setLastRefresh(new Date())
-  }, [filterDateFrom, filterDateTo, filterStaff, filterAction])
+  }, [user, filterDateFrom, filterDateTo, filterStaff, filterAction])
 
-
-  const applyPreset = (p: typeof PRESETS[0]) => {
-
-  // Load full 14-day staff list once on mount — independent of date filter
-  // so dropdown always shows all staff regardless of selected period
+  // Load full 14-day staff list once on mount
   useEffect(() => {
     const loadAllStaff = async () => {
       const since14 = new Date(); since14.setDate(since14.getDate() - 13)
@@ -194,6 +188,13 @@ export default function ActivityLogsPage() {
   useEffect(() => { const t = setInterval(loadLogs, 30000); return () => clearInterval(t) }, [loadLogs])
 
   if (loading || !user) return null
+
+  const applyPreset = (p: typeof PRESETS[0]) => {
+    setFilterDateFrom(offsetDate(p.from))
+    setFilterDateTo(offsetDate(p.to))
+    setActivePreset(p.label)
+    setShowCalendar(false)
+  }
 
   const filtered = logs.filter(l => {
     if (!search) return true
@@ -347,5 +348,4 @@ export default function ActivityLogsPage() {
       </div>
     </div>
   )
-}
 }
