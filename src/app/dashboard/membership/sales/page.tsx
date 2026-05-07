@@ -13,14 +13,12 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembershipSalesPage() {
 
-  const [user, setUser] = useState<any>(null)
   const [allGymSales, setAllGymSales] = useState<any[]>([]) // manager: all gym sales for confirmation
   const [mySales, setMySales] = useState<any[]>([])          // personal sales history
   const [tab, setTab] = useState<'confirm' | 'my'>('confirm')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const { logActivity } = useActivityLog()
-  const [loading, setLoading] = useState(true)
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -80,7 +78,6 @@ export default function MembershipSalesPage() {
       setMySales(ownSales || [])
     }
 
-    setLoading(false)
   }
 
   const fetchMemberPackages = async (memberId: string) => {
