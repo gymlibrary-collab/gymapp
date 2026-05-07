@@ -33,6 +33,8 @@ const emptyForm = {
   date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '', address: '',
   nric: '', nationality: 'Singaporean',
   leave_entitlement_days: '',
+  medical_leave_entitlement_days: '14',
+  hospitalisation_leave_entitlement_days: '60',
   probation_end_date: '', probation_passed: false, leave_carry_forward_days: '0',
 }
 
@@ -165,6 +167,8 @@ export default function TrainersPage() {
       address: member.address || '',
       nric: member.nric || '',
       leave_entitlement_days: member.leave_entitlement_days?.toString() || '',
+      medical_leave_entitlement_days: member.medical_leave_entitlement_days?.toString() || '14',
+      hospitalisation_leave_entitlement_days: member.hospitalisation_leave_entitlement_days?.toString() || '60',
       probation_end_date: member.probation_end_date || '',
       probation_passed: !!member.probation_passed_at,
       leave_carry_forward_days: member.leave_carry_forward_days?.toString() || '0',
@@ -665,6 +669,28 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
           )}
         </>
       )}
+      {/* Leave entitlements */}
+      <div>
+        <label className="label">Annual Leave Entitlement (days)</label>
+        <input className="input" type="number" min="0" step="1"
+          value={form.leave_entitlement_days}
+          onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
+          placeholder="e.g. 14" />
+      </div>
+      <div>
+        <label className="label">Medical Leave Entitlement (days)</label>
+        <input className="input" type="number" min="0" step="1"
+          value={(form as any).medical_leave_entitlement_days || '14'}
+          onChange={e => setF((f: any) => ({ ...f, medical_leave_entitlement_days: e.target.value }))}
+          placeholder="14" />
+      </div>
+      <div>
+        <label className="label">Hospitalisation Leave Entitlement (days)</label>
+        <input className="input" type="number" min="0" step="1"
+          value={(form as any).hospitalisation_leave_entitlement_days || '60'}
+          onChange={e => setF((f: any) => ({ ...f, hospitalisation_leave_entitlement_days: e.target.value }))}
+          placeholder="60" />
+      </div>
       {/* Leave carry-forward */}
       <div>
         <label className="label">Leave Carry-Forward Days</label>
