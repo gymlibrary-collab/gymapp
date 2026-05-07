@@ -106,8 +106,8 @@ export default function PackageSalesPage() {
     const { data: existingPayouts } = await supabase
       .from('commission_payouts')
       .select('id, status, period_start, period_end')
-      .eq('trainer_id', pkg.trainer_id || pkg.trainer?.id)
-      .in('status', ['pending', 'approved'])
+      .eq('user_id', pkg.trainer_id || pkg.trainer?.id)
+      .in('status', ['draft', 'approved'])
       .lte('period_start', pkgDate)
       .gte('period_end', pkgDate)
       .limit(1)
