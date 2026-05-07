@@ -25,6 +25,8 @@ export default function PayrollPage() {
   const [bulkMonth, setBulkMonth] = useState(new Date().getMonth() + 1)
   const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
   const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [bulkDraftWarning, setBulkDraftWarning] = useState<string[]>([]) // names with existing drafts
+  const [pendingBulkGenerate, setPendingBulkGenerate] = useState(false)
   const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[], deleted?: boolean} | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const { error: archiveError, showError: showArchiveError, setError: setArchiveError } = useToast()
@@ -119,6 +121,19 @@ export default function PayrollPage() {
       alert(`Cannot generate payslips for a future month (${bulkMonth}/${bulkYear}). Wait until the month has ended.`)
       return
     }
+    // Check for existing draft payslips and warn before overwriting
+    const allIds = staffList.map(m => m.id)
+    const { data: existingDraftCheck } = await supabase.from('payslips')
+      .select('user_id, users!payslips_user_id_fkey(full_name)')
+      .in('user_id', allIds).eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
+    const draftNames = (existingDraftCheck || []).map((p: any) => (p as any).users?.full_name).filter(Boolean)
+    if (draftNames.length > 0 && !pendingBulkGenerate) {
+      setBulkDraftWarning(draftNames)
+      setPendingBulkGenerate(true)
+      return
+    }
+    setBulkDraftWarning([])
+    setPendingBulkGenerate(false)
     setBulkGenerating(true); setBulkResult(null)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const monthStart = `${bulkYear}-${String(bulkMonth).padStart(2, '0')}-01`
@@ -339,8 +354,10 @@ export default function PayrollPage() {
 
         // Load commission payouts — use correct column names (trainer_id, session_commissions_sgd)
         const { data: commissions } = await supabase.from('commission_payouts')
-          .select('*').eq('trainer_id', staff.id).eq('year', archiveYear)
-          .in('status', ['approved', 'paid']).order('month')
+          .select('*').eq('user_id', staff.id)
+          .gte('period_start', `${archiveYear}-01-01`)
+          .lte('period_end', `${archiveYear}-12-31`)
+          .in('status', ['approved', 'paid']).order('period_start')
 
         for (const comm of commissions || []) {
           const doc = new jsPDF()
@@ -348,7 +365,9 @@ export default function PayrollPage() {
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(10); doc.setTextColor(100)
           doc.text(gymName, 14, yPos); yPos += 6
-          doc.text(`${getMonthName(comm.month)} ${comm.year}`, 14, yPos); yPos += 10
+          const commMonth = parseInt((comm.period_start || '').split('-')[1] || '1')
+          const commYear = parseInt((comm.period_start || '').split('-')[0] || '0')
+          doc.text(`${getMonthName(commMonth)} ${commYear}`, 14, yPos); yPos += 10
           doc.setTextColor(0)
           doc.text(staff.full_name as string, 14, yPos); yPos += 6
 
@@ -359,7 +378,7 @@ export default function PayrollPage() {
             ['Total Commission', formatSGD(comm.total_commission_sgd || 0)],
           ]
           autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
-          folder!.file(`comm-${MONTHS[comm.month - 1]}.pdf`, doc.output('arraybuffer'))
+          folder!.file(`comm-${MONTHS[commMonth - 1]}.pdf`, doc.output('arraybuffer'))
         }
       }
 
@@ -435,8 +454,34 @@ export default function PayrollPage() {
               <p>· Staff with no salary set and part-timers with no shifts are skipped</p>
               <p>· Existing draft payslips for this month are overwritten — approved/paid are protected</p>
             </div>
+
+            {/* Draft overwrite warning */}
+            {bulkDraftWarning.length > 0 && pendingBulkGenerate && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-800">Existing draft payslips will be overwritten</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {bulkDraftWarning.join(', ')} already {bulkDraftWarning.length === 1 ? 'has a' : 'have'} draft payslip{bulkDraftWarning.length !== 1 ? 's' : ''} for {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} {bulkYear}. Proceeding will replace {bulkDraftWarning.length === 1 ? 'it' : 'them'}.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleBulkGenerate} disabled={bulkGenerating}
+                    className="btn-danger flex-1 disabled:opacity-50 text-sm">
+                    {bulkGenerating ? 'Generating...' : `Confirm & Overwrite ${bulkDraftWarning.length} Draft${bulkDraftWarning.length !== 1 ? 's' : ''}`}
+                  </button>
+                  <button onClick={() => { setBulkDraftWarning([]); setPendingBulkGenerate(false) }}
+                    className="btn-secondary flex-shrink-0">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2">
-              <button onClick={handleBulkGenerate} disabled={bulkGenerating}
+              <button onClick={handleBulkGenerate} disabled={bulkGenerating || pendingBulkGenerate}
                 className="btn-primary flex-1 disabled:opacity-50">
                 {bulkGenerating ? 'Generating...' : `Generate All Payslips — ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} ${bulkYear}`}
               </button>
