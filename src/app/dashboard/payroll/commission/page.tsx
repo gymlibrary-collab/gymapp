@@ -217,6 +217,11 @@ export default function CommissionPayoutsPage() {
     setSaving(true); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
+    // Derive period dates from month/year selection
+    const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
+    const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
+    const period_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
+
     // Block: check for any approved/paid payouts in this period — never overwrite finalised records
     const userIds = preview.map(i => i.user_id)
     const { data: finalised } = await supabase.from('commission_payouts')
@@ -230,11 +235,6 @@ export default function CommissionPayoutsPage() {
       setSaving(false)
       return
     }
-
-    // Derive period dates from month/year selection
-    const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
-    const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
-    const period_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
 
     for (const item of preview) {
       await supabase.from('commission_payouts').upsert({
