@@ -49,8 +49,6 @@ export default function CpfPage() {
 
   const load = async () => {
     // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data: br } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
     setBrackets(br || [])
