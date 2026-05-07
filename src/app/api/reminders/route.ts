@@ -12,6 +12,19 @@ export async function GET(request: Request) {
   }
 
   const supabase = createAdminClient()
+
+  // Check if reminder notifications are enabled before processing
+  const { data: clientConfig } = await supabase.from('whatsapp_notifications_config')
+    .select('is_enabled').eq('id', 'pt_reminder_client_24h').single()
+  const { data: trainerConfig } = await supabase.from('whatsapp_notifications_config')
+    .select('is_enabled').eq('id', 'pt_reminder_trainer_24h').single()
+  const clientEnabled = clientConfig?.is_enabled === true
+  const trainerEnabled = trainerConfig?.is_enabled === true
+
+  if (!clientEnabled && !trainerEnabled) {
+    return NextResponse.json({ sent: 0, message: 'Reminders disabled in WhatsApp notification config' })
+  }
+
   const now = new Date()
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000)
   const windowStart = new Date(in24h.getTime() - 30 * 60 * 1000) // 30min window
@@ -48,7 +61,7 @@ export async function GET(request: Request) {
     })
 
     // Send to client
-    if (session.clients?.phone) {
+    if (session.clients?.phone && clientEnabled) {
       try {
         const clientPhone = session.clients.phone.replace(/\s/g, '')
         const msg = await twilioClient.messages.create({
@@ -64,7 +77,7 @@ export async function GET(request: Request) {
     }
 
     // Send to trainer
-    if (session.users?.phone) {
+    if (session.users?.phone && trainerEnabled) {
       try {
         const trainerPhone = session.users.phone.replace(/\s/g, '')
         const msg = await twilioClient.messages.create({
