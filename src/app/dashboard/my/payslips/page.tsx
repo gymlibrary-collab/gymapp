@@ -19,7 +19,6 @@ export default function MyPayslipsPage() {
   const supabase = createClient()
   const router = useRouter()
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
-  if (loading || !user) return null
 
   const [selectedMonth, setSelectedMonth] = useState<string>('') // 'YYYY-MM' format
   const [gymsMap, setGymsMap] = useState<Record<string, any>>({}) // gymId -> gym object
@@ -64,6 +63,8 @@ export default function MyPayslipsPage() {
     }
     load()
   }, [])
+
+  if (loading || !user) return null
 
   const downloadPayslip = async (slip: any) => {
     const { default: jsPDF } = await import('jspdf')
