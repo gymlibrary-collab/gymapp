@@ -1138,7 +1138,88 @@ export default function DashboardPage() {
     load()
   }, [isActingAsTrainer])
 
-  // ── Commission drill-down loader ──────────────────────────
+  // ── Commission stats loader — reloads on month navigation ──
+  const loadCommissionStats = async (periodStart: string, periodEnd: string) => {
+    setCommissionLoading(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data: u } = await supabase.from('users').select('role, manager_gym_id').eq('id', authUser.id).single()
+    if (!u) return
+    const isTrainerRole = u.role === 'trainer' || isActingAsTrainer
+    const isManagerRole = u.role === 'manager' && !isActingAsTrainer
+    const isStaffRole = u.role === 'staff'
+
+    let sessionComm = 0, signupComm = 0, membershipComm = 0
+
+    if (isTrainerRole) {
+      // PT session commission — gated on manager_confirmed + is_notes_complete
+      const { data: sessSales } = await supabase.from('sessions')
+        .select('session_commission_sgd')
+        .eq('trainer_id', authUser.id).eq('status', 'completed')
+        .eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
+      sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+
+      // PT signup commission — gated on manager_confirmed
+      const { data: pkgSales } = await supabase.from('packages')
+        .select('signup_commission_sgd')
+        .eq('trainer_id', authUser.id).eq('manager_confirmed', true)
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+
+      // Membership commission — confirmed sales by this trainer
+      const { data: memSales } = await supabase.from('gym_memberships')
+        .select('commission_sgd')
+        .eq('sold_by_user_id', authUser.id).eq('sale_status', 'confirmed')
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    }
+
+    else if (isStaffRole) {
+      // Staff only earn membership commission
+      const { data: memSales } = await supabase.from('gym_memberships')
+        .select('commission_sgd')
+        .eq('sold_by_user_id', authUser.id).eq('sale_status', 'confirmed')
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    }
+
+    else if (isManagerRole && u.manager_gym_id) {
+      // Manager sees gym-wide commission earned (gated)
+      const gymId = u.manager_gym_id
+
+      const { data: sessSales } = await supabase.from('sessions')
+        .select('session_commission_sgd')
+        .eq('gym_id', gymId).eq('status', 'completed')
+        .eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
+      sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+
+      const { data: pkgSales } = await supabase.from('packages')
+        .select('signup_commission_sgd')
+        .eq('gym_id', gymId).eq('manager_confirmed', true)
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+
+      const { data: memSales } = await supabase.from('gym_memberships')
+        .select('commission_sgd')
+        .eq('gym_id', gymId).eq('sale_status', 'confirmed')
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    }
+
+    setCommissionStats({
+      session: sessionComm,
+      signup: signupComm,
+      membership: membershipComm,
+      total: sessionComm + signupComm + membershipComm,
+    })
+    setCommissionLoading(false)
+  }
+
+
+
+    // ── Commission drill-down loader ──────────────────────────
   const loadDrillDown = async (periodStart: string, periodEnd: string, groupBy: 'staff' | 'type', gymFilter?: string) => {
     setDrillDownLoading(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -1289,85 +1370,6 @@ export default function DashboardPage() {
     ))
     setNonRenewalModal(null)
     setNonRenewalSaving(false)
-  }
-
-  // ── Commission stats loader — reloads on month navigation ──
-  const loadCommissionStats = async (periodStart: string, periodEnd: string) => {
-    setCommissionLoading(true)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: u } = await supabase.from('users').select('role, manager_gym_id').eq('id', authUser.id).single()
-    if (!u) return
-    const isTrainerRole = u.role === 'trainer' || isActingAsTrainer
-    const isManagerRole = u.role === 'manager' && !isActingAsTrainer
-    const isStaffRole = u.role === 'staff'
-
-    let sessionComm = 0, signupComm = 0, membershipComm = 0
-
-    if (isTrainerRole) {
-      // PT session commission — gated on manager_confirmed + is_notes_complete
-      const { data: sessSales } = await supabase.from('sessions')
-        .select('session_commission_sgd')
-        .eq('trainer_id', authUser.id).eq('status', 'completed')
-        .eq('is_notes_complete', true).eq('manager_confirmed', true)
-        .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
-      sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
-
-      // PT signup commission — gated on manager_confirmed
-      const { data: pkgSales } = await supabase.from('packages')
-        .select('signup_commission_sgd')
-        .eq('trainer_id', authUser.id).eq('manager_confirmed', true)
-        .gte('created_at', periodStart).lte('created_at', periodEnd)
-      signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
-
-      // Membership commission — confirmed sales by this trainer
-      const { data: memSales } = await supabase.from('gym_memberships')
-        .select('commission_sgd')
-        .eq('sold_by_user_id', authUser.id).eq('sale_status', 'confirmed')
-        .gte('created_at', periodStart).lte('created_at', periodEnd)
-      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
-    }
-
-    else if (isStaffRole) {
-      // Staff only earn membership commission
-      const { data: memSales } = await supabase.from('gym_memberships')
-        .select('commission_sgd')
-        .eq('sold_by_user_id', authUser.id).eq('sale_status', 'confirmed')
-        .gte('created_at', periodStart).lte('created_at', periodEnd)
-      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
-    }
-
-    else if (isManagerRole && u.manager_gym_id) {
-      // Manager sees gym-wide commission earned (gated)
-      const gymId = u.manager_gym_id
-
-      const { data: sessSales } = await supabase.from('sessions')
-        .select('session_commission_sgd')
-        .eq('gym_id', gymId).eq('status', 'completed')
-        .eq('is_notes_complete', true).eq('manager_confirmed', true)
-        .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
-      sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
-
-      const { data: pkgSales } = await supabase.from('packages')
-        .select('signup_commission_sgd')
-        .eq('gym_id', gymId).eq('manager_confirmed', true)
-        .gte('created_at', periodStart).lte('created_at', periodEnd)
-      signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
-
-      const { data: memSales } = await supabase.from('gym_memberships')
-        .select('commission_sgd')
-        .eq('gym_id', gymId).eq('sale_status', 'confirmed')
-        .gte('created_at', periodStart).lte('created_at', periodEnd)
-      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
-    }
-
-    setCommissionStats({
-      session: sessionComm,
-      signup: signupComm,
-      membership: membershipComm,
-      total: sessionComm + signupComm + membershipComm,
-    })
-    setCommissionLoading(false)
   }
 
 
