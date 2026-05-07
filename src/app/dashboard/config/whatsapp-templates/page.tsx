@@ -8,6 +8,7 @@ import { CheckCircle, AlertCircle, ChevronDown, MessageSquare, Plus, Edit2, X, T
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface Placeholder {
   key: string
@@ -99,6 +100,8 @@ const EMPTY_NEW = {
 }
 
 export default function WhatsAppTemplatesPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [templates, setTemplates] = useState<Template[]>([])
   const [editing, setEditing] = useState<Template | null>(null)
@@ -118,10 +121,8 @@ export default function WhatsAppTemplatesPage() {
 
   const load = async () => {
     logActivity('page_view', 'WhatsApp Templates', 'Viewed WhatsApp message templates')
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
     const { data } = await supabase.from('whatsapp_templates').select('*').order('created_at')
     setTemplates(data || [])
   }
