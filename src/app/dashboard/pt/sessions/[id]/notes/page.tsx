@@ -7,7 +7,7 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatDateTime } from '@/lib/utils'
 import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock, RefreshCw, XCircle } from 'lucide-react'
-import { renderWhatsAppTemplate } from '@/lib/whatsapp'
+import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -52,7 +52,7 @@ export default function PtSessionNotesPage() {
       if (!userData || !canView) { router.replace('/dashboard'); return }
       setCurrentUser(userData)
       const { data } = await supabase.from('sessions')
-        .select('*, member:members!sessions_member_id_fkey(full_name), attending_member:members!sessions_attending_member_id_fkey(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions, is_shared, secondary_member_id), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
+        .select('*, member:members!sessions_member_id_fkey(full_name, phone), attending_member:members!sessions_attending_member_id_fkey(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions, is_shared, secondary_member_id), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
         .eq('id', id).single()
       setSession(data)
       setNotes(data?.performance_notes || '')
@@ -131,7 +131,7 @@ export default function PtSessionNotesPage() {
     // Queue WhatsApp to manager
     const { data: gymManager } = await supabase.from('users')
       .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').single()
-    if (gymManager?.phone) {
+    if (gymManager?.phone && await isWhatsAppEnabled(supabase, 'manager_note_alert')) {
       const renewalNote = renewalStatus === 'not_renewing'
         ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
         : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''
@@ -146,9 +146,29 @@ export default function PtSessionNotesPage() {
         notification_type: 'manager_note_alert',
         recipient_phone: gymManager.phone,
         recipient_name: gymManager.full_name,
-        // renewalNote is already included in noteMsg via the fallback string
-        // passed to renderWhatsAppTemplate — do not concatenate again here.
         message: noteMsg,
+        related_id: id,
+        scheduled_for: new Date().toISOString(),
+        status: 'pending',
+      })
+    }
+
+    // Queue WhatsApp confirmation to member
+    if (session.member?.phone && await isWhatsAppEnabled(supabase, 'session_note_member_confirm')) {
+      const sessionDate = session.scheduled_at ? new Date(session.scheduled_at).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+      const sessionTime = session.scheduled_at ? new Date(session.scheduled_at).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' }) : ''
+      const memberMsg = await renderWhatsAppTemplate('session_note_member_confirm', {
+        member_name: session.member.full_name || '',
+        trainer_name: currentUser.full_name,
+        gym_name: session.gym?.name || '',
+        session_date: sessionDate,
+        session_time: sessionTime,
+      }, `Hi ${session.member.full_name}, your PT session with ${currentUser.full_name} on ${sessionDate} at ${sessionTime} has been completed and recorded. See you next time!`)
+      await supabase.from('whatsapp_queue').insert({
+        notification_type: 'session_note_member_confirm',
+        recipient_phone: session.member.phone,
+        recipient_name: session.member.full_name,
+        message: memberMsg,
         related_id: id,
         scheduled_for: new Date().toISOString(),
         status: 'pending',
