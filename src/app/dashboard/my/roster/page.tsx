@@ -10,14 +10,13 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MyRosterPage() {
-  if (loading || !user) return null
-
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
-
   const { logActivity } = useActivityLog()
   const [shifts, setShifts] = useState<any[]>([])
   const supabase = createClient()
   const router = useRouter()
+
+  if (loading || !user) return null
 
   useEffect(() => {
     if (!user) return
