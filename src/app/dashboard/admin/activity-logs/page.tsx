@@ -188,7 +188,7 @@ export default function ActivityLogsPage() {
   useEffect(() => { const t = setInterval(loadLogs, 30000); return () => clearInterval(t) }, [loadLogs])
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
+  if (!user) return <div className="p-8 text-red-600 text-sm">Auth failed — user is null after loading. Check that your account role is set to &apos;admin&apos; in the database.</div>
 
   const applyPreset = (p: typeof PRESETS[0]) => {
     setFilterDateFrom(offsetDate(p.from))
