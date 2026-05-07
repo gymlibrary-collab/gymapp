@@ -132,6 +132,9 @@ function MiniCalendar({ from, to, onChange }: { from: string; to: string; onChan
 }
 
 export default function ActivityLogsPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
+  if (loading || !user) return null
+
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
@@ -157,10 +160,8 @@ export default function ActivityLogsPage() {
   }
 
   const loadLogs = useCallback(async () => {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
-  if (loading || !user) return null
     if (!user) return
-    if (loading) logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
+    logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
 
     let q = supabase.from('activity_logs')
       .select('*')
