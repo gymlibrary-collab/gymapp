@@ -37,7 +37,6 @@ export default function PtSessionNotesPage() {
   const [renewalStatus, setRenewalStatus] = useState<'renewed' | 'not_renewing' | 'undecided' | ''>('')
   const [nonRenewalReason, setNonRenewalReason] = useState('')
   const [nonRenewalCustom, setNonRenewalCustom] = useState('')
-  const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -114,7 +113,7 @@ export default function PtSessionNotesPage() {
     if (renewalStatus === 'not_renewing' && !finalReason()) {
       setError('Please provide a reason for non-renewal'); return
     }
-    setLoading(true); setError('')
+    setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
     await supabase.from('sessions').update({
@@ -167,20 +166,19 @@ export default function PtSessionNotesPage() {
 
     logActivity('update', 'Session Notes', 'Submitted session notes for manager confirmation')
     logActivity('approve', 'Session Notes', `Manager confirmed session notes for ${session?.member?.full_name || ''}`)
-    setLoading(false); setSaved(true)
+    setSaved(true)
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
 
   // ── Save (manager) ────────────────────────────────────────
   const handleManagerSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     await supabase.from('sessions').update({
       performance_notes: notes,
       renewal_status: renewalStatus || null,
       non_renewal_reason: finalReason() || null,
     }).eq('id', id)
-    setLoading(false); setSaved(true)
+    setSaved(true)
     setTimeout(() => router.push('/dashboard/pt/sessions'), 1500)
   }
 
