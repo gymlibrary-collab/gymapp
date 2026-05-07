@@ -44,6 +44,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/config/gyms', label: 'Gym Clubs', icon: Building2 },
   { href: '/dashboard/config/commission', label: 'Commission Rates', icon: DollarSign },
   { href: '/dashboard/config/leave-policy', label: 'Leave Policy', icon: CalendarDays },
+  { href: '/dashboard/config/escalation', label: 'Escalation Settings', icon: AlertCircle },
   { href: '/dashboard/config/whatsapp-templates', label: 'WhatsApp Templates', icon: MessageSquare },
   { label: 'Reports', header: true },
   { href: '/dashboard/reports', label: 'Summary Reports', icon: BarChart3 },
