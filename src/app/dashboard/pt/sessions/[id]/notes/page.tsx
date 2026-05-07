@@ -28,6 +28,9 @@ const NON_RENEWAL_REASONS = [
 ]
 
 export default function PtSessionNotesPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
+  if (loading || !user) return null
+
 
   const { id } = useParams()
   const { logActivity } = useActivityLog()
@@ -42,8 +45,6 @@ export default function PtSessionNotesPage() {
   const router = useRouter()
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
-  if (loading || !user) return null
 
   useEffect(() => {
     const load = async () => {
