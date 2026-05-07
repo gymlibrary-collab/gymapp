@@ -18,7 +18,7 @@ const LEAVE_TYPES: Record<string, string> = {
 }
 
 export default function LeaveManagementPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'admin'] })
 
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
