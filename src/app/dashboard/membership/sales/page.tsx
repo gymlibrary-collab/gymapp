@@ -12,6 +12,9 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembershipSalesPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  if (loading || !user) return null
+
 
   const [allGymSales, setAllGymSales] = useState<any[]>([]) // manager: all gym sales for confirmation
   const [mySales, setMySales] = useState<any[]>([])          // personal sales history
@@ -26,8 +29,6 @@ export default function MembershipSalesPage() {
   const supabase = createClient()
   const router = useRouter()
   const { success, error, showMsg } = useToast()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
-  if (loading || !user) return null
 
   useEffect(() => { load() }, [])
 
