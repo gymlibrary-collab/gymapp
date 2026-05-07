@@ -9,8 +9,11 @@ import { Plus, Trash2, CheckCircle, AlertCircle, Calendar, X, Info } from 'lucid
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PublicHolidaysPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [holidays, setHolidays] = useState<any[]>([])
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -27,10 +30,8 @@ export default function PublicHolidaysPage() {
 
   const load = async () => {
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data } = await supabase.from('public_holidays')
       .select('*').eq('year', selectedYear).order('holiday_date')
