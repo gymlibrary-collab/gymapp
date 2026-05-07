@@ -7,42 +7,37 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MyRosterPage() {
+  if (loading || !user) return null
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+
   const { logActivity } = useActivityLog()
-  const [user, setUser] = useState<any>(null)
   const [shifts, setShifts] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => {
+    if (!user) return
     const load = async () => {
       logActivity('page_view', 'My Roster', 'Viewed own duty roster')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-      // Roster is only for part-time ops staff
-      if (!userData || !(userData.role === 'staff' && userData.employment_type === 'part_time')) {
-        router.replace('/dashboard'); return
-      }
-      setUser(userData)
 
       const today = new Date().toISOString().split('T')[0]
       const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
       const { data } = await supabase.from('duty_roster')
         .select('*, gym:gyms(name)')
-        .eq('user_id', authUser.id)
+        .eq('user_id', user.id)
         .gte('shift_date', today)
         .lte('shift_date', in30Days)
         .order('shift_date').order('shift_start')
 
       setShifts(data || [])
-      setLoading(false)
     }
     load()
-  }, [])
+  }, [user])
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
