@@ -297,7 +297,7 @@ export default function CommissionPayoutsPage() {
     showMsg(`Payout ${newStatus}`)
   }
 
-  const isBizOps = currentUser?.role === 'business_ops'
+  const isBizOps = user?.role === 'business_ops'
   const totalPending = payouts.filter(p => p.status === 'draft').reduce((s, p) => s + p.total_commission_sgd, 0)
   const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + p.total_commission_sgd, 0)
 
