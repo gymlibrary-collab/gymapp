@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
 import { Building2, Users, UserCheck, Dumbbell, MapPin, Maximize2, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,7 @@ import { cn } from '@/lib/utils'
 export default function AdminGymsPage() {
   const [gyms, setGyms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
 
@@ -19,6 +21,7 @@ export default function AdminGymsPage() {
       if (!authUser) { router.replace('/dashboard'); return }
       const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
       if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
+      logActivity('page_view', 'Gym Clubs', 'Viewed gym clubs list')
 
       const { data: gymsData } = await supabase
         .from('gyms').select('*').order('name')
