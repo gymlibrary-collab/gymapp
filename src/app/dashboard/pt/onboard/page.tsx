@@ -13,7 +13,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtOnboardPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
   const { logActivity } = useActivityLog()
@@ -25,7 +24,6 @@ export default function PtOnboardPage() {
   const [activeMembers, setActiveMembers] = useState<any[]>([])
   const [templates, setTemplates] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   const [tab, setTab] = useState<'renew' | 'new'>('renew')
   const [form, setForm] = useState({
@@ -40,7 +38,6 @@ export default function PtOnboardPage() {
 
   const loadData = async () => {
     logActivity('page_view', 'PT Onboarding', 'Viewed pt onboarding')
-    setLoading(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
 
@@ -50,7 +47,6 @@ export default function PtOnboardPage() {
     if (!me || !['trainer', 'manager', 'staff'].includes(me.role)) {
       router.replace('/dashboard'); return
     }
-    setCurrentUser(me)
 
     const gymId = me.manager_gym_id || me.gym_id
 
@@ -93,7 +89,6 @@ export default function PtOnboardPage() {
       .order('name')
     setTemplates(tmpl || [])
 
-    setLoading(false)
   }
 
   const selectedTemplate = templates.find(t => t.id === form.template_id)
