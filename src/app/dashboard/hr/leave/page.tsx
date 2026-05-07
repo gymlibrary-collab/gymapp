@@ -18,6 +18,9 @@ const LEAVE_TYPES: Record<string, string> = {
 }
 
 export default function LeaveManagementPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  if (loading || !user) return null
+
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
   const [filter, setFilter] = useState('pending')
@@ -30,8 +33,6 @@ export default function LeaveManagementPage() {
   const supabase = createClient()
 
   const { success, error, showMsg } = useToast()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading || !user) return null
 
 
   useEffect(() => { load() }, [filter])
