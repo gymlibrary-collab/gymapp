@@ -94,6 +94,7 @@ export default function MemberProfilePage() {
   }
 
   const load = async () => {
+    logActivity('page_view', 'Member Profile', 'Viewed member profile')
 
     const { data: m } = await supabase.from('members').select('*, gym:gyms(name)').eq('id', id).single()
     setMember(m)
@@ -162,7 +163,8 @@ export default function MemberProfilePage() {
 
   useEffect(() => { load() }, [id])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   // ── Edit member ───────────────────────────────────────────
   const handleSaveMember = async (e: React.FormEvent) => {

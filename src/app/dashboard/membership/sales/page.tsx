@@ -32,6 +32,7 @@ export default function MembershipSalesPage() {
 
 
   const load = async () => {
+    logActivity('page_view', 'Membership Sales', 'Viewed membership sales')
 
     const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 

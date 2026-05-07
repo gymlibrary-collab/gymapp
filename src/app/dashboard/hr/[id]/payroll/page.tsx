@@ -66,6 +66,7 @@ export default function StaffPayrollDetailPage() {
     useEffect(() => { loadData() }, [id])
 
   const loadData = async () => {
+    logActivity('page_view', 'Staff Payroll', 'Viewed staff payroll')
     // Guard — only business_ops can access payroll
     setIsBizOpsRole(user!.role === 'business_ops')
 

@@ -63,6 +63,7 @@ export default function TrainersPage() {
   const supabase = createClient()
 
   const loadData = async () => {
+    logActivity('page_view', 'Staff Management', 'Viewed staff management')
     if (!user) return
     
 

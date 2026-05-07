@@ -37,6 +37,7 @@ export default function GymManagementPage() {
   useEffect(() => { load() }, [])
 
   const load = async () => {
+    logActivity('page_view', 'Gym Configuration', 'Viewed gym configuration')
     // Route guard — Business Ops only
 
     const { data } = await supabase.from('gyms').select('*').order('name')

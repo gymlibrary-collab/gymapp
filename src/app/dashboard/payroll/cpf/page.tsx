@@ -47,6 +47,7 @@ export default function CpfPage() {
 
 
   const load = async () => {
+    logActivity('page_view', 'CPF Configuration', 'Viewed cpf configuration')
 
     const { data: br } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
     setBrackets(br || [])

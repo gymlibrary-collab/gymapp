@@ -58,6 +58,7 @@ export default function RosterPage() {
   useEffect(() => { loadData() }, [weekStart])
 
   const loadData = async () => {
+    logActivity('page_view', 'Duty Roster', 'Viewed duty roster')
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = user!.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {

@@ -37,6 +37,7 @@ export default function LeaveManagementPage() {
 
 
   const load = async () => {
+    logActivity('page_view', 'Leave Management', 'Viewed leave management')
 
     // Get staff IDs this user can approve for
     let staffIds: string[] = []

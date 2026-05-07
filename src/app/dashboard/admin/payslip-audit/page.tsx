@@ -26,6 +26,7 @@ export default function PayslipAuditPage() {
   useEffect(() => { loadData() }, [filterYear, filterMonth])
 
   const loadData = async () => {
+    logActivity('page_view', 'Payslip Audit', 'Viewed payslip audit')
 
     let query = supabase
       .from('payslip_deletions')

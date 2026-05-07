@@ -29,6 +29,7 @@ export default function PackageSalesPage() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
+    logActivity('page_view', 'PT Package Sales', 'Viewed pt package sales')
     const isBizOps = user!.role === 'business_ops'
     const gymId = user!.manager_gym_id || ''
     if (!isBizOps && !gymId) { return }

@@ -50,6 +50,7 @@ export default function PackagesPage() {
   useEffect(() => { loadPackages() }, [])
 
   const loadPackages = async () => {
+    logActivity('page_view', 'PT Package Templates', 'Viewed pt package templates')
 
     const { data: active } = await supabase.from('package_templates')
       .select('*').eq('is_archived', false).order('effective_from', { ascending: false })

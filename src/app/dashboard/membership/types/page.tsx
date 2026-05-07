@@ -27,6 +27,7 @@ export default function MembershipTypesPage() {
 
 
   const load = async () => {
+    logActivity('page_view', 'Membership Types', 'Viewed membership types')
 
     const { data } = await supabase.from('membership_types').select('*').order('price_sgd')
     setTypes(data || [])

@@ -44,6 +44,7 @@ export default function PayrollPage() {
 
 
   const load = async () => {
+    logActivity('page_view', 'Monthly Payroll', 'Viewed monthly payroll')
     // Issue 7: Guard — only business_ops can access payroll
     // Load all active staff with payroll profile — exclude admin (no payroll)
     const { data: staff } = await supabase

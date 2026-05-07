@@ -32,6 +32,7 @@ export default function PtSessionsPage() {
 
 
   const loadSessions = async () => {    // detail is reviewed in person with each gym manager.
+    logActivity('page_view', 'PT Sessions', 'Viewed pt sessions')
     // Block roles that should not access session list
     
 

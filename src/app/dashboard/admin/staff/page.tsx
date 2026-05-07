@@ -48,6 +48,7 @@ export default function AdminStaffPage() {
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
+    logActivity('page_view', 'Admin Staff', 'Viewed admin staff')
 
     const { data: active } = await supabase.from('users').select('*')
       .eq('role', 'business_ops').eq('is_archived', false).order('full_name')

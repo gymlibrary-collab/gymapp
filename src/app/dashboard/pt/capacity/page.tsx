@@ -27,6 +27,7 @@ export default function TrainerCapacityPage() {
 
 
   const load = async () => {
+    logActivity('page_view', 'PT Capacity', 'Viewed pt capacity')
 
     const now = new Date()
     // Week bounds (Mon-Sun)

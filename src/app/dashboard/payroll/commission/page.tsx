@@ -44,6 +44,7 @@ export default function CommissionPayoutsPage() {
 
 
   const loadData = async () => {
+    logActivity('page_view', 'Commission Payouts', 'Viewed commission payouts')
     if (!user) return
 
     // Load payouts

@@ -29,6 +29,7 @@ export default function PublicHolidaysPage() {
   useEffect(() => { load() }, [selectedYear])
 
   const load = async () => {
+    logActivity('page_view', 'Public Holidays', 'Viewed public holidays')
     // Route guard
 
     const { data } = await supabase.from('public_holidays')
