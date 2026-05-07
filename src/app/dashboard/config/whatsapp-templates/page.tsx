@@ -183,7 +183,6 @@ export default function WhatsAppTemplatesPage() {
       recipient_type,
       recipient_scope: recipientInfo?.scope || 'individual',
       send_pattern,
-      send_pattern,
       created_by_biz_ops: true,
       updated_by: user?.id,
     })
