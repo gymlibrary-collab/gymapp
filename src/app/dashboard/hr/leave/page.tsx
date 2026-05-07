@@ -19,7 +19,6 @@ const LEAVE_TYPES: Record<string, string> = {
 
 export default function LeaveManagementPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading || !user) return null
 
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
@@ -35,7 +34,10 @@ export default function LeaveManagementPage() {
   const { success, error, showMsg } = useToast()
 
 
+
   useEffect(() => { load() }, [filter])
+
+  if (loading || !user) return null
 
   const load = async () => {
 
