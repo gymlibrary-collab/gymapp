@@ -133,17 +133,15 @@ function MiniCalendar({ from, to, onChange }: { from: string; to: string; onChan
 
 export default function ActivityLogsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
-  if (loading || !user) return null
-
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
+  const { error, showError, setError } = useToast()
 
   const [logs, setLogs] = useState<any[]>([])
   const [staffList, setStaffList] = useState<string[]>([])
   const [allStaffList, setAllStaffList] = useState<string[]>([])
   const [lastRefresh, setLastRefresh] = useState(new Date())
-  const { error, showError, setError } = useToast()
   const [filterDateFrom, setFilterDateFrom] = useState(() => offsetDate(1))
   const [filterDateTo, setFilterDateTo] = useState(() => offsetDate(0))
   const [activePreset, setActivePreset] = useState('Yesterday')
@@ -151,13 +149,6 @@ export default function ActivityLogsPage() {
   const [search, setSearch] = useState('')
   const [filterStaff, setFilterStaff] = useState('all')
   const [filterAction, setFilterAction] = useState('all')
-
-  const applyPreset = (p: typeof PRESETS[0]) => {
-    setFilterDateFrom(offsetDate(p.from))
-    setFilterDateTo(offsetDate(p.to))
-    setActivePreset(p.label)
-    setShowCalendar(false)
-  }
 
   const loadLogs = useCallback(async () => {
     if (!user) return
@@ -183,6 +174,9 @@ export default function ActivityLogsPage() {
     setLastRefresh(new Date())
   }, [filterDateFrom, filterDateTo, filterStaff, filterAction])
 
+
+  const applyPreset = (p: typeof PRESETS[0]) => {
+
   // Load full 14-day staff list once on mount — independent of date filter
   // so dropdown always shows all staff regardless of selected period
   useEffect(() => {
@@ -198,6 +192,8 @@ export default function ActivityLogsPage() {
 
   useEffect(() => { loadLogs() }, [loadLogs])
   useEffect(() => { const t = setInterval(loadLogs, 30000); return () => clearInterval(t) }, [loadLogs])
+
+  if (loading || !user) return null
 
   const filtered = logs.filter(l => {
     if (!search) return true
@@ -351,4 +347,5 @@ export default function ActivityLogsPage() {
       </div>
     </div>
   )
+}
 }
