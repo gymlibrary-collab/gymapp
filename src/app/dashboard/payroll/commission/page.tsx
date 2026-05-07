@@ -13,8 +13,11 @@ import {
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionPayoutsPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [payouts, setPayouts] = useState<any[]>([])
@@ -42,10 +45,8 @@ export default function CommissionPayoutsPage() {
 
   const loadData = async () => {
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
     setCurrentUser(userData)
@@ -143,14 +144,14 @@ export default function CommissionPayoutsPage() {
             .in('status', ['approved', 'paid'])
           // If ALL payslips this year are low-income exempt, skip commission CPF
           // (staff earning below $50/month total are fully exempt)
-          const allLowIncome = ytdSlips && ytdSlips.length > 0 && ytdSlips.every((p: any) => p.low_income_flag)
+          const slips = ytdSlips ?? []
+          const allLowIncome = slips.length > 0 && slips.every((p: any) => p.low_income_flag)
           if (allLowIncome) {
             empCpfRate = 0; erCpfRate = 0; awSubject = 0; empCpf = 0; erCpf = 0
           } else {
-          const ytdOW = ytdSlips?.reduce((s: number, p: any) => s + (p.basic_salary || 0), 0) || 0
+          const ytdOW = slips.reduce((s: number, p: any) => s + (p.basic_salary || 0), 0)
           const remainingMonths = 12 - (genForm.period_month - 1)
-          const estMonthlyOW = ytdSlips && ytdSlips.length > 0
-            ? ytdOW / ytdSlips.length : 0
+          const estMonthlyOW = slips.length > 0 ? ytdOW / slips.length : 0
           const projectedOW = ytdOW + (estMonthlyOW * remainingMonths)
           const awCeiling = Math.max(0, 102000 - projectedOW)
 
