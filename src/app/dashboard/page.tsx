@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
+import { loadEscalationThresholds, runEscalationCheck, logEscalation } from '@/lib/escalation'
 import { useViewMode } from '@/lib/view-mode-context'
 import { formatSGD, formatDateTime, formatDate, getMonthName } from '@/lib/utils'
 import {
@@ -162,17 +163,14 @@ function BizOpsGymTabs() {
           .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
           .lt('end_date', now.toISOString().split('T')[0])
 
-        // Escalate unactioned memberships expiring within 7 days
-        const in7DaysBizOps = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        const { data: bizOpsEscalate } = await supabase.from('gym_memberships')
-          .select('id').eq('gym_id', g.id).eq('status', 'active')
-          .eq('sale_status', 'confirmed').eq('membership_actioned', false)
-          .eq('escalated_to_biz_ops', false)
-          .lte('end_date', in7DaysBizOps).gte('end_date', now.toISOString().split('T')[0])
-        if (bizOpsEscalate && bizOpsEscalate.length > 0) {
-          await supabase.from('gym_memberships')
-            .update({ escalated_to_biz_ops: true, escalated_at: now.toISOString() })
-            .in('id', bizOpsEscalate.map((m: any) => m.id))
+        // Membership expiry escalation — Biz Ops as fallback trigger
+        // (Manager dashboard also triggers this — see main dashboard load)
+        const bizOpsThresholds = await loadEscalationThresholds(supabase)
+        const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', bizOpsThresholds.membership_expiry, 'system', g.id)
+        if (expiryCount > 0) {
+          const { data: bizOpsUser } = await supabase.auth.getUser()
+          const { data: bizMe } = await supabase.from('users').select('full_name, role').eq('id', bizOpsUser.data.user?.id || '').single()
+          await logEscalation((bizMe as any)?.full_name || 'Biz Ops', (bizMe as any)?.role || 'business_ops', bizOpsUser.data.user?.id || '', 'membership_expiry', expiryCount)
         }
 
         // Expiring memberships — Biz Ops sees escalated + unactioned only
@@ -569,42 +567,38 @@ export default function DashboardPage() {
       const { data: todayData } = await todayQ
       setTodaySessions(todayData || [])
 
-      // ── 48-hour escalation check (trainer only) ─────────────
-      // Runs on every trainer dashboard load — no cron needed
+      // ── Escalation checks (configurable thresholds) ─────────
+      // Load thresholds from app_settings — never hardcoded
+      const thresholds = await loadEscalationThresholds(supabase)
+
       if (isTrainer) {
-        const cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString()
+        // PT package escalation
+        const pkgCount = await runEscalationCheck(supabase, 'pt_package', thresholds.pt_package, authUser.id)
+        await logEscalation(u.full_name, u.role, authUser.id, 'pt_package', pkgCount)
 
-        // Packages: unconfirmed + not yet escalated + older than 48h
-        const { data: stalePackages } = await supabase.from('packages')
-          .select('id')
-          .eq('trainer_id', authUser.id)
-          .eq('manager_confirmed', false)
-          .eq('escalated_to_biz_ops', false)
-          .neq('status', 'cancelled')
-          .lt('created_at', cutoff)
-        if (stalePackages && stalePackages.length > 0) {
-          const ids = stalePackages.map((p: any) => p.id)
-          await supabase.from('packages').update({
-            escalated_to_biz_ops: true,
-            escalated_at: now.toISOString(),
-          }).in('id', ids)
-        }
+        // PT session notes escalation
+        const sessCount = await runEscalationCheck(supabase, 'pt_session', thresholds.pt_session, authUser.id)
+        await logEscalation(u.full_name, u.role, authUser.id, 'pt_session', sessCount)
 
-        // Sessions: notes submitted + unconfirmed + not yet escalated + older than 48h
-        const { data: staleSessions } = await supabase.from('sessions')
-          .select('id')
-          .eq('trainer_id', authUser.id)
-          .eq('manager_confirmed', false)
-          .eq('is_notes_complete', true)
-          .eq('escalated_to_biz_ops', false)
-          .lt('notes_submitted_at', cutoff)
-        if (staleSessions && staleSessions.length > 0) {
-          const ids = staleSessions.map((s: any) => s.id)
-          await supabase.from('sessions').update({
-            escalated_to_biz_ops: true,
-            escalated_at: now.toISOString(),
-          }).in('id', ids)
-        }
+        // Membership sales escalation (trainer as seller)
+        const memSalesCount = await runEscalationCheck(supabase, 'membership_sales', thresholds.membership_sales, authUser.id)
+        await logEscalation(u.full_name, u.role, authUser.id, 'membership_sales', memSalesCount)
+      }
+
+      if (u.role === 'staff') {
+        // Membership sales escalation (staff as seller)
+        const memSalesCount = await runEscalationCheck(supabase, 'membership_sales', thresholds.membership_sales, authUser.id)
+        await logEscalation(u.full_name, u.role, authUser.id, 'membership_sales', memSalesCount)
+      }
+
+      if (isManager && gymId) {
+        // Membership sales escalation (manager as seller)
+        const memSalesCount = await runEscalationCheck(supabase, 'membership_sales', thresholds.membership_sales, authUser.id)
+        await logEscalation(u.full_name, u.role, authUser.id, 'membership_sales', memSalesCount)
+
+        // Membership expiry escalation — manager triggers first
+        const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', thresholds.membership_expiry, authUser.id, gymId)
+        await logEscalation(u.full_name, u.role, authUser.id, 'membership_expiry', expiryCount)
       }
 
       // ── Upcoming (next 5 excluding today) ────────────────
