@@ -83,3 +83,16 @@ export function getCpfBracketRates(
     ? { employee_rate: bracket.employee_rate, employer_rate: bracket.employer_rate }
     : { employee_rate: 20, employer_rate: 17 }
 }
+
+/**
+ * Load all CPF age brackets from the database.
+ * Use this instead of repeating the query in each page.
+ * Returns brackets ordered by effective_from descending (most recent first).
+ */
+export async function loadCpfBrackets(supabase: any): Promise<any[]> {
+  const { data } = await supabase
+    .from('cpf_age_brackets')
+    .select('*')
+    .order('effective_from', { ascending: false })
+  return data || []
+}
