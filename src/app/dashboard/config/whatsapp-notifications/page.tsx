@@ -65,8 +65,6 @@ export default function WhatsAppNotificationsPage() {
 
   const load = async () => {
     logActivity('page_view', 'WhatsApp Notifications', 'Viewed WhatsApp notification settings')
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
     const { data, error: err } = await supabase.from('whatsapp_notifications_config')
       .select('*').order('category').order('label')
