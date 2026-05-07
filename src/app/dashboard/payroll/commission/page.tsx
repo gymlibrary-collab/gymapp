@@ -139,6 +139,11 @@ export default function CommissionPayoutsPage() {
     setSaving(true); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
+    // Derive period dates from month/year selection
+    const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
+    const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
+    const period_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
+
     for (const item of preview) {
       await supabase.from('commission_payouts').upsert({
         user_id: item.user_id, gym_id: item.gym_id,
