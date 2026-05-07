@@ -9,8 +9,11 @@ import { Plus, Edit2, X, Save, CheckCircle, Layers, AlertCircle } from 'lucide-r
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembershipTypesPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
   const { logActivity } = useActivityLog()
   const [types, setTypes] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -26,10 +29,8 @@ export default function MembershipTypesPage() {
 
   const load = async () => {
     // Route guard — Business Ops only
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || !['business_ops'].includes(me.role)) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data } = await supabase.from('membership_types').select('*').order('price_sgd')
     setTypes(data || [])
