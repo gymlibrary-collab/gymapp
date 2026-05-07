@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PayrollPage() {
   const [staffList, setStaffList] = useState<any[]>([])
@@ -37,6 +38,8 @@ export default function PayrollPage() {
   const [archiveGenerating, setArchiveGenerating] = useState(false)
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
   const router = useRouter()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  if (loading || !user) return null
   const supabase = createClient()
 
   useEffect(() => { load() }, [selectedMonth, selectedYear])
@@ -44,11 +47,6 @@ export default function PayrollPage() {
   const load = async () => {
     setLoading(true)
     // Issue 7: Guard — only business_ops can access payroll
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
-
     // Load all active staff with payroll profile — exclude admin (no payroll)
     const { data: staff } = await supabase
       .from('users')
@@ -206,7 +204,7 @@ export default function PayrollPage() {
             is_cpf_liable: isCpf,
             employee_cpf_rate: isCpf ? rates.employee_rate : 0,
             employer_cpf_rate: isCpf ? rates.employer_rate : 0,
-            status: 'draft', generated_by: authUser?.id, generated_at: new Date().toISOString(),
+            status: 'draft', generated_by: user?.id, generated_at: new Date().toISOString(),
           })
           generated++; anyGenerated = true
         }
@@ -230,7 +228,7 @@ export default function PayrollPage() {
           is_cpf_liable: isCpf,
           employee_cpf_rate: isCpf ? rates.employee_rate : 0,
           employer_cpf_rate: isCpf ? rates.employer_rate : 0,
-          status: 'draft', generated_by: authUser?.id, generated_at: new Date().toISOString(),
+          status: 'draft', generated_by: user?.id, generated_at: new Date().toISOString(),
         })
         generated++
       }
