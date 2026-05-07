@@ -28,9 +28,7 @@ export default function LeavePolicyPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'Leave Policy', 'Viewed leave policy configuration')
-        // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
-
+  
       const { data: settings } = await supabase
         .from('app_settings')
         .select('max_leave_carry_forward_days')
