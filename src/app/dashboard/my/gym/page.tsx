@@ -28,7 +28,7 @@ export default function MyGymPage() {
         // Auth guard handled by useCurrentUser hook
   if (loading || !user) return null
 
-      const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user.manager_gym_id).single()
+      const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user!.manager_gym_id).single()
       setGym(gymData)
       setLogoPreview(gymData?.logo_url ? gymData.logo_url + '?t=' + Date.now() : null)
     }
