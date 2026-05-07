@@ -62,9 +62,7 @@ export default function EscalationSettingsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'Escalation Settings', 'Viewed escalation settings')
-        // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
-
+  
       const { data: settings } = await supabase.from('app_settings')
         .select(FIELDS.map(f => f.key).join(', '))
         .eq('id', 'global').single()
