@@ -146,7 +146,7 @@ export default function PtSessionNotesPage() {
         gym_name: session.gym?.name || '',
       },
       fallbackMessage: `PT session notes submitted by ${currentUser.full_name} for ${session.member?.full_name}. Please review and confirm.${renewalNote}`,
-      relatedId: id,
+      relatedId: id as string,
     })
 
     // Queue WhatsApp confirmation to member
@@ -164,7 +164,7 @@ export default function PtSessionNotesPage() {
         session_time: sessionTime,
       },
       fallbackMessage: `Hi ${session.member?.full_name}, your PT session with ${currentUser.full_name} on ${sessionDate} at ${sessionTime} has been completed and recorded. See you next time!`,
-      relatedId: id,
+      relatedId: id as string,
     })
 
     logActivity('update', 'Session Notes', 'Submitted session notes for manager confirmation')
