@@ -1606,7 +1606,7 @@ export default function DashboardPage() {
       {isBizOps && (() => {
         const now = new Date()
         const isAprilOnwards = now.getMonth() >= 3 // April = month 3
-        const dismissedYear = parseInt(localStorage?.getItem('payroll_archive_dismissed') || '0')
+        const dismissedYear = typeof window !== 'undefined' ? parseInt(localStorage.getItem('payroll_archive_dismissed') || '0') : 0
         const alreadyDismissed = dismissedYear >= now.getFullYear()
         if (!isAprilOnwards || alreadyDismissed) return null
         const archiveYear = now.getFullYear() - 1
