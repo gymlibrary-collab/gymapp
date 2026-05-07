@@ -13,7 +13,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembersPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
-  if (loading || !user) return null
 
 
   const [members, setMembers] = useState<any[]>([])
@@ -23,6 +22,7 @@ export default function MembersPage() {
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const { isActingAsTrainer } = useViewMode()
+
 
   useEffect(() => {
     if (!user) return
@@ -55,6 +55,8 @@ export default function MembersPage() {
     }
     load()
   }, [user, isActingAsTrainer])
+
+  if (loading || !user) return null
 
   const getActiveMembership = (member: any) => {
     const memberships = member.gym_memberships || []
