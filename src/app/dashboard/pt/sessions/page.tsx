@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtSessionsPage() {
   const { logActivity } = useActivityLog()
@@ -28,37 +29,33 @@ export default function PtSessionsPage() {
   const supabase = createClient()
   const router = useRouter()
   const { isActingAsTrainer } = useViewMode()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops'] })
+  if (loading || !user) return null
 
-  const loadSessions = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Business Ops does not need session-level visibility — operational
-    // detail is reviewed in person with each gym manager.
+  const loadSessions = async () => {    // detail is reviewed in person with each gym manager.
     // Block roles that should not access session list
-    if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
-    setUser(userData)
+    
 
     let q = supabase.from('sessions')
       .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(full_name), gym:gyms(name), package:packages(package_name, total_sessions, sessions_used)')
       .order('scheduled_at', { ascending: filter === 'upcoming' })
 
-    const isTrainer = userData.role === 'trainer' || isActingAsTrainer
-    const isStaff = userData.role === 'staff'
-    const gymId = userData.manager_gym_id
+    const isTrainer = user.role === 'trainer' || isActingAsTrainer
+    const isStaff = user.role === 'staff'
+    const gymId = user.manager_gym_id
 
     if (gymId && !isStaff) q = q.eq('gym_id', gymId)
-    else if (isStaff && userData.manager_gym_id) {
+    else if (isStaff && user.manager_gym_id) {
       // Staff sees upcoming scheduled sessions at their gym only (for operational support)
-      q = q.eq('gym_id', userData.manager_gym_id).eq('status', 'scheduled')
+      q = q.eq('gym_id', user.manager_gym_id).eq('status', 'scheduled')
     }
-    else if (userData.role === 'trainer') {
+    else if (user.role === 'trainer') {
       // My Sessions: own sessions only, all statuses, all assigned gyms
-      q = q.eq('trainer_id', authUser.id)
+      q = q.eq('trainer_id', user.id)
     }
 
     // isActingAsTrainer (manager in trainer view): always own sessions
-    if (isActingAsTrainer) q = q.eq('trainer_id', authUser.id)
+    if (isActingAsTrainer) q = q.eq('trainer_id', user.id)
 
     const now = new Date().toISOString()
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
