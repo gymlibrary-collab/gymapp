@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { MessageSquare, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface NotifConfig {
   id: string
@@ -51,28 +52,26 @@ const NOT_BUILT_TYPES = new Set([
 ])
 
 export default function WhatsAppNotificationsPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const { success, error, showMsg, showError, setError } = useToast()
   const [configs, setConfigs] = useState<NotifConfig[]>([])
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
 
   useEffect(() => { load() }, [])
 
   const load = async () => {
     logActivity('page_view', 'WhatsApp Notifications', 'Viewed WhatsApp notification settings')
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data, error: err } = await supabase.from('whatsapp_notifications_config')
       .select('*').order('category').order('label')
-    if (err) { showError('Failed to load config: ' + err.message); setLoading(false); return }
+    if (err) { showError('Failed to load config: ' + err.message); return }
     setConfigs(data || [])
-    setLoading(false)
   }
 
   const toggle = async (id: string, currentValue: boolean) => {
