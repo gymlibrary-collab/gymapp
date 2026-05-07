@@ -35,10 +35,6 @@ export default function LeaveManagementPage() {
 
 
 
-  useEffect(() => { load() }, [filter])
-
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
 
   const load = async () => {
 
@@ -146,6 +142,12 @@ export default function LeaveManagementPage() {
     })) || [])
 
   }
+
+  useEffect(() => { load() }, [filter])
+
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
+
 
   const handleApprove = async (id: string) => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
