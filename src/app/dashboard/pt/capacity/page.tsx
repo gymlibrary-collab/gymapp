@@ -9,8 +9,10 @@ import { Dumbbell, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle, Save 
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function TrainerCapacityPage() {
+
   const { logActivity } = useActivityLog()
   const [user, setUser] = useState<any>(null)
   const [trainers, setTrainers] = useState<any[]>([])
@@ -21,18 +23,13 @@ export default function TrainerCapacityPage() {
   const [saving, setSaving] = useState(false)
   const supabase = createClient()
   const router = useRouter()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  if (loading || !user) return null
 
   useEffect(() => { load() }, [])
 
   const load = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Business Ops does not need trainer capacity visibility — this is
-    // reviewed in person with each gym manager.
-    // Trainer capacity is a manager-only operational view
-    if (!u || (u.role !== 'manager')) { router.replace('/dashboard'); return }
-    setUser(u)
+      // Auth guard handled by useCurrentUser hook
 
     const now = new Date()
     // Week bounds (Mon-Sun)
