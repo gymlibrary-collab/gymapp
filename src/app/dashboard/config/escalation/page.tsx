@@ -7,6 +7,7 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { AlertTriangle, Save } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface ThresholdField {
   key: string
@@ -49,21 +50,20 @@ const FIELDS: ThresholdField[] = [
 ]
 
 export default function EscalationSettingsPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const { success, error, showMsg, showError, setError } = useToast()
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'Escalation Settings', 'Viewed escalation settings')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.replace('/dashboard'); return }
-      const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-      if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+        // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
       const { data: settings } = await supabase.from('app_settings')
         .select(FIELDS.map(f => f.key).join(', '))
@@ -74,7 +74,6 @@ export default function EscalationSettingsPage() {
         FIELDS.forEach(f => { v[f.key] = String((settings as any)[f.key] ?? (f.unit === 'hours' ? 48 : 7)) })
         setValues(v)
       }
-      setLoading(false)
     }
     load()
   }, [])
