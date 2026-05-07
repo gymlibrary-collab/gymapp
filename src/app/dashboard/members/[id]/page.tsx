@@ -23,6 +23,10 @@ export default function MemberProfilePage() {
   const [memberships, setMemberships] = useState<any[]>([])
   const [ptPackages, setPtPackages] = useState<any[]>([])
   const [memberSessions, setMemberSessions] = useState<any[]>([])
+  const [showNonRenewalForm, setShowNonRenewalForm] = useState(false)
+  const [nonRenewalReason, setNonRenewalReason] = useState('')
+  const [nonRenewalOther, setNonRenewalOther] = useState('')
+  const [nonRenewalSaving, setNonRenewalSaving] = useState(false)
   const [packageTemplates, setPackageTemplates] = useState<any[]>([])
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [showEditForm, setShowEditForm] = useState(false)
@@ -47,11 +51,22 @@ export default function MemberProfilePage() {
   const expireStaleGymMemberships = async (memberships: any[]) => {
     const today = new Date().toISOString().split('T')[0]
     let count = 0
+    let anyExpired = false
     for (const m of memberships) {
       if (m.status !== 'active' || m.sale_status !== 'confirmed') continue
       if (m.end_date && m.end_date < today) {
         await supabase.from('gym_memberships').update({ status: 'expired' }).eq('id', m.id)
-        count++
+        count++; anyExpired = true
+      }
+    }
+    // If all memberships expired and member has no active membership, mark member inactive
+    if (anyExpired) {
+      const hasActive = memberships.some(m =>
+        m.status === 'active' && m.sale_status === 'confirmed' &&
+        m.end_date >= today
+      )
+      if (!hasActive) {
+        await supabase.from('members').update({ status: 'inactive' }).eq('id', id)
       }
     }
     return count
@@ -195,6 +210,31 @@ export default function MemberProfilePage() {
     await supabase.from('gym_memberships').update({
       sale_status: 'rejected', rejection_reason: reason,
     }).eq('id', membershipId)
+    await load()
+  }
+
+  // ── Record non-renewal ───────────────────────────────────
+  const handleNonRenewal = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nonRenewalReason) return
+    if (nonRenewalReason === 'Other' && !nonRenewalOther.trim()) return
+    setNonRenewalSaving(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const activeMem = memberships.find((m: any) => m.status === 'active' && m.sale_status === 'confirmed')
+    if (!activeMem) { setNonRenewalSaving(false); return }
+
+    const { error: err } = await supabase.from('non_renewal_records').insert({
+      member_id: id,
+      gym_membership_id: activeMem.id,
+      gym_id: activeMem.gym_id,
+      reason: nonRenewalReason,
+      reason_other: nonRenewalReason === 'Other' ? nonRenewalOther.trim() : null,
+      recorded_by: authUser!.id,
+    })
+    if (err) { alert('Failed to record non-renewal: ' + err.message); setNonRenewalSaving(false); return }
+    await supabase.from('gym_memberships').update({ membership_actioned: true }).eq('id', activeMem.id)
+    logActivity('update', 'Member Profile', 'Recorded membership non-renewal')
+    setShowNonRenewalForm(false); setNonRenewalSaving(false)
     await load()
   }
 
@@ -389,6 +429,19 @@ export default function MemberProfilePage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-red-600" /> Gym Membership
           </h2>
+          <div className="flex gap-2">
+          {currentUser?.role === 'manager' && (() => {
+            const activeMem = memberships.find(m => m.status === 'active' && m.sale_status === 'confirmed')
+            const hasNonRenewal = activeMem?.membership_actioned
+            return activeMem && !hasNonRenewal ? (
+              <button onClick={() => { setShowNonRenewalForm(!showNonRenewalForm); setShowRenewalForm(false) }}
+                className="btn-secondary text-xs py-1.5 flex items-center gap-1">
+                Non-Renewal
+              </button>
+            ) : activeMem && hasNonRenewal ? (
+              <span className="text-xs text-amber-600 py-1.5">Non-renewal recorded</span>
+            ) : null
+          })()}
           {(isActingAsTrainer || currentUser?.role === 'trainer' || currentUser?.role === 'staff' || currentUser?.role === 'manager') && (
             <button onClick={() => setShowRenewalForm(!showRenewalForm)}
               className="btn-primary text-xs py-1.5 flex items-center gap-1">
@@ -396,6 +449,42 @@ export default function MemberProfilePage() {
             </button>
           )}
         </div>
+        </div>
+
+        {/* Non-renewal form */}
+        {showNonRenewalForm && currentUser?.role === 'manager' && (
+          <form onSubmit={handleNonRenewal} className="p-4 border-b border-gray-100 bg-amber-50 space-y-3">
+            <p className="text-sm font-semibold text-gray-900">Record Non-Renewal</p>
+            <div>
+              <label className="label">Reason *</label>
+              <select className="input" required value={nonRenewalReason} onChange={e => setNonRenewalReason(e.target.value)}>
+                <option value="">Select reason...</option>
+                {['Relocating', 'Financial', 'Health', 'Schedule', 'Switched gym', 'Travel', 'Completed fitness goals', 'Dissatisfied with service', 'Temporary pause', 'Other'].map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+            {nonRenewalReason === 'Other' && (
+              <div>
+                <label className="label">Please specify *</label>
+                <textarea className="input min-h-[70px]" value={nonRenewalOther}
+                  onChange={e => setNonRenewalOther(e.target.value)} placeholder="Describe the reason..." />
+              </div>
+            )}
+            {(() => {
+              const activeMem = memberships.find((m: any) => m.status === 'active' && m.sale_status === 'confirmed')
+              return activeMem ? <p className="text-xs text-amber-600">Membership remains active until {formatDate(activeMem.end_date)}. Member profile becomes inactive after expiry.</p> : null
+            })()}
+            <div className="flex gap-2">
+              <button type="submit"
+                disabled={!nonRenewalReason || (nonRenewalReason === 'Other' && !nonRenewalOther.trim()) || nonRenewalSaving}
+                className="btn-primary flex-1 disabled:opacity-50">
+                {nonRenewalSaving ? 'Saving...' : 'Confirm Non-Renewal'}
+              </button>
+              <button type="button" onClick={() => setShowNonRenewalForm(false)} className="btn-secondary">Cancel</button>
+            </div>
+          </form>
+        )}
 
         {/* Renewal form */}
         {showRenewalForm && (
