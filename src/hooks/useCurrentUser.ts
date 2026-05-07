@@ -67,6 +67,7 @@ export function useCurrentUser(options: UseCurrentUserOptions = {}): UseCurrentU
         // Step 1: Verify authentication
         const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
         if (authError || !authUser) {
+          setLoading(false)
           router.replace(redirectTo)
           return
         }
@@ -79,6 +80,7 @@ export function useCurrentUser(options: UseCurrentUserOptions = {}): UseCurrentU
           .single()
 
         if (profileError || !profile) {
+          setLoading(false)
           router.replace(redirectTo)
           return
         }
@@ -86,6 +88,7 @@ export function useCurrentUser(options: UseCurrentUserOptions = {}): UseCurrentU
         // Step 3: Enforce role restriction if specified
         if (allowedRoles && allowedRoles.length > 0) {
           if (!allowedRoles.includes(profile.role)) {
+            setLoading(false)
             router.replace(redirectTo)
             return
           }
@@ -94,6 +97,7 @@ export function useCurrentUser(options: UseCurrentUserOptions = {}): UseCurrentU
         setUser(profile as CurrentUser)
       } catch (err: any) {
         setError(err?.message || 'Failed to load user')
+        setLoading(false)
         router.replace(redirectTo)
       } finally {
         setLoading(false)
