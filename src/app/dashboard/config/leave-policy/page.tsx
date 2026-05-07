@@ -7,8 +7,11 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { CalendarDays, Save } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function LeavePolicyPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
@@ -21,15 +24,12 @@ export default function LeavePolicyPage() {
   const [bulkHosp, setBulkHosp] = useState('60')
   const [bulkResetting, setBulkResetting] = useState(false)
   const [bulkResult, setBulkResult] = useState('')
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'Leave Policy', 'Viewed leave policy configuration')
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.replace('/dashboard'); return }
-      const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-      if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+        // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
       const { data: settings } = await supabase
         .from('app_settings')
@@ -40,7 +40,6 @@ export default function LeavePolicyPage() {
       if (settings) {
         setMaxCarryForward((settings as any).max_leave_carry_forward_days?.toString() || '5')
       }
-      setLoading(false)
     }
     load()
   }, [])
@@ -85,8 +84,7 @@ export default function LeavePolicyPage() {
 
     const { error: err } = await supabase
       .from('app_settings')
-      .update({ max_leave_carry_forward_days: val, updated_at: new Date().toISOString() })
-      .eq('id', 'global')
+      .upsert({ id: 'global', max_leave_carry_forward_days: val })
 
     if (err) { showError('Failed to save: ' + err.message); setSaving(false); return }
     logActivity('update', 'Leave Policy', 'Updated leave carry-forward policy')
