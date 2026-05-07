@@ -180,19 +180,22 @@ export default function ActivityLogsPage() {
     const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()
     setStaffList(names as string[])
 
-    // Build all-staff list from full 14-day window (independent of date filter)
-    // so admin can always filter by any staff regardless of selected period
-    if (allStaffList.length === 0) {
-      const since14 = new Date(); since14.setDate(since14.getDate() - 13)
-      const { data: allData } = await supabase.from('activity_logs')
-        .select('user_name').gte('created_at', since14.toISOString()).order('user_name')
-      const allNames = Array.from(new Set((allData || []).map((l: any) => l.user_name))).sort()
-      setAllStaffList(allNames as string[])
-    }
-
     setLoading(false)
     setLastRefresh(new Date())
   }, [filterDateFrom, filterDateTo, filterStaff, filterAction])
+
+  // Load full 14-day staff list once on mount — independent of date filter
+  // so dropdown always shows all staff regardless of selected period
+  useEffect(() => {
+    const loadAllStaff = async () => {
+      const since14 = new Date(); since14.setDate(since14.getDate() - 13)
+      const { data } = await supabase.from('activity_logs')
+        .select('user_name').gte('created_at', since14.toISOString())
+      const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()
+      setAllStaffList(names as string[])
+    }
+    loadAllStaff()
+  }, [])
 
   useEffect(() => { loadLogs() }, [loadLogs])
   useEffect(() => { const t = setInterval(loadLogs, 30000); return () => clearInterval(t) }, [loadLogs])
@@ -222,7 +225,7 @@ export default function ActivityLogsPage() {
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-[calc(100vh-7rem)] gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -305,7 +308,8 @@ export default function ActivityLogsPage() {
         <div className="stat-card"><p className="text-xs text-gray-500">Actions</p><p className="text-xl font-bold">{filtered.filter(l => !['login','logout','page_view'].includes(l.action_type)).length}</p></div>
       </div>
 
-      {/* Log table */}
+      {/* Log table — scrollable area */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {filtered.length === 0 ? (
         <div className="card p-8 text-center">
           <Activity className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -315,7 +319,7 @@ export default function ActivityLogsPage() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                 <tr>
                   {['Date & Time','Staff','Role','Action','Page','Description','Browser','OS','Device','IP'].map(h => (
                     <th key={h} className="text-left px-3 py-2 text-gray-500 font-medium whitespace-nowrap">{h}</th>
@@ -346,6 +350,7 @@ export default function ActivityLogsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
