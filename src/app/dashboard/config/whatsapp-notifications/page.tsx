@@ -35,6 +35,21 @@ const RECIPIENT_BADGE: Record<string, string> = {
   biz_ops: 'bg-red-100 text-red-700',
 }
 
+// Touchpoints where the sending logic has NOT yet been built in application code.
+// The toggle exists and can be enabled, but no WhatsApp will be sent until
+// a developer implements the trigger. These are documented here so Biz Ops
+// is aware before enabling them.
+const NOT_BUILT_TYPES = new Set([
+  'leave_submitted',
+  'membership_sale_submitted',
+  'pt_package_submitted',
+  'birthday_member',
+  'escalation_leave',
+  'escalation_membership',
+  'escalation_pt_package',
+  'escalation_pt_session',
+])
+
 export default function WhatsAppNotificationsPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -132,6 +147,13 @@ export default function WhatsAppNotificationsPage() {
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{cfg.description}</p>
                   </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                  {NOT_BUILT_TYPES.has(cfg.id) && (
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium"
+                      title="Sending logic not yet built — enabling this toggle will have no effect until a developer wires up the trigger in code">
+                      Not built
+                    </span>
+                  )}
                   <button
                     onClick={() => toggle(cfg.id, cfg.is_enabled)}
                     disabled={saving === cfg.id}
@@ -147,6 +169,7 @@ export default function WhatsAppNotificationsPage() {
                       cfg.is_enabled ? 'translate-x-5' : 'translate-x-0'
                     )} />
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
