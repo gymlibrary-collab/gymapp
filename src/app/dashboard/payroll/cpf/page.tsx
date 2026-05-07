@@ -9,6 +9,7 @@ import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, 
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 function getAge(dob: string) {
   if (!dob) return null
@@ -27,6 +28,8 @@ function getAgeAsOf(dob: string | null, refDate: Date): number | null {
 }
 
 export default function CpfPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [brackets, setBrackets] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
@@ -46,10 +49,8 @@ export default function CpfPage() {
 
   const load = async () => {
     // Route guard
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || (me.role !== 'business_ops')) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data: br } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
     setBrackets(br || [])
