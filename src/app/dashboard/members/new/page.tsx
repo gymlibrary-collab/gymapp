@@ -13,7 +13,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function RegisterMemberPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff'] })
-  if (loading || !user) return null
 
   const { logActivity } = useActivityLog()
   const [step, setStep] = useState<'member' | 'membership'>('member')
@@ -36,6 +35,7 @@ export default function RegisterMemberPage() {
 
   const router = useRouter()
   const supabase = createClient()
+
 
 
   useEffect(() => {
@@ -79,6 +79,8 @@ export default function RegisterMemberPage() {
     }
     load()
   }, [])
+
+  if (loading || !user) return null
 
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
