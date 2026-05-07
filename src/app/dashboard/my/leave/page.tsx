@@ -21,7 +21,6 @@ const LEAVE_TYPES = [
 
 export default function MyLeavePage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
-  if (loading || !user) return null
 
 
   const { logActivity } = useActivityLog()
@@ -39,6 +38,7 @@ export default function MyLeavePage() {
   const router = useRouter()
   const supabase = createClient()
   const { success, error, showMsg, showError, setError } = useToast()
+
 
   useEffect(() => {
     const load = async () => {
@@ -85,6 +85,8 @@ export default function MyLeavePage() {
     }
     load()
   }, [])
+
+  if (loading || !user) return null
 
   const calcDays = (start: string, end: string, isHalfDay: boolean) => {
     if (!start || !end) return 0
