@@ -40,6 +40,9 @@ const emptyForm = {
 }
 
 export default function TrainersPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  if (loading || !user) return null
+
   const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [staff, setStaff] = useState<any[]>([])
@@ -57,8 +60,6 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const router = useRouter()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
-  if (loading || !user) return null
   const supabase = createClient()
 
   const loadData = async () => {
