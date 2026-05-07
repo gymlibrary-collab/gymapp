@@ -1291,14 +1291,25 @@ export default function DashboardPage() {
     setDrillDownLoading(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
-    const { data: u } = await supabase.from('users').select('role, manager_gym_id').eq('id', authUser.id).single()
+    const { data: u } = await supabase.from('users').select('role, manager_gym_id, full_name').eq('id', authUser.id).single()
     if (!u) return
 
     const isManagerRole = u.role === 'manager' && !isActingAsTrainer
     const gymId = isManagerRole ? u.manager_gym_id : gymFilter
 
-    // Log drill-down access
-    logActivity('other', 'Commission Breakdown', `Viewed commission breakdown by ${groupBy}`)
+    // Log drill-down access — use API route directly (not hook, as this runs outside component scope)
+    fetch('/api/activity-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: authUser.id,
+        user_name: u.full_name || 'Manager',
+        role: u.role,
+        action_type: 'other',
+        page: 'Commission Breakdown',
+        description: `Viewed commission breakdown by ${groupBy}`,
+      }),
+    }).catch(() => {})
 
     // Sequential awaits — no Promise.all with Supabase
     let sessQ = supabase.from('sessions')
