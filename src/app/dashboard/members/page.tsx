@@ -12,6 +12,9 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembersPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  if (loading || !user) return null
+
 
   const [members, setMembers] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -20,8 +23,6 @@ export default function MembersPage() {
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const { isActingAsTrainer } = useViewMode()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
-  if (loading || !user) return null
 
   useEffect(() => {
     if (!user) return
