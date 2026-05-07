@@ -561,6 +561,14 @@ function BizOpsGymTabs() {
   )
 }
 
+// ── Time-based greeting ──────────────────────────────────────
+function getGreeting(firstName: string): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return `Good morning, ${firstName}`
+  if (hour < 18) return `Good afternoon, ${firstName}`
+  return `Good evening, ${firstName}`
+}
+
 // ── Birthday panel ───────────────────────────────────────────
 // Shows staff birthdays in the next 7 days for Manager / Biz Ops.
 // Hidden when empty. Slide-out panel on click.
@@ -1541,7 +1549,7 @@ export default function DashboardPage() {
   // ── Admin dashboard ──────────────────────────────────────
   if (isAdmin) return (
     <div className="space-y-6">
-      <div><h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1><p className="text-sm text-gray-500">View-only · Gym Library</p></div>
+      <div><h1 className="text-xl font-bold text-gray-900">{getGreeting(user.full_name.split(' ')[0])} 👋</h1><p className="text-sm text-gray-500">Admin · View only</p></div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="stat-card"><div className="flex items-center gap-1.5 mb-1"><Building2 className="w-4 h-4 text-red-600" /><p className="text-xs text-gray-500">Active Gyms</p></div><p className="text-2xl font-bold">{gymBreakdown.filter(g => g.is_active).length}</p></div>
         {(['business_ops', 'manager', 'trainer'] as const).map(role => {
@@ -1597,7 +1605,7 @@ export default function DashboardPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">
-          {isTrainer ? `Welcome, ${user.full_name.split(' ')[0]} 👋` : 'Operations Dashboard'}
+          {getGreeting(user.full_name.split(' ')[0])} 👋
         </h1>
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
