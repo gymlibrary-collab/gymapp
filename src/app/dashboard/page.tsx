@@ -140,6 +140,11 @@ function BizOpsGymTabs() {
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+  // Commission period — derived from commissionOffset for JSX rendering
+  const commissionPeriodDate = new Date(now.getFullYear(), now.getMonth() + commissionOffset, 1)
+  const commissionPeriodStart = commissionPeriodDate.toISOString()
+  const commissionPeriodEnd = new Date(now.getFullYear(), now.getMonth() + commissionOffset + 1, 0, 23, 59, 59).toISOString()
+  const commissionPeriodLabel = commissionPeriodDate.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
