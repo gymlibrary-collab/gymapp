@@ -19,7 +19,6 @@ export default function RegisterMemberPage() {
   const [gymName, setGymName] = useState<string>('')
   const [commissionPct, setCommissionPct] = useState(5)
   const [currentUser, setCurrentUser] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [createdMemberId, setCreatedMemberId] = useState<string | null>(null)
 
@@ -88,14 +87,13 @@ export default function RegisterMemberPage() {
       validateMembershipNumber(memberForm.membership_number),
     ])
     if (validationErr) { setError(validationErr); return }
-    setLoading(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
     // Check membership number uniqueness if provided
     if (memberForm.membership_number) {
       const { data: existing } = await supabase.from('members')
         .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).single()
-      if (existing) { setError('This membership number is already registered at this gym'); setLoading(false); return }
+      if (existing) { setError('This membership number is already registered at this gym'); return }
     }
 
     const { data, error: insertErr } = await supabase.from('members').insert({
@@ -109,18 +107,17 @@ export default function RegisterMemberPage() {
       created_by: authUser!.id,
     }).select().single()
 
-    if (insertErr) { setError(insertErr.message); setLoading(false); return }
+    if (insertErr) { setError(insertErr.message); return }
     setCreatedMemberId(data.id)
     setStep('membership')
-    setLoading(false)
   }
 
   const handleSellMembership = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError('')
+    e.preventDefault(); setError('')
     const { data: { user: authUser } } = await supabase.auth.getUser()
 
     const type = membershipTypes.find(t => t.id === membershipForm.membership_type_id)
-    if (!type) { setError('Please select a membership type'); setLoading(false); return }
+    if (!type) { setError('Please select a membership type'); return }
 
     const startDate = new Date()
     const endDate = new Date(startDate)
@@ -142,7 +139,7 @@ export default function RegisterMemberPage() {
       notes: membershipForm.notes || null,
     })
 
-    if (insertErr) { setError(insertErr.message); setLoading(false); return }
+    if (insertErr) { setError(insertErr.message); return }
     router.push(`/dashboard/members/${createdMemberId}`)
     logActivity('create', 'New Member', 'Registered new gym member')
   }
