@@ -128,6 +128,14 @@ function BizOpsDashboardAlerts() {
 function BizOpsGymTabs() {
   const [gyms, setGyms] = useState<any[]>([])
   const [selectedGym, setSelectedGym] = useState<string | null>(null)
+  const [bizCommOffset, setBizCommOffset] = useState(0)
+  const [bizCommStats, setBizCommStats] = useState<any>({ session: 0, signup: 0, membership: 0, total: 0 })
+  const [bizCommLoading, setBizCommLoading] = useState(false)
+  const [bizDrillDown, setBizDrillDown] = useState(false)
+  const [bizDrillGym, setBizDrillGym] = useState<string | null>(null)
+  const [bizDrillGroupBy, setBizDrillGroupBy] = useState<'staff' | 'type'>('staff')
+  const [bizDrillData, setBizDrillData] = useState<any[]>([])
+  const [bizDrillLoading, setBizDrillLoading] = useState(false)
   const supabase = createClient()
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
@@ -135,6 +143,12 @@ function BizOpsGymTabs() {
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  // Commission period for Biz Ops tile
+  const bizCommPeriodDate = new Date(now.getFullYear(), now.getMonth() + bizCommOffset, 1)
+  const bizCommPeriodStart = bizCommPeriodDate.toISOString()
+  const bizCommPeriodEnd = new Date(now.getFullYear(), now.getMonth() + bizCommOffset + 1, 0, 23, 59, 59).toISOString()
+  const bizCommPeriodLabel = bizCommPeriodDate.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
 
   useEffect(() => {
     const load = async () => {
@@ -219,6 +233,106 @@ function BizOpsGymTabs() {
     load()
   }, [])
 
+  // Load Biz Ops commission stats when period or gym changes
+  useEffect(() => {
+    const loadBizComm = async () => {
+      setBizCommLoading(true)
+      const gymFilter = bizDrillGym || undefined
+
+      // Sequential awaits — no Promise.all with Supabase
+      let sessQ = supabase.from('sessions').select('session_commission_sgd')
+        .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .gte('marked_complete_at', bizCommPeriodStart).lte('marked_complete_at', bizCommPeriodEnd)
+      if (gymFilter) sessQ = sessQ.eq('gym_id', gymFilter)
+      const sessData = await sessQ
+
+      let pkgQ = supabase.from('packages').select('signup_commission_sgd')
+        .eq('manager_confirmed', true)
+        .gte('created_at', bizCommPeriodStart).lte('created_at', bizCommPeriodEnd)
+      if (gymFilter) pkgQ = pkgQ.eq('gym_id', gymFilter)
+      const pkgData = await pkgQ
+
+      let memQ = supabase.from('gym_memberships').select('commission_sgd')
+        .eq('sale_status', 'confirmed')
+        .gte('created_at', bizCommPeriodStart).lte('created_at', bizCommPeriodEnd)
+      if (gymFilter) memQ = memQ.eq('gym_id', gymFilter)
+      const memData = await memQ
+
+      const s = sessData.data?.reduce((a: number, r: any) => a + (r.session_commission_sgd || 0), 0) || 0
+      const p = pkgData.data?.reduce((a: number, r: any) => a + (r.signup_commission_sgd || 0), 0) || 0
+      const m = memData.data?.reduce((a: number, r: any) => a + (r.commission_sgd || 0), 0) || 0
+      setBizCommStats({ session: s, signup: p, membership: m, total: s + p + m })
+      setBizCommLoading(false)
+    }
+    loadBizComm()
+  }, [bizCommOffset, bizDrillGym])
+
+  // Reload drill-down when month offset changes while modal is open
+  useEffect(() => {
+    if (bizDrillDown) {
+      loadBizDrillDown(bizDrillGym || undefined, bizDrillGroupBy)
+    }
+  }, [bizCommOffset])
+
+  const loadBizDrillDown = async (gymId?: string, groupBy: 'staff' | 'type' = 'staff') => {
+    setBizDrillLoading(true)
+
+    // Log drill-down access
+    fetch('/api/activity-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_type: 'other', page: 'Commission Breakdown', description: `Biz Ops viewed commission breakdown by ${groupBy}${gymId ? ' for selected gym' : ' across all gyms'}` }),
+    }).catch(() => {})
+
+    // Sequential awaits — no Promise.all with Supabase
+    let sessQ = supabase.from('sessions')
+      .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name), gym_id')
+      .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+      .gte('marked_complete_at', bizCommPeriodStart).lte('marked_complete_at', bizCommPeriodEnd)
+    if (gymId) sessQ = sessQ.eq('gym_id', gymId)
+    const sessData = await sessQ
+
+    let pkgQ = supabase.from('packages')
+      .select('signup_commission_sgd, trainer_id, trainer:users!packages_trainer_id_fkey(full_name), gym_id')
+      .eq('manager_confirmed', true)
+      .gte('created_at', bizCommPeriodStart).lte('created_at', bizCommPeriodEnd)
+    if (gymId) pkgQ = pkgQ.eq('gym_id', gymId)
+    const pkgData = await pkgQ
+
+    let memQ = supabase.from('gym_memberships')
+      .select('commission_sgd, sold_by_user_id, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name), gym_id')
+      .eq('sale_status', 'confirmed')
+      .gte('created_at', bizCommPeriodStart).lte('created_at', bizCommPeriodEnd)
+    if (gymId) memQ = memQ.eq('gym_id', gymId)
+    const memData = await memQ
+    if (groupBy === 'staff') {
+      const byStaff: Record<string, any> = {}
+      sessData.data?.forEach((s: any) => {
+        const id = s.trainer_id; if (!id) return
+        if (!byStaff[id]) byStaff[id] = { name: s.trainer?.full_name || 'Unknown', session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].session += s.session_commission_sgd || 0; byStaff[id].total += s.session_commission_sgd || 0
+      })
+      pkgData.data?.forEach((p: any) => {
+        const id = p.trainer_id; if (!id) return
+        if (!byStaff[id]) byStaff[id] = { name: p.trainer?.full_name || 'Unknown', session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].signup += p.signup_commission_sgd || 0; byStaff[id].total += p.signup_commission_sgd || 0
+      })
+      memData.data?.forEach((m: any) => {
+        const id = m.sold_by_user_id; if (!id) return
+        if (!byStaff[id]) byStaff[id] = { name: m.sold_by?.full_name || 'Unknown', session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].membership += m.commission_sgd || 0; byStaff[id].total += m.commission_sgd || 0
+      })
+      setBizDrillData(Object.values(byStaff).sort((a: any, b: any) => b.total - a.total))
+    } else {
+      setBizDrillData([
+        { name: 'PT Session', amount: sessData.data?.reduce((a: number, r: any) => a + (r.session_commission_sgd || 0), 0) || 0, count: sessData.data?.length || 0 },
+        { name: 'PT Signup', amount: pkgData.data?.reduce((a: number, r: any) => a + (r.signup_commission_sgd || 0), 0) || 0, count: pkgData.data?.length || 0 },
+        { name: 'Membership', amount: memData.data?.reduce((a: number, r: any) => a + (r.commission_sgd || 0), 0) || 0, count: memData.data?.length || 0 },
+      ])
+    }
+    setBizDrillLoading(false)
+  }
+
   if (gyms.length === 0) return null
   const g = gyms.find(x => x.id === selectedGym) || gyms[0]
   const monthName = now.toLocaleString('default', { month: 'long' })
@@ -231,13 +345,87 @@ function BizOpsGymTabs() {
 
   return (
     <div className="space-y-3">
+      {/* Biz Ops commission drill-down modal */}
+      {bizDrillDown && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 overflow-y-auto" onClick={() => setBizDrillDown(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900">Commission Breakdown</h3>
+                <p className="text-xs text-gray-400">{bizCommPeriodLabel} · {bizDrillGym ? gyms.find(g => g.id === bizDrillGym)?.name || 'Selected gym' : 'All gyms'}</p>
+              </div>
+              <button onClick={() => setBizDrillDown(false)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            {/* Gym filter */}
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => { setBizDrillGym(null); loadBizDrillDown(undefined, bizDrillGroupBy) }}
+                className={cn('text-xs px-3 py-1 rounded-full border', !bizDrillGym ? 'bg-red-600 text-white border-red-600' : 'text-gray-600 border-gray-200')}>
+                All gyms
+              </button>
+              {gyms.map((gym: any) => (
+                <button key={gym.id} onClick={() => { setBizDrillGym(gym.id); loadBizDrillDown(gym.id, bizDrillGroupBy) }}
+                  className={cn('text-xs px-3 py-1 rounded-full border', bizDrillGym === gym.id ? 'bg-red-600 text-white border-red-600' : 'text-gray-600 border-gray-200')}>
+                  {gym.name}
+                </button>
+              ))}
+            </div>
+            {/* Group by toggle */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              {(['staff', 'type'] as const).map(opt => (
+                <button key={opt} onClick={() => { setBizDrillGroupBy(opt); loadBizDrillDown(bizDrillGym || undefined, opt) }}
+                  className={cn('flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors', bizDrillGroupBy === opt ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500')}>
+                  By {opt === 'staff' ? 'Staff' : 'Commission Type'}
+                </button>
+              ))}
+            </div>
+            {/* Data table */}
+            {bizDrillLoading ? (
+              <div className="flex justify-center py-6"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600" /></div>
+            ) : bizDrillData.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No commission data for this period</p>
+            ) : bizDrillGroupBy === 'staff' ? (
+              <div className="divide-y divide-gray-100">
+                {bizDrillData.map((row: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{row.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {row.session > 0 && `Sessions: ${formatSGD(row.session)} `}
+                        {row.signup > 0 && `Signup: ${formatSGD(row.signup)} `}
+                        {row.membership > 0 && `Membership: ${formatSGD(row.membership)}`}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-green-700">{formatSGD(row.total)}</p>
+                  </div>
+                ))}
+                <div className="flex justify-between pt-2.5">
+                  <p className="text-sm font-semibold text-gray-900">Total</p>
+                  <p className="text-sm font-bold text-green-700">{formatSGD(bizDrillData.reduce((s: number, r: any) => s + r.total, 0))}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {bizDrillData.map((row: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{row.name}</p>
+                      <p className="text-xs text-gray-400">{row.count} transaction{row.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <p className="text-sm font-bold text-green-700">{formatSGD(row.amount)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Summary stats row */}
       <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Total Members', value: totals.members.toString() },
           { label: 'Membership Revenue', value: formatSGD(totals.membershipRevenue), sub: monthName },
           { label: 'PT Sessions', value: totals.sessionsCount.toString(), sub: monthName },
-          { label: 'Commission Paid', value: formatSGD(totals.commissionPayout), sub: monthName },
         ].map(({ label, value, sub }) => (
           <div key={label} className="stat-card">
             <p className="text-xs text-gray-500">{label}</p>
@@ -245,6 +433,27 @@ function BizOpsGymTabs() {
             {sub && <p className="text-xs text-gray-400">{sub}</p>}
           </div>
         ))}
+        {/* Commission tile with month nav + drill-down */}
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500">Commission Earned</p>
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => setBizCommOffset(o => Math.max(o - 1, -2))} disabled={bizCommOffset <= -2}
+                className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">←</button>
+              <span className="text-xs text-gray-400">{bizCommPeriodLabel.split(' ')[0].slice(0,3)}</span>
+              <button onClick={() => setBizCommOffset(o => Math.min(o + 1, 0))} disabled={bizCommOffset >= 0}
+                className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">→</button>
+            </div>
+          </div>
+          <p className="text-xl font-bold text-green-700 mt-1">{bizCommLoading ? '...' : formatSGD(bizCommStats.total)}</p>
+          <div className="space-y-0.5 mt-1">
+            <p className="text-xs text-gray-400">Sessions: {formatSGD(bizCommStats.session)}</p>
+            <p className="text-xs text-gray-400">Signup: {formatSGD(bizCommStats.signup)}</p>
+            <p className="text-xs text-gray-400">Membership: {formatSGD(bizCommStats.membership)}</p>
+          </div>
+          <button onClick={() => { setBizDrillDown(true); setBizDrillGroupBy('staff'); loadBizDrillDown(bizDrillGym || undefined, 'staff') }}
+            className="text-xs text-red-600 hover:underline mt-1.5">View breakdown →</button>
+        </div>
       </div>
 
       {/* Gym tabs */}
@@ -489,8 +698,15 @@ export default function DashboardPage() {
   const [todaySessions, setTodaySessions] = useState<any[]>([])
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([])
   const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
+  const [commissionStats, setCommissionStats] = useState<any>({ session: 0, signup: 0, membership: 0, total: 0 })
+  const [commissionLoading, setCommissionLoading] = useState(false)
+  const [commissionDrillDown, setCommissionDrillDown] = useState(false)
+  const [drillDownData, setDrillDownData] = useState<any[]>([])
+  const [drillDownLoading, setDrillDownLoading] = useState(false)
+  const [drillDownGroupBy, setDrillDownGroupBy] = useState<'staff' | 'type'>('staff')
   const [calendarOffset, setCalendarOffset] = useState(0) // days offset from today
   const [calendarModal, setCalendarModal] = useState<any>(null)
+  const [commissionOffset, setCommissionOffset] = useState(0) // 0 = current month, -1 = prev, -2 = 2 months ago
   const [nonRenewalModal, setNonRenewalModal] = useState<any>(null) // expiring membership to record non-renewal
   const [nonRenewalReason, setNonRenewalReason] = useState('')
   const [nonRenewalOther, setNonRenewalOther] = useState('')
@@ -920,6 +1136,20 @@ export default function DashboardPage() {
     load()
   }, [isActingAsTrainer])
 
+  // Reload commission stats when month offset changes
+  useEffect(() => {
+    if (!user) return
+    const d = new Date()
+    const periodDate = new Date(d.getFullYear(), d.getMonth() + commissionOffset, 1)
+    const periodStart = periodDate.toISOString()
+    const periodEnd = new Date(d.getFullYear(), d.getMonth() + commissionOffset + 1, 0, 23, 59, 59).toISOString()
+    loadCommissionStats(periodStart, periodEnd)
+    // If drill-down modal is open, reload it with the new period too
+    if (commissionDrillDown) {
+      loadDrillDown(periodStart, periodEnd, drillDownGroupBy)
+    }
+  }, [commissionOffset, user])
+
   if (loading || !user) return (
     <div className="flex items-center justify-center h-48">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
@@ -975,6 +1205,155 @@ export default function DashboardPage() {
     ))
     setNonRenewalModal(null)
     setNonRenewalSaving(false)
+  }
+
+  // ── Commission stats loader — reloads on month navigation ──
+  const loadCommissionStats = async (periodStart: string, periodEnd: string) => {
+    setCommissionLoading(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data: u } = await supabase.from('users').select('role, manager_gym_id').eq('id', authUser.id).single()
+    if (!u) return
+    const isTrainerRole = u.role === 'trainer' || isActingAsTrainer
+    const isManagerRole = u.role === 'manager' && !isActingAsTrainer
+    const isStaffRole = u.role === 'staff'
+
+    let sessionComm = 0, signupComm = 0, membershipComm = 0
+
+    if (isTrainerRole) {
+      // PT session commission — gated on manager_confirmed + is_notes_complete
+      const { data: sessSales } = await supabase.from('sessions')
+        .select('session_commission_sgd')
+        .eq('trainer_id', authUser.id).eq('status', 'completed')
+        .eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
+      sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+
+      // PT signup commission — gated on manager_confirmed
+      const { data: pkgSales } = await supabase.from('packages')
+        .select('signup_commission_sgd')
+        .eq('trainer_id', authUser.id).eq('manager_confirmed', true)
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+
+      // Membership commission — confirmed sales by this trainer
+      const { data: memSales } = await supabase.from('gym_memberships')
+        .select('commission_sgd')
+        .eq('sold_by_user_id', authUser.id).eq('sale_status', 'confirmed')
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    }
+
+    else if (isStaffRole) {
+      // Staff only earn membership commission
+      const { data: memSales } = await supabase.from('gym_memberships')
+        .select('commission_sgd')
+        .eq('sold_by_user_id', authUser.id).eq('sale_status', 'confirmed')
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    }
+
+    else if (isManagerRole && u.manager_gym_id) {
+      // Manager sees gym-wide commission earned (gated)
+      const gymId = u.manager_gym_id
+
+      const { data: sessSales } = await supabase.from('sessions')
+        .select('session_commission_sgd')
+        .eq('gym_id', gymId).eq('status', 'completed')
+        .eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
+      sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+
+      const { data: pkgSales } = await supabase.from('packages')
+        .select('signup_commission_sgd')
+        .eq('gym_id', gymId).eq('manager_confirmed', true)
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+
+      const { data: memSales } = await supabase.from('gym_memberships')
+        .select('commission_sgd')
+        .eq('gym_id', gymId).eq('sale_status', 'confirmed')
+        .gte('created_at', periodStart).lte('created_at', periodEnd)
+      membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    }
+
+    setCommissionStats({
+      session: sessionComm,
+      signup: signupComm,
+      membership: membershipComm,
+      total: sessionComm + signupComm + membershipComm,
+    })
+    setCommissionLoading(false)
+  }
+
+  // ── Commission drill-down loader ──────────────────────────
+  const loadDrillDown = async (periodStart: string, periodEnd: string, groupBy: 'staff' | 'type', gymFilter?: string) => {
+    setDrillDownLoading(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) return
+    const { data: u } = await supabase.from('users').select('role, manager_gym_id').eq('id', authUser.id).single()
+    if (!u) return
+
+    const isManagerRole = u.role === 'manager' && !isActingAsTrainer
+    const gymId = isManagerRole ? u.manager_gym_id : gymFilter
+
+    // Log drill-down access
+    logActivity('other', 'Commission Breakdown', `Viewed commission breakdown by ${groupBy}`)
+
+    // Sequential awaits — no Promise.all with Supabase
+    let sessQ = supabase.from('sessions')
+      .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name), gym_id')
+      .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+      .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
+    if (gymId) sessQ = sessQ.eq('gym_id', gymId)
+    const sessData = await sessQ
+
+    let pkgQ = supabase.from('packages')
+      .select('signup_commission_sgd, trainer_id, trainer:users!packages_trainer_id_fkey(full_name), gym_id')
+      .eq('manager_confirmed', true)
+      .gte('created_at', periodStart).lte('created_at', periodEnd)
+    if (gymId) pkgQ = pkgQ.eq('gym_id', gymId)
+    const pkgData = await pkgQ
+
+    let memQ = supabase.from('gym_memberships')
+      .select('commission_sgd, sold_by_user_id, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name), gym_id')
+      .eq('sale_status', 'confirmed')
+      .gte('created_at', periodStart).lte('created_at', periodEnd)
+    if (gymId) memQ = memQ.eq('gym_id', gymId)
+    const memData = await memQ
+
+    if (groupBy === 'staff') {
+      const byStaff: Record<string, any> = {}
+      sessData.data?.forEach((s: any) => {
+        const id = s.trainer_id; const name = s.trainer?.full_name || 'Unknown'
+        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].session += s.session_commission_sgd || 0
+        byStaff[id].total += s.session_commission_sgd || 0
+      })
+      pkgData.data?.forEach((p: any) => {
+        const id = p.trainer_id; const name = p.trainer?.full_name || 'Unknown'
+        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].signup += p.signup_commission_sgd || 0
+        byStaff[id].total += p.signup_commission_sgd || 0
+      })
+      memData.data?.forEach((m: any) => {
+        const id = m.sold_by_user_id; const name = m.sold_by?.full_name || 'Unknown'
+        if (!byStaff[id]) byStaff[id] = { name, session: 0, signup: 0, membership: 0, total: 0 }
+        byStaff[id].membership += m.commission_sgd || 0
+        byStaff[id].total += m.commission_sgd || 0
+      })
+      setDrillDownData(Object.values(byStaff).sort((a, b) => b.total - a.total))
+    } else {
+      const totSession = sessData.data?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+      const totSignup = pkgData.data?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+      const totMem = memData.data?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+      setDrillDownData([
+        { name: 'PT Session', amount: totSession, count: sessData.data?.length || 0 },
+        { name: 'PT Signup', amount: totSignup, count: pkgData.data?.length || 0 },
+        { name: 'Membership Sales', amount: totMem, count: memData.data?.length || 0 },
+      ])
+    }
+    setDrillDownLoading(false)
   }
 
   const dismissLeaveNotifs = async () => {
@@ -1290,12 +1669,26 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Sessions This Month</p><CheckCircle className="w-4 h-4 text-green-600" /></div>
             <p className="text-2xl font-bold">{stats.sessions}</p>
           </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">My Commission</p><DollarSign className="w-4 h-4 text-red-600" /></div>
-            <p className="text-xl font-bold text-green-700">{formatSGD(stats.commission ?? 0)}</p>
+          <div className="stat-card col-span-2 md:col-span-1">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">My Commission</p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setCommissionOffset(o => Math.max(o - 1, -2))}
+                  disabled={commissionOffset <= -2}
+                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">←</button>
+                <span className="text-xs text-gray-400 min-w-16 text-center">{commissionPeriodLabel.split(' ')[0].slice(0,3)}</span>
+                <button onClick={() => setCommissionOffset(o => Math.min(o + 1, 0))}
+                  disabled={commissionOffset >= 0}
+                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">→</button>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-green-700 mt-1">
+              {commissionLoading ? '...' : formatSGD(commissionStats.total)}
+            </p>
             <div className="mt-1 space-y-0.5">
-              <p className="text-xs text-gray-400">Sessions: {formatSGD(stats.sessionCommission ?? 0)}</p>
-              <p className="text-xs text-gray-400">Signup: {formatSGD(stats.signupCommission ?? 0)}</p>
+              {(isTrainer) && <p className="text-xs text-gray-400">Sessions: {formatSGD(commissionStats.session)}</p>}
+              {(isTrainer) && <p className="text-xs text-gray-400">Signup: {formatSGD(commissionStats.signup)}</p>}
+              <p className="text-xs text-gray-400">Membership: {formatSGD(commissionStats.membership)}</p>
             </div>
           </div>
         </div>
@@ -1320,9 +1713,99 @@ export default function DashboardPage() {
             <p className="text-2xl font-bold">{stats.packages}</p>
           </div>
           <div className="stat-card col-span-2">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Commission Payouts This Month</p><DollarSign className="w-4 h-4 text-red-600" /></div>
-            <p className="text-xl font-bold">{formatSGD(stats.totalCommissionPayout ?? 0)}</p>
-            <p className="text-xs text-gray-400 mt-1">Approved + paid commission payouts</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">Commission Earned</p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setCommissionOffset(o => Math.max(o - 1, -2))}
+                  disabled={commissionOffset <= -2}
+                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">←</button>
+                <span className="text-xs text-gray-400 min-w-16 text-center">{commissionPeriodLabel.split(' ')[0].slice(0,3)} {commissionPeriodLabel.split(' ')[1]}</span>
+                <button onClick={() => setCommissionOffset(o => Math.min(o + 1, 0))}
+                  disabled={commissionOffset >= 0}
+                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">→</button>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-green-700 mt-1">
+              {commissionLoading ? '...' : formatSGD(commissionStats.total)}
+            </p>
+            <div className="flex gap-4 mt-1">
+              <p className="text-xs text-gray-400">Sessions: {formatSGD(commissionStats.session)}</p>
+              <p className="text-xs text-gray-400">Signup: {formatSGD(commissionStats.signup)}</p>
+              <p className="text-xs text-gray-400">Membership: {formatSGD(commissionStats.membership)}</p>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">Confirmed only — pending manager/Biz Ops ack excluded</p>
+            <button onClick={() => {
+              setCommissionDrillDown(true)
+              setDrillDownGroupBy('staff')
+              loadDrillDown(commissionPeriodStart, commissionPeriodEnd, 'staff')
+            }} className="text-xs text-red-600 hover:underline mt-1.5">
+              View breakdown →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Manager commission drill-down modal ── */}
+      {commissionDrillDown && isManager && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 overflow-y-auto" onClick={() => setCommissionDrillDown(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900">Commission Breakdown</h3>
+                <p className="text-xs text-gray-400">{commissionPeriodLabel} · My Gym</p>
+              </div>
+              <button onClick={() => setCommissionDrillDown(false)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            {/* Group by toggle */}
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+              {(['staff', 'type'] as const).map(opt => (
+                <button key={opt} onClick={() => {
+                  setDrillDownGroupBy(opt)
+                  loadDrillDown(commissionPeriodStart, commissionPeriodEnd, opt)
+                }}
+                  className={cn('flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                    drillDownGroupBy === opt ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500')}>
+                  By {opt === 'staff' ? 'Staff' : 'Commission Type'}
+                </button>
+              ))}
+            </div>
+            {drillDownLoading ? (
+              <div className="flex justify-center py-6"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600" /></div>
+            ) : drillDownData.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-4">No commission data for this period</p>
+            ) : drillDownGroupBy === 'staff' ? (
+              <div className="divide-y divide-gray-100">
+                {drillDownData.map((row: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{row.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {row.session > 0 && `Sessions: ${formatSGD(row.session)} `}
+                        {row.signup > 0 && `Signup: ${formatSGD(row.signup)} `}
+                        {row.membership > 0 && `Membership: ${formatSGD(row.membership)}`}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-green-700">{formatSGD(row.total)}</p>
+                  </div>
+                ))}
+                <div className="flex justify-between pt-2.5">
+                  <p className="text-sm font-semibold text-gray-900">Total</p>
+                  <p className="text-sm font-bold text-green-700">{formatSGD(drillDownData.reduce((s: number, r: any) => s + r.total, 0))}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {drillDownData.map((row: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{row.name}</p>
+                      <p className="text-xs text-gray-400">{row.count} transaction{row.count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <p className="text-sm font-bold text-green-700">{formatSGD(row.amount)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
