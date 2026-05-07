@@ -23,7 +23,6 @@ export default function PayslipAuditPage() {
   const [filterMonth, setFilterMonth] = useState(0) // 0 = all months
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  useEffect(() => { loadData() }, [filterYear, filterMonth])
 
   const loadData = async () => {
     logActivity('page_view', 'Payslip Audit', 'Viewed payslip audit')
@@ -39,6 +38,9 @@ export default function PayslipAuditPage() {
     const { data } = await query
     setRecords(data || [])
   }
+
+  useEffect(() => { loadData() }, [filterYear, filterMonth])
+
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
   const months = [

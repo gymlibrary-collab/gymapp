@@ -45,7 +45,6 @@ export default function AdminStaffPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
     logActivity('page_view', 'Admin Staff', 'Viewed admin staff')
@@ -57,6 +56,9 @@ export default function AdminStaffPage() {
     setStaff(active || [])
     setArchived(arch || [])
   }
+
+  useEffect(() => { loadData() }, [])
+
 
   const openCreate = () => {
     setEditingUser(null)
