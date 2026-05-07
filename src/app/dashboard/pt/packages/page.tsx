@@ -152,7 +152,6 @@ export default function PackagesPage() {
   const pps = pricePerSession(form.total_sessions, form.default_price_sgd)
   const list = tab === 'active' ? packages : archived
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
     <div className="space-y-5 max-w-2xl">
