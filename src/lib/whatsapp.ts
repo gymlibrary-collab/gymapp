@@ -1,5 +1,30 @@
 import { createClient } from '@/lib/supabase-browser'
 
+// ── WhatsApp notification build status ───────────────────────
+// The following touchpoints have their toggle on the config page
+// but the sending logic has NOT yet been built in application code.
+// Enabling the toggle will have no effect until a developer
+// implements the trigger at the relevant event point.
+//
+// NOT YET BUILT:
+//   - leave_submitted          (staff submits leave → manager)
+//   - membership_sale_submitted (sale logged → manager)
+//   - pt_package_submitted     (package sale → manager)
+//   - birthday_member          (daily birthday greeting → member)
+//   - escalation_leave         (leave escalated → Biz Ops)
+//   - escalation_membership    (membership escalated → Biz Ops)
+//   - escalation_pt_package    (PT package escalated → Biz Ops)
+//   - escalation_pt_session    (PT session escalated → Biz Ops)
+//
+// BUILT AND GATED (isWhatsAppEnabled check in place):
+//   - pt_reminder_trainer_24h  (api/reminders/route.ts)
+//   - pt_reminder_client_24h   (api/reminders/route.ts)
+//   - manager_note_alert       (pt/sessions/[id]/notes/page.tsx)
+//   - session_note_member_confirm (pt/sessions/[id]/notes/page.tsx)
+//   - leave_approved           (hr/leave/page.tsx)
+//   - leave_rejected           (hr/leave/page.tsx)
+// ─────────────────────────────────────────────────────────────
+
 /**
  * Fetch a WhatsApp template by notification_type and render it
  * with the provided placeholder values.
