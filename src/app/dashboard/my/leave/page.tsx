@@ -22,7 +22,6 @@ const LEAVE_TYPES = [
 export default function MyLeavePage() {
 
   const { logActivity } = useActivityLog()
-  const [user, setUser] = useState<any>(null)
   const [applications, setApplications] = useState<any[]>([])
   const [takenByType, setTakenByType] = useState<Record<string, number>>({})
   const [pendingByType, setPendingByType] = useState<Record<string, number>>({})
