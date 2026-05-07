@@ -48,7 +48,7 @@ export default function RegisterMemberPage() {
       setMembershipTypes(typesData || [])
 
       // Use per-staff membership commission rate, not global config
-      setCommissionPct(user?.membership_commission_sgd || 0)
+      setCommissionPct((user as any)?.membership_commission_sgd || 0)
 
       // Auto-detect gym — no dropdown for full-time staff/trainer/manager
       if (user?.manager_gym_id) {
