@@ -14,6 +14,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { validatePhone, validateMembershipNumber, validateAll } from '@/lib/validators'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MemberProfilePage() {
   const { id } = useParams()
@@ -46,6 +47,8 @@ export default function MemberProfilePage() {
   const [renewalSaving, setRenewalSaving] = useState(false)
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  if (loading || !user) return null
 
   // ── Auto-expire stale gym memberships ───────────────────────
   const expireStaleGymMemberships = async (memberships: any[]) => {
@@ -90,14 +93,6 @@ export default function MemberProfilePage() {
   }
 
   const load = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Admin and Biz Ops do not have access to individual member records.
-    if (!userData || ['admin', 'business_ops'].includes(userData.role)) {
-      router.replace('/dashboard'); return
-    }
-    setCurrentUser(userData)
 
     const { data: m } = await supabase.from('members').select('*, gym:gyms(name)').eq('id', id).single()
     setMember(m)
@@ -258,8 +253,8 @@ export default function MemberProfilePage() {
       start_date: renewalForm.start_date,
       end_date: endDate.toISOString().split('T')[0],
       sold_by_user_id: authUser!.id,
-      commission_pct: currentUser?.membership_commission_pct || 0,
-      commission_sgd: currentUser?.membership_commission_sgd || 0,
+      commission_pct: user?.membership_commission_pct || 0,
+      commission_sgd: user?.membership_commission_sgd || 0,
       sale_status: 'pending',
       status: 'active',
     })
@@ -311,9 +306,9 @@ export default function MemberProfilePage() {
       start_date: pkgForm.start_date,
       end_date_calculated: endDate.toISOString().split('T')[0],
       status: 'active',
-      signup_commission_pct: currentUser?.commission_signup_pct || 10,
-      session_commission_pct: currentUser?.commission_session_pct || 15,
-      signup_commission_sgd: parseFloat(pkgForm.total_price_sgd) * (currentUser?.commission_signup_pct || 10) / 100,
+      signup_commission_pct: user?.commission_signup_pct || 10,
+      session_commission_pct: user?.commission_session_pct || 15,
+      signup_commission_sgd: parseFloat(pkgForm.total_price_sgd) * (user?.commission_signup_pct || 10) / 100,
       signup_commission_paid: false,
       manager_confirmed: false,
     })
@@ -327,9 +322,9 @@ export default function MemberProfilePage() {
   // ── Derived state ─────────────────────────────────────────
   const activeMembership = memberships.find(m => m.status === 'active' && m.sale_status === 'confirmed')
   const activePackage = ptPackages.find(p => p.status === 'active')
-  const canManage = currentUser?.role === 'manager' || currentUser?.role === 'business_ops'
-  const isStaff = currentUser?.role === 'staff'
-  const canSellPT = (isActingAsTrainer || currentUser?.role === 'trainer') && !!activeMembership
+  const canManage = user?.role === 'manager' || user?.role === 'business_ops'
+  const isStaff = user?.role === 'staff'
+  const canSellPT = (isActingAsTrainer || user?.role === 'trainer') && !!activeMembership
   const isRenewal = !!activePackage
 
   // Confirm logic: seller is manager → biz ops confirms; seller is trainer/staff → manager confirms
@@ -339,8 +334,8 @@ export default function MemberProfilePage() {
   }
   const canConfirmSale = (membership: any) => {
     if (membership.sale_status !== 'pending') return false
-    if (sellerIsManager(membership)) return currentUser?.role === 'business_ops'
-    return currentUser?.role === 'manager' || currentUser?.role === 'business_ops'
+    if (sellerIsManager(membership)) return user?.role === 'business_ops'
+    return user?.role === 'manager' || user?.role === 'business_ops'
   }
 
   const selectedTemplate = packageTemplates.find(t => t.id === pkgForm.template_id)
@@ -348,7 +343,7 @@ export default function MemberProfilePage() {
     ? parseFloat(pkgForm.total_price_sgd) / selectedTemplate.total_sessions
     : null
   const signupCommission = pkgForm.total_price_sgd
-    ? parseFloat(pkgForm.total_price_sgd) * (currentUser?.commission_signup_pct || 10) / 100
+    ? parseFloat(pkgForm.total_price_sgd) * (user?.commission_signup_pct || 10) / 100
     : null
 
   if (!member) return (
@@ -430,7 +425,7 @@ export default function MemberProfilePage() {
             <CreditCard className="w-4 h-4 text-red-600" /> Gym Membership
           </h2>
           <div className="flex gap-2">
-          {currentUser?.role === 'manager' && (() => {
+          {user?.role === 'manager' && (() => {
             const activeMem = memberships.find(m => m.status === 'active' && m.sale_status === 'confirmed')
             const hasNonRenewal = activeMem?.membership_actioned
             return activeMem && !hasNonRenewal ? (
@@ -442,7 +437,7 @@ export default function MemberProfilePage() {
               <span className="text-xs text-amber-600 py-1.5">Non-renewal recorded</span>
             ) : null
           })()}
-          {(isActingAsTrainer || currentUser?.role === 'trainer' || currentUser?.role === 'staff' || currentUser?.role === 'manager') && (
+          {(isActingAsTrainer || user?.role === 'trainer' || user?.role === 'staff' || user?.role === 'manager') && (
             <button onClick={() => setShowRenewalForm(!showRenewalForm)}
               className="btn-primary text-xs py-1.5 flex items-center gap-1">
               <Plus className="w-3.5 h-3.5" /> Renew Membership
@@ -452,7 +447,7 @@ export default function MemberProfilePage() {
         </div>
 
         {/* Non-renewal form */}
-        {showNonRenewalForm && currentUser?.role === 'manager' && (
+        {showNonRenewalForm && user?.role === 'manager' && (
           <form onSubmit={handleNonRenewal} className="p-4 border-b border-gray-100 bg-amber-50 space-y-3">
             <p className="text-sm font-semibold text-gray-900">Record Non-Renewal</p>
             <div>
@@ -515,7 +510,7 @@ export default function MemberProfilePage() {
                 <div className="bg-white rounded-lg border border-blue-200 p-3 text-xs space-y-1">
                   <div className="flex justify-between text-gray-600"><span>New end date</span><span className="font-medium">{formatDate(end.toISOString().split('T')[0])}</span></div>
                   <div className="flex justify-between text-gray-600"><span>Price</span><span className="font-medium">{formatSGD(type.price_sgd)}</span></div>
-                  <div className="flex justify-between text-green-700 font-medium"><span>Your commission</span><span>{formatSGD(currentUser?.membership_commission_sgd || 0)}</span></div>
+                  <div className="flex justify-between text-green-700 font-medium"><span>Your commission</span><span>{formatSGD(user?.membership_commission_sgd || 0)}</span></div>
                 </div>
               )
             })()}
@@ -582,7 +577,7 @@ export default function MemberProfilePage() {
               <Plus className="w-3.5 h-3.5" /> New PT Package
             </Link>
           )}
-          {!activeMembership && (isActingAsTrainer || currentUser?.role === 'trainer') && (
+          {!activeMembership && (isActingAsTrainer || user?.role === 'trainer') && (
             <p className="text-xs text-amber-600">Active gym membership required</p>
           )}
         </div>
