@@ -20,6 +20,9 @@ const LEAVE_TYPES = [
 ]
 
 export default function MyLeavePage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+  if (loading || !user) return null
+
 
   const { logActivity } = useActivityLog()
   const [applications, setApplications] = useState<any[]>([])
@@ -36,8 +39,6 @@ export default function MyLeavePage() {
   const router = useRouter()
   const supabase = createClient()
   const { success, error, showMsg, showError, setError } = useToast()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
-  if (loading || !user) return null
 
   useEffect(() => {
     const load = async () => {
