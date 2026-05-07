@@ -9,8 +9,10 @@ import { Search, CheckCircle, XCircle, Clock, CreditCard, AlertCircle, X, Chevro
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MembershipSalesPage() {
+
   const [user, setUser] = useState<any>(null)
   const [allGymSales, setAllGymSales] = useState<any[]>([]) // manager: all gym sales for confirmation
   const [mySales, setMySales] = useState<any[]>([])          // personal sales history
@@ -26,27 +28,25 @@ export default function MembershipSalesPage() {
   const supabase = createClient()
   const router = useRouter()
   const { success, error, showMsg } = useToast()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  if (loading || !user) return null
 
   useEffect(() => { load() }, [])
 
   const load = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: userData } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    if (!userData || userData.role === 'admin') { router.replace('/dashboard'); return }
-    setUser(userData)
+      // Auth guard handled by useCurrentUser hook
 
     const baseSelect = '*, member:members(full_name, phone, membership_number), sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), gym:gyms(name)'
 
-    if (userData.role === 'manager') {
+    if (user.role === 'manager') {
       // Manager sees non-escalated pending gym sales for confirmation
       const { data: gymSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
-        .eq('gym_id', userData.manager_gym_id)
+        .eq('gym_id', user.manager_gym_id)
         .order('created_at', { ascending: false })
       setAllGymSales(gymSales || [])
       setTab('confirm')
-    } else if (userData.role === 'business_ops') {
+    } else if (user.role === 'business_ops') {
       // Biz Ops sees:
       // 1. Escalated pending sales from trainer/staff (manager not actioned within threshold)
       // 2. Pending sales from managers (manager cannot confirm own sales)
@@ -75,7 +75,7 @@ export default function MembershipSalesPage() {
       // Trainer / Staff — own sales only
       const { data: ownSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
-        .eq('sold_by_user_id', authUser.id)
+        .eq('sold_by_user_id', user.id)
         .order('created_at', { ascending: false })
       setMySales(ownSales || [])
     }
