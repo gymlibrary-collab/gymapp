@@ -12,6 +12,7 @@ import {
   TrendingUp, UserX, Bell, FileText, Gift, X } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 
 
@@ -744,7 +745,7 @@ function MemberBirthdayCard({ gymId, trainerGymIds, role, userId }: MemberBirthd
         .from('members')
         .select('id, full_name, date_of_birth, gym_id')
         .in('gym_id', gymIds)
-        .eq('is_active', true)
+        .eq('status', 'active')
         .not('date_of_birth', 'is', null)
 
       const todayBirthdays = (data || [])
