@@ -154,7 +154,6 @@ export default function AdminStaffPage() {
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }))
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   const list = tab === 'active' ? staff : archived
 
