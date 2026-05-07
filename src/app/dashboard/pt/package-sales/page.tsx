@@ -9,8 +9,11 @@ import { Package, CheckCircle, Clock, User, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PackageSalesPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer'] })
   const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
@@ -20,24 +23,17 @@ export default function PackageSalesPage() {
   const [pending, setPending] = useState<any[]>([])
   const [confirmed, setConfirmed] = useState<any[]>([])
   const [tab, setTab] = useState<'pending' | 'confirmed'>('pending')
-  const [loading, setLoading] = useState(true)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
 
   useEffect(() => { loadData() }, [])
 
   const loadData = async () => {
-    setLoading(true)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users')
-      .select('*, manager_gym_id, gyms:manager_gym_id(name)')
-      .eq('id', authUser.id).single()
-    if (!me || !['manager', 'business_ops'].includes(me.role)) { router.replace('/dashboard'); return }
-    setCurrentUser(me)
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
     const isBizOps = me.role === 'business_ops'
     const gymId = me.manager_gym_id || ''
-    if (!isBizOps && !gymId) { setLoading(false); return }
+    if (!isBizOps && !gymId) { return }
 
     // Pending: split by role — manager sees non-escalated, Biz Ops sees escalated
     const { data: pendingData } = await supabase.from('packages')
@@ -76,7 +72,6 @@ export default function PackageSalesPage() {
     const { data: confirmedData } = await confirmedQ
     setConfirmed(confirmedData || [])
 
-    setLoading(false)
   }
 
   const handleConfirm = async (pkg: any) => {
@@ -133,17 +128,18 @@ export default function PackageSalesPage() {
     }
 
     setRejecting(pkg.id)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const { data: me } = await supabase.from('users').select('full_name').eq('id', authUser!.id).single()
+    // Use user from hook — already verified at page load
+    const rejectedById = user.id
+    const rejectedByName = user.full_name
 
     // Write rejection notification for the trainer BEFORE deleting
     const { error: notifErr } = await supabase.from('pkg_rejection_notif').insert({
       trainer_id: pkg.trainer?.id || pkg.trainer_id,
       package_name: pkg.package_name,
       member_name: pkg.member?.full_name || 'Unknown member',
-      gym_id: currentUser?.manager_gym_id,
-      rejected_by: authUser!.id,
-      rejected_by_name: (me as any)?.full_name || 'Manager',
+      gym_id: user?.manager_gym_id,
+      rejected_by: rejectedById,
+      rejected_by_name: rejectedByName,
     })
     if (notifErr) { setError('Failed to write notification: ' + notifErr.message); setRejecting(null); return }
 
@@ -163,13 +159,13 @@ export default function PackageSalesPage() {
     </div>
   )
 
-  const gymName = (currentUser?.gyms as any)?.name || 'Your Gym'
+  const gymName = (user as any)?.gyms?.name || 'Your Gym'
 
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
         <h1 className="text-lg font-semibold text-gray-900">PT Package Sales</h1>
-        {currentUser?.role === 'business_ops' && (
+        {user?.role === 'business_ops' && (
           <p className="text-xs text-amber-600 mt-0.5">Escalated packages — not acknowledged by manager within 48 hours</p>
         )}
         <p className="text-sm text-gray-500">{gymName} · Confirm package sales for commission payout</p>
