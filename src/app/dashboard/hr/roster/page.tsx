@@ -58,7 +58,6 @@ export default function RosterPage() {
   useEffect(() => { loadData() }, [weekStart])
 
   const loadData = async () => {
-    // Route guard — manager (full access) or Biz Ops (read-only for payroll reconciliation).
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = user!.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {

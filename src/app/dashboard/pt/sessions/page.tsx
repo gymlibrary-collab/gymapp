@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtSessionsPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops', 'staff'] })
 
   const { logActivity } = useActivityLog()
   const [sessions, setSessions] = useState<any[]>([])

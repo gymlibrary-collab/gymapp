@@ -29,7 +29,7 @@ function getAgeAsOf(dob: string | null, refDate: Date): number | null {
 
 export default function CpfPage() {
 
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
   const { logActivity } = useActivityLog()
   const [brackets, setBrackets] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
@@ -45,16 +45,17 @@ export default function CpfPage() {
 
   const { success, error, showMsg } = useToast()
 
-  useEffect(() => { load() }, [])
 
   const load = async () => {
-    // Route guard
 
     const { data: br } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
     setBrackets(br || [])
     const { data: subs } = await supabase.from('cpf_submissions').select('*, submitted_by:users!cpf_submissions_submitted_by_fkey(full_name)').order('payroll_year', { ascending: false }).order('payroll_month', { ascending: false })
     setSubmissions(subs || [])
   }
+
+  useEffect(() => { load() }, [])
+
 
   const getBracket = (dob: string | null, payrollYear: number, payrollMonth: number) => {
     if (!dob) return null

@@ -16,7 +16,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionPayoutsPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
 
 
   const { logActivity } = useActivityLog()
@@ -42,10 +42,6 @@ export default function CommissionPayoutsPage() {
   const { success, error, showMsg, showError, setError } = useToast()
 
 
-  useEffect(() => { loadData() }, [])
-
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
 
   const loadData = async () => {
     if (!user) return
@@ -70,6 +66,12 @@ export default function CommissionPayoutsPage() {
       setCpfBrackets(brackets || [])
     }
   }
+
+  useEffect(() => { loadData() }, [])
+
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
+
 
   const generatePreview = async () => {
     if (!genForm.period_month || !genForm.period_year) { setError('Please select a period'); return }

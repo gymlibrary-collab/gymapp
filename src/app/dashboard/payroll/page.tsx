@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PayrollPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
 
   const [staffList, setStaffList] = useState<any[]>([])
   const [search, setSearch] = useState('')
@@ -42,9 +42,6 @@ export default function PayrollPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  useEffect(() => { load() }, [selectedMonth, selectedYear])
-
-  if (loading || !user) return null
 
   const load = async () => {
     // Issue 7: Guard — only business_ops can access payroll
@@ -98,6 +95,12 @@ export default function PayrollPage() {
     setYtdOW(ytdMap)
 
   }
+
+  useEffect(() => { load() }, [selectedMonth, selectedYear])
+
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
+
 
   const filtered = staffList.filter(s => {
     const matchSearch = s.full_name.toLowerCase().includes(search.toLowerCase()) ||

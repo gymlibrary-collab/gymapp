@@ -25,10 +25,6 @@ export default function TrainerCapacityPage() {
   const supabase = createClient()
   const router = useRouter()
 
-  useEffect(() => { load() }, [])
-
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
 
   const load = async () => {
 
@@ -95,6 +91,12 @@ export default function TrainerCapacityPage() {
 
     setTrainers(enriched)
   }
+
+  useEffect(() => { load() }, [])
+
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
+
 
   const handleSaveCapacity = async (trainerId: string) => {
     setSaving(true)

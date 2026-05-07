@@ -25,14 +25,15 @@ export default function MembershipTypesPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { load() }, [])
 
   const load = async () => {
-    // Route guard — Business Ops only
 
     const { data } = await supabase.from('membership_types').select('*').order('price_sgd')
     setTypes(data || [])
   }
+
+  useEffect(() => { load() }, [])
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
