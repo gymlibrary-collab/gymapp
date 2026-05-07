@@ -40,14 +40,14 @@ export default function LeaveManagementPage() {
 
     // Get staff IDs this user can approve for
     let staffIds: string[] = []
-    if (u.role === 'manager' && u.manager_gym_id) {
+    if (user.role === 'manager' && user.manager_gym_id) {
       // Manager approves: full-time trainers + ops staff at their gym
       // Part-timers do NOT apply for leave in this system
       const { data: opsStaff } = await supabase.from('users')
-        .select('id').eq('manager_gym_id', u.manager_gym_id)
+        .select('id').eq('manager_gym_id', user.manager_gym_id)
         .eq('role', 'staff').neq('id', user.id)
       const { data: gymTrainers } = await supabase.from('trainer_gyms')
-        .select('trainer_id').eq('gym_id', u.manager_gym_id)
+        .select('trainer_id').eq('gym_id', user.manager_gym_id)
       // Full-time trainers only — filter out part-timers
       const rawTrainerIds = (gymTrainers?.map((t: any) => t.trainer_id) || [])
         .filter((id: string) => id !== user.id)
@@ -60,12 +60,12 @@ export default function LeaveManagementPage() {
       }
       const opsIds = opsStaff?.map((s: any) => s.id) || []
       staffIds = Array.from(new Set([...opsIds, ...ftTrainerIds]))
-    } else if (u.role === 'business_ops') {
+    } else if (user.role === 'business_ops') {
       // Biz Ops approves managers' leave
       const { data: managers } = await supabase.from('users')
         .select('id').eq('role', 'manager')
       staffIds = managers?.map((m: any) => m.id) || []
-    } else if (u.role === 'admin') {
+    } else if (user.role === 'admin') {
       // Admin approves Business Ops leave
       const { data: bizOps } = await supabase.from('users')
         .select('id').eq('role', 'business_ops')
@@ -79,7 +79,7 @@ export default function LeaveManagementPage() {
       .in('user_id', staffIds)
       .order('created_at', { ascending: false })
     if (filter === 'pending') {
-      q = q.eq('status', 'pending').eq('escalated_to_biz_ops', u.role === 'business_ops')
+      q = q.eq('status', 'pending').eq('escalated_to_biz_ops', user.role === 'business_ops')
     } else if (filter !== 'all') {
       q = q.eq('status', filter)
     }
