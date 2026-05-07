@@ -185,7 +185,7 @@ export default function MemberProfilePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     await supabase.from('gym_memberships').update({
       sale_status: 'confirmed', status: 'active',
-      confirmed_by: authUser!.id, confirmed_at: new Date().toISOString(),
+      confirmed_by: user!.id, confirmed_at: new Date().toISOString(),
     }).eq('id', membershipId)
 
     // Expire any other active+confirmed memberships for this member (old ones being replaced)
@@ -224,7 +224,7 @@ export default function MemberProfilePage() {
       gym_id: activeMem.gym_id,
       reason: nonRenewalReason,
       reason_other: nonRenewalReason === 'Other' ? nonRenewalOther.trim() : null,
-      recorded_by: authUser!.id,
+      recorded_by: user!.id,
     })
     if (err) { alert('Failed to record non-renewal: ' + err.message); setNonRenewalSaving(false); return }
     await supabase.from('gym_memberships').update({ membership_actioned: true }).eq('id', activeMem.id)
@@ -252,9 +252,9 @@ export default function MemberProfilePage() {
       price_sgd: type.price_sgd,
       start_date: renewalForm.start_date,
       end_date: endDate.toISOString().split('T')[0],
-      sold_by_user_id: authUser!.id,
-      commission_pct: user?.membership_commission_pct || 0,
-      commission_sgd: user?.membership_commission_sgd || 0,
+      sold_by_user_id: user!.id,
+      commission_pct: (user as any)?.membership_commission_pct || 0,
+      commission_sgd: (user as any)?.membership_commission_sgd || 0,
       sale_status: 'pending',
       status: 'active',
     })
@@ -293,8 +293,8 @@ export default function MemberProfilePage() {
       template_id: template.id,
       member_id: id,
       client_id: id,
-      trainer_id: authUser!.id,
-      selling_trainer_id: authUser!.id,
+      trainer_id: user!.id,
+      selling_trainer_id: user!.id,
       gym_id: member?.gym_id,
       is_shared: !!pkgForm.secondary_member_id,
       secondary_member_id: pkgForm.secondary_member_id || null,
@@ -306,9 +306,9 @@ export default function MemberProfilePage() {
       start_date: pkgForm.start_date,
       end_date_calculated: endDate.toISOString().split('T')[0],
       status: 'active',
-      signup_commission_pct: user?.commission_signup_pct || 10,
-      session_commission_pct: user?.commission_session_pct || 15,
-      signup_commission_sgd: parseFloat(pkgForm.total_price_sgd) * (user?.commission_signup_pct || 10) / 100,
+      signup_commission_pct: (user as any)?.commission_signup_pct || 10,
+      session_commission_pct: (user as any)?.commission_session_pct || 15,
+      signup_commission_sgd: parseFloat(pkgForm.total_price_sgd) * ((user as any)?.commission_signup_pct || 10) / 100,
       signup_commission_paid: false,
       manager_confirmed: false,
     })
@@ -343,7 +343,7 @@ export default function MemberProfilePage() {
     ? parseFloat(pkgForm.total_price_sgd) / selectedTemplate.total_sessions
     : null
   const signupCommission = pkgForm.total_price_sgd
-    ? parseFloat(pkgForm.total_price_sgd) * (user?.commission_signup_pct || 10) / 100
+    ? parseFloat(pkgForm.total_price_sgd) * ((user as any)?.commission_signup_pct || 10) / 100
     : null
 
   if (!member) return (
@@ -510,7 +510,7 @@ export default function MemberProfilePage() {
                 <div className="bg-white rounded-lg border border-blue-200 p-3 text-xs space-y-1">
                   <div className="flex justify-between text-gray-600"><span>New end date</span><span className="font-medium">{formatDate(end.toISOString().split('T')[0])}</span></div>
                   <div className="flex justify-between text-gray-600"><span>Price</span><span className="font-medium">{formatSGD(type.price_sgd)}</span></div>
-                  <div className="flex justify-between text-green-700 font-medium"><span>Your commission</span><span>{formatSGD(user?.membership_commission_sgd || 0)}</span></div>
+                  <div className="flex justify-between text-green-700 font-medium"><span>Your commission</span><span>{formatSGD((user as any)?.membership_commission_sgd || 0)}</span></div>
                 </div>
               )
             })()}
