@@ -24,8 +24,6 @@ export default function CommissionConfigPage() {
     const load = async () => {
       logActivity('page_view', 'Commission Rates', 'Viewed commission rates configuration')
     // Route guard
-      // Auth guard handled by useCurrentUser hook
-  if (loading || !user) return null
 
       const { data } = await supabase.from('commission_config').select('*')
       const cfg: Record<string, any> = {}
