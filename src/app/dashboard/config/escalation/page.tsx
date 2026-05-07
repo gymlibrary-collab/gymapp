@@ -89,12 +89,10 @@ export default function EscalationSettingsPage() {
       }
     }
     setSaving(true)
-    const update: Record<string, number> = {}
+    const update: Record<string, number> = { id: 'global' as any }
     FIELDS.forEach(f => { update[f.key] = parseInt(values[f.key]) })
 
-    const { error: err } = await supabase.from('app_settings')
-      .update({ ...update, updated_at: new Date().toISOString() })
-      .eq('id', 'global')
+    const { error: err } = await supabase.from('app_settings').upsert(update)
     if (err) { showError('Failed to save: ' + err.message); setSaving(false); return }
     logActivity('update', 'Escalation Settings', 'Updated escalation thresholds')
     showMsg('Escalation settings saved')
