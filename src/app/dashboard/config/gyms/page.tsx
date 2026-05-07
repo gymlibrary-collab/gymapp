@@ -12,15 +12,17 @@ import {
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const emptyForm = {
   name: '', address: '', size_sqft: '', date_opened: '', is_active: true, fy_start_month: '1',
 }
 
 export default function GymManagementPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const [gyms, setGyms] = useState<any[]>([])
   const { logActivity } = useActivityLog()
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingGym, setEditingGym] = useState<any | null>(null)
@@ -36,14 +38,11 @@ export default function GymManagementPage() {
 
   const load = async () => {
     // Route guard — Business Ops only
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || me.role !== 'business_ops') { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data } = await supabase.from('gyms').select('*').order('name')
     setGyms(data || [])
-    setLoading(false)
   }
 
   const openCreate = () => {
