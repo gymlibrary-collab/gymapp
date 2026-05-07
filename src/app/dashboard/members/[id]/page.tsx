@@ -17,6 +17,9 @@ import { validatePhone, validateMembershipNumber, validateAll } from '@/lib/vali
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MemberProfilePage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  if (loading || !user) return null
+
   const { id } = useParams()
   const { logActivity } = useActivityLog()
   const router = useRouter()
@@ -47,8 +50,6 @@ export default function MemberProfilePage() {
   const [renewalSaving, setRenewalSaving] = useState(false)
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
-  if (loading || !user) return null
 
   // ── Auto-expire stale gym memberships ───────────────────────
   const expireStaleGymMemberships = async (memberships: any[]) => {
