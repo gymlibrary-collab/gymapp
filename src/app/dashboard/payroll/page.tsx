@@ -83,7 +83,7 @@ export default function PayrollPage() {
     })
     setRosterTotals(totals)
 
-    const { data: brackets } = await supabase.from('cpf_age_brackets').select('*').order('age_from')
+    const brackets = await loadCpfBrackets(supabase)
     setCpfBrackets(brackets || [])
 
     // Load YTD ordinary wages for current year to detect CPF ceiling approach
