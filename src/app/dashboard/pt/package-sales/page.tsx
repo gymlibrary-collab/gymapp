@@ -129,8 +129,8 @@ export default function PackageSalesPage() {
 
     setRejecting(pkg.id)
     // Use user from hook — already verified at page load
-    const rejectedById = user.id
-    const rejectedByName = user.full_name
+    const rejectedById = user!.id
+    const rejectedByName = user!.full_name
 
     // Write rejection notification for the trainer BEFORE deleting
     const { error: notifErr } = await supabase.from('pkg_rejection_notif').insert({
