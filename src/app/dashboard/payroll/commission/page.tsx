@@ -375,7 +375,7 @@ export default function CommissionPayoutsPage() {
             </div>
           </div>
 
-          <button onClick={generatePreview} disabled={generating} className="btn-secondary w-full">
+          <button onClick={generatePreview} disabled={generating} className="btn-primary w-full disabled:opacity-50">
             {generating ? 'Calculating...' : 'Calculate Preview'}
           </button>
 
