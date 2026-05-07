@@ -12,6 +12,9 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { User, Phone, Shield, Globe, Calendar, MapPin, Save, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function MyParticularsPage() {
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
+  if (loading || !user) return null
+
 
   const { logActivity } = useActivityLog()
   const [form, setForm] = useState({ phone: '', address: '' })
@@ -20,8 +23,6 @@ export default function MyParticularsPage() {
   const supabase = createClient()
 
   const { success, error, showMsg, showError, setError } = useToast()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
-  if (loading || !user) return null
 
   useEffect(() => {
     const load = async () => {
