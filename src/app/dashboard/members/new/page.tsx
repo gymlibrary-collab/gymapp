@@ -54,7 +54,7 @@ export default function RegisterMemberPage() {
       if (user?.manager_gym_id) {
         // Full-time: use assigned gym
         const gym = gymsData?.find((g: any) => g.id === user.manager_gym_id)
-        setMemberForm(f => ({ ...f, gym_id: user.manager_gym_id }))
+        setMemberForm(f => ({ ...f, gym_id: user.manager_gym_id ?? '' }))
         setGymName(gym?.name || '')
       } else if (user?.employment_type === 'part_time') {
         // Part-timer: look up today's or next upcoming roster shift
