@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 interface PackageTemplate {
   id: string
@@ -31,11 +32,12 @@ const emptyForm = {
 }
 
 export default function PackagesPage() {
+
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
   const { logActivity } = useActivityLog()
   const [packages, setPackages] = useState<PackageTemplate[]>([])
   const [archived, setArchived] = useState<PackageTemplate[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingPkg, setEditingPkg] = useState<PackageTemplate | null>(null)
@@ -49,10 +51,8 @@ export default function PackagesPage() {
 
   const loadPackages = async () => {
     // Route guard — Business Ops only
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) { router.replace('/dashboard'); return }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-    if (!me || !['business_ops'].includes(me.role)) { router.replace('/dashboard'); return }
+      // Auth guard handled by useCurrentUser hook
+  if (loading || !user) return null
 
     const { data: active } = await supabase.from('package_templates')
       .select('*').eq('is_archived', false).order('effective_from', { ascending: false })
@@ -60,7 +60,6 @@ export default function PackagesPage() {
       .select('*').eq('is_archived', true).order('archived_at', { ascending: false })
     setPackages(active || [])
     setArchived(arch || [])
-    setLoading(false)
   }
 
   const pricePerSession = (sessions: string, price: string) => {
