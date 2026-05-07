@@ -9,7 +9,6 @@ import { Activity, Download, RefreshCw, Search, ChevronLeft, ChevronRight, Alert
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { cn } from '@/lib/utils'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const ACTION_TYPES = ['all', 'login', 'logout', 'page_view', 'create', 'update', 'delete', 'confirm', 'reject', 'approve', 'export', 'other']
 
@@ -132,16 +131,16 @@ function MiniCalendar({ from, to, onChange }: { from: string; to: string; onChan
 }
 
 export default function ActivityLogsPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
-  const { error, showError, setError } = useToast()
 
   const [logs, setLogs] = useState<any[]>([])
   const [staffList, setStaffList] = useState<string[]>([])
   const [allStaffList, setAllStaffList] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const { error, showError, setError } = useToast()
   const [filterDateFrom, setFilterDateFrom] = useState(() => offsetDate(1))
   const [filterDateTo, setFilterDateTo] = useState(() => offsetDate(0))
   const [activePreset, setActivePreset] = useState('Yesterday')
@@ -150,10 +149,19 @@ export default function ActivityLogsPage() {
   const [filterStaff, setFilterStaff] = useState('all')
   const [filterAction, setFilterAction] = useState('all')
 
+  const applyPreset = (p: typeof PRESETS[0]) => {
+    setFilterDateFrom(offsetDate(p.from))
+    setFilterDateTo(offsetDate(p.to))
+    setActivePreset(p.label)
+    setShowCalendar(false)
+  }
+
   const loadLogs = useCallback(async () => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
+    if (!authUser) { router.replace('/dashboard'); return }
+    if (loading) logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
+    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
 
     let q = supabase.from('activity_logs')
       .select('*')
@@ -165,15 +173,19 @@ export default function ActivityLogsPage() {
     if (filterAction !== 'all') q = q.eq('action_type', filterAction)
 
     const { data, error: queryErr } = await q
-    if (queryErr) { showError('Failed to load logs: ' + queryErr.message); return }
+    if (queryErr) { showError('Failed to load logs: ' + queryErr.message); setLoading(false); return }
     setLogs(data || [])
 
+    // Current period staff for display
     const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()
     setStaffList(names as string[])
+
+    setLoading(false)
     setLastRefresh(new Date())
   }, [filterDateFrom, filterDateTo, filterStaff, filterAction])
 
-  // Load full 14-day staff list once on mount
+  // Load full 14-day staff list once on mount — independent of date filter
+  // so dropdown always shows all staff regardless of selected period
   useEffect(() => {
     const loadAllStaff = async () => {
       const since14 = new Date(); since14.setDate(since14.getDate() - 13)
@@ -187,16 +199,6 @@ export default function ActivityLogsPage() {
 
   useEffect(() => { loadLogs() }, [loadLogs])
   useEffect(() => { const t = setInterval(loadLogs, 30000); return () => clearInterval(t) }, [loadLogs])
-
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
-
-  const applyPreset = (p: typeof PRESETS[0]) => {
-    setFilterDateFrom(offsetDate(p.from))
-    setFilterDateTo(offsetDate(p.to))
-    setActivePreset(p.label)
-    setShowCalendar(false)
-  }
 
   const filtered = logs.filter(l => {
     if (!search) return true
@@ -220,6 +222,7 @@ export default function ActivityLogsPage() {
 
   const dayCount = Math.round((new Date(filterDateTo).getTime() - new Date(filterDateFrom).getTime()) / 86400000) + 1
 
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] gap-4">
