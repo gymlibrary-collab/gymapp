@@ -137,18 +137,18 @@ export default function AdminStaffPage() {
   }
 
   const handleDelete = async (user: BizOpsUser) => {
-    if (!confirm(`Archive ${user.full_name}? Their account will be disabled.`)) return
+    if (!confirm(`Archive ${user!.full_name}? Their account will be disabled.`)) return
     setSaving(true)
     const res = await fetch('/api/trainers', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id }),
+      body: JSON.stringify({ userId: user!.id }),
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
     await loadData(); setSaving(false)
     logActivity('update', 'Admin Staff', 'Archived Business Ops staff account')
-    showMsg(`${user.full_name} archived`)
+    showMsg(`${user!.full_name} archived`)
   }
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
