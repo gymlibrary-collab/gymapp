@@ -10,6 +10,7 @@ import { queueWhatsApp } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const LEAVE_TYPES: Record<string, string> = {
   annual: 'Annual Leave', medical: 'Medical Leave',
@@ -31,18 +32,13 @@ export default function LeaveManagementPage() {
   const supabase = createClient()
 
   const { success, error, showMsg } = useToast()
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  if (loading || !user) return null
+
 
   useEffect(() => { load() }, [filter])
 
   const load = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
-    // Only manager, business_ops, and admin can access leave management
-    if (!u || !['manager', 'business_ops', 'admin'].includes(u.role)) {
-      router.replace('/dashboard'); return
-    }
-    setUser(u)
 
     // Get staff IDs this user can approve for
     let staffIds: string[] = []
@@ -51,12 +47,12 @@ export default function LeaveManagementPage() {
       // Part-timers do NOT apply for leave in this system
       const { data: opsStaff } = await supabase.from('users')
         .select('id').eq('manager_gym_id', u.manager_gym_id)
-        .eq('role', 'staff').neq('id', authUser.id)
+        .eq('role', 'staff').neq('id', user.id)
       const { data: gymTrainers } = await supabase.from('trainer_gyms')
         .select('trainer_id').eq('gym_id', u.manager_gym_id)
       // Full-time trainers only — filter out part-timers
       const rawTrainerIds = (gymTrainers?.map((t: any) => t.trainer_id) || [])
-        .filter((id: string) => id !== authUser.id)
+        .filter((id: string) => id !== user.id)
       let ftTrainerIds: string[] = []
       if (rawTrainerIds.length > 0) {
         const { data: ftOnly } = await supabase.from('users')
@@ -178,7 +174,7 @@ export default function LeaveManagementPage() {
     }
 
     await supabase.from('leave_applications').update({
-      status: 'approved', approver_id: authUser!.id, approved_at: new Date().toISOString(),
+      status: 'approved', approver_id: user!.id, approved_at: new Date().toISOString(),
     }).eq('id', id)
     // WhatsApp to applicant (app already declared above)
     if (app) {
@@ -200,15 +196,14 @@ export default function LeaveManagementPage() {
     logActivity('approve', 'Leave Management', 'Approved leave application')
     // Write in-app decision notification
     if (app) {
-      const { data: approver } = await supabase.from('users').select('full_name').eq('id', authUser!.id).single()
-      await supabase.from('leave_decision_notif').insert({
+        await supabase.from('leave_decision_notif').insert({
         user_id: app.user_id,
         leave_type: app.leave_type,
         start_date: app.start_date,
         end_date: app.end_date,
         days_applied: app.days_applied,
         decision: 'approved',
-        decided_by_name: (approver as any)?.full_name || 'Manager',
+        decided_by_name: user.full_name || 'Manager',
       })
     }
     await load(); showMsg('Leave approved')
