@@ -27,7 +27,7 @@ export default function MyRosterPage() {
 
       const { data } = await supabase.from('duty_roster')
         .select('*, gym:gyms(name)')
-        .eq('user_id', user.id)
+        .eq('user_id', user!.id)
         .gte('shift_date', today)
         .lte('shift_date', in30Days)
         .order('shift_date').order('shift_start')
