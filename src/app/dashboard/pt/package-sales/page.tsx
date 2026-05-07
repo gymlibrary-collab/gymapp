@@ -137,7 +137,7 @@ export default function PackageSalesPage() {
       trainer_id: pkg.trainer?.id || pkg.trainer_id,
       package_name: pkg.package_name,
       member_name: pkg.member?.full_name || 'Unknown member',
-      gym_id: user?.manager_gym_id,
+      gym_id: user?.manager_gym_id ?? null,
       rejected_by: rejectedById,
       rejected_by_name: rejectedByName,
     })
