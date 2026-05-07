@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { Activity, Download, RefreshCw, Search, Filter } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ const ACTION_BADGE: Record<string, string> = {
 export default function ActivityLogsPage() {
   const supabase = createClient()
   const router = useRouter()
+  const { logActivity } = useActivityLog()
 
   const [logs, setLogs] = useState<any[]>([])
   const [staffList, setStaffList] = useState<string[]>([])
@@ -48,6 +50,7 @@ export default function ActivityLogsPage() {
   const loadLogs = useCallback(async () => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
+    if (loading) logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
     const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
     if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
 
