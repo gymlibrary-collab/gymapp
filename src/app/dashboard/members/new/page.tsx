@@ -24,7 +24,7 @@ export default function RegisterMemberPage() {
 
   const [memberForm, setMemberForm] = useState({
     gym_id: '', membership_number: '', full_name: '', phone: '',
-    email: '', date_of_birth: '', gender: '', health_notes: '',
+    email: '', date_of_birth: '', health_notes: '',
   })
 
   const [membershipForm, setMembershipForm] = useState({
@@ -109,7 +109,6 @@ export default function RegisterMemberPage() {
       phone: memberForm.phone,
       email: memberForm.email || null,
       date_of_birth: memberForm.date_of_birth || null,
-      gender: memberForm.gender || null,
       health_notes: memberForm.health_notes || null,
       created_by: authUser!.id,
     }).select().single()
@@ -226,17 +225,6 @@ export default function RegisterMemberPage() {
           </div>
 
           <div>
-            <label className="label">Gender</label>
-            <select className="input" value={memberForm.gender} onChange={e => setMemberForm(f => ({ ...f, gender: e.target.value }))}>
-              <option value="">Select...</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-              <option value="prefer_not_to_say">Prefer not to say</option>
-            </select>
-          </div>
-
-          <div>
             <label className="label">Health Notes / Medical Conditions</label>
             <textarea className="input min-h-[70px] resize-none" value={memberForm.health_notes} onChange={e => setMemberForm(f => ({ ...f, health_notes: e.target.value }))} placeholder="Any injuries, conditions or notes for trainers..." />
           </div>
@@ -262,7 +250,7 @@ export default function RegisterMemberPage() {
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-              Your commission: <strong>{commissionPct}%</strong> on membership price. Sale requires manager confirmation before payout.
+              Your commission: <strong>{formatSGD(commissionPct)}</strong> flat per sale. Sale requires manager confirmation before payout.
             </div>
 
             <div>
@@ -282,7 +270,7 @@ export default function RegisterMemberPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-gray-900">{formatSGD(type.price_sgd)}</p>
-                      <p className="text-xs text-green-600">+ {formatSGD(type.price_sgd * commissionPct / 100)} commission</p>
+                      <p className="text-xs text-green-600">+ {formatSGD(commissionPct)} commission</p>
                     </div>
                   </label>
                 ))}
