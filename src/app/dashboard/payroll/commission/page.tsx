@@ -24,7 +24,8 @@ export default function CommissionPayoutsPage() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [showGenerateForm, setShowGenerateForm] = useState(false)
   const [genForm, setGenForm] = useState({
-    period_start: '', period_end: '',
+    period_month: new Date().getMonth() === 0 ? 12 : new Date().getMonth(), // previous month
+    period_year: new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear(),
     user_ids: [] as string[], gym_id: '',
   })
   const [preview, setPreview] = useState<any[]>([])
@@ -62,7 +63,11 @@ export default function CommissionPayoutsPage() {
   }
 
   const generatePreview = async () => {
-    if (!genForm.period_start || !genForm.period_end) { setError('Please select a period'); return }
+    if (!genForm.period_month || !genForm.period_year) { setError('Please select a period'); return }
+    // Derive period_start and period_end from month/year
+    const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
+    const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
+    const period_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
     setGenerating(true); setError('')
 
     const results: any[] = []
@@ -79,8 +84,8 @@ export default function CommissionPayoutsPage() {
         .eq('trainer_id', member.id)
         .eq('manager_confirmed', true)
         .eq('signup_commission_paid', false)
-        .gte('created_at', genForm.period_start)
-        .lte('created_at', genForm.period_end + 'T23:59:59')
+        .gte('created_at', period_start)
+        .lte('created_at', period_end + 'T23:59:59')
 
       // PT session commissions: notes submitted AND manager_confirmed = true AND not yet paid
       // Confirmed by either manager or Biz Ops (escalated items)
@@ -91,8 +96,8 @@ export default function CommissionPayoutsPage() {
         .eq('is_notes_complete', true)
         .eq('manager_confirmed', true)
         .eq('commission_paid', false)
-        .gte('marked_complete_at', genForm.period_start)
-        .lte('marked_complete_at', genForm.period_end + 'T23:59:59')
+        .gte('marked_complete_at', period_start)
+        .lte('marked_complete_at', period_end + 'T23:59:59')
 
       // Membership sale commissions (confirmed in period) — from gym_memberships table
       const { data: memSales } = await supabase.from('gym_memberships')
@@ -100,8 +105,8 @@ export default function CommissionPayoutsPage() {
         .eq('sold_by_user_id', member.id)
         .eq('sale_status', 'confirmed')
         .eq('commission_paid', false)
-        .gte('created_at', genForm.period_start)
-        .lte('created_at', genForm.period_end + 'T23:59:59')
+        .gte('created_at', period_start)
+        .lte('created_at', period_end + 'T23:59:59')
 
       const ptSignup = packages?.reduce((s, p) => s + (p.signup_commission_sgd || 0), 0) || 0
       const ptSession = sessions?.reduce((s, s2) => s + (s2.session_commission_sgd || 0), 0) || 0
@@ -137,7 +142,7 @@ export default function CommissionPayoutsPage() {
     for (const item of preview) {
       await supabase.from('commission_payouts').upsert({
         user_id: item.user_id, gym_id: item.gym_id,
-        period_start: genForm.period_start, period_end: genForm.period_end,
+        period_start: period_start, period_end: period_end,
         pt_signup_commission_sgd: item.pt_signup_commission_sgd,
         pt_session_commission_sgd: item.pt_session_commission_sgd,
         membership_commission_sgd: item.membership_commission_sgd,
@@ -229,9 +234,26 @@ export default function CommissionPayoutsPage() {
           <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Generate Commission Payouts</h2><button onClick={() => { setShowGenerateForm(false); setPreview([]) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Period Start *</label><input className="input" type="date" value={genForm.period_start} onChange={e => setGenForm(f => ({ ...f, period_start: e.target.value }))} /></div>
-            <div><label className="label">Period End *</label><input className="input" type="date" value={genForm.period_end} onChange={e => setGenForm(f => ({ ...f, period_end: e.target.value }))} /></div>
+            <div>
+              <label className="label">Month *</label>
+              <select className="input" value={genForm.period_month}
+                onChange={e => setGenForm(f => ({ ...f, period_month: parseInt(e.target.value) }))}>
+                {['January','February','March','April','May','June','July','August','September','October','November','December']
+                  .map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Year *</label>
+              <select className="input" value={genForm.period_year}
+                onChange={e => setGenForm(f => ({ ...f, period_year: parseInt(e.target.value) }))}>
+                {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() - i)
+                  .map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
           </div>
+          <p className="text-xs text-gray-400 -mt-2">
+            Period: 1–{new Date(genForm.period_year, genForm.period_month, 0).getDate()} {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][genForm.period_month - 1]} {genForm.period_year}
+          </p>
 
           <div>
             <label className="label">Staff (leave empty for all)</label>
