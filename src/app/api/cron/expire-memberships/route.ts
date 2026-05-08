@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     // For each member whose membership just expired, check if they
     // have any remaining active memberships. If not, mark them inactive.
     if (count > 0) {
-      const memberIds = [...new Set((expired || []).map((m: any) => m.member_id).filter(Boolean))]
+      const memberIds = Array.from(new Set((expired || []).map((m: any) => m.member_id).filter(Boolean)))
 
       let deactivatedCount = 0
       for (const memberId of memberIds) {
