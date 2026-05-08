@@ -183,8 +183,9 @@ function BizOpsGymTabs() {
         const bizOpsThresholds = await loadEscalationThresholds(supabase)
         const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', bizOpsThresholds.membership_expiry, 'system', g.id)
         if (expiryCount > 0) {
-          const { data: { user: bizOpsUser } } = await supabase.auth.getUser()
-          const { data: bizMe } = await supabase.from('users').select('full_name, role').eq('id', bizOpsUser?.id || '').single()
+          // user already available from useCurrentUser()
+          const bizOpsUser = { id: user!.id }
+          const bizMe = { full_name: user!.full_name, role: user!.role }
           await logEscalation((bizMe as any)?.full_name || 'Biz Ops', (bizMe as any)?.role || 'business_ops', bizOpsUser?.id || '', 'membership_expiry', expiryCount)
         }
 
@@ -855,9 +856,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      // user is already available from useCurrentUser() — no need to re-fetch
+      const authUser = { id: user!.id }
+      const u = user!
       if (!u) return
       setUser(u)
 
