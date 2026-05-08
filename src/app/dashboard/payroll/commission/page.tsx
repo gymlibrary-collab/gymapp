@@ -68,7 +68,7 @@ export default function CommissionPayoutsPage() {
     }
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { if (!user) return; loadData() }, [user])
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null

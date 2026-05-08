@@ -72,7 +72,7 @@ export default function PackageSalesPage() {
 
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { if (!user) return; loadData() }, [user])
 
 
   const handleConfirm = async (pkg: any) => {
