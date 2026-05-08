@@ -339,3 +339,117 @@ export async function renderCommissionPdf(
   doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, finalY)
   if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
 }
+
+// ── renderAnnualStatementPdf ──────────────────────────────────
+// Renders an annual income statement for income tax reporting.
+// One PDF per staff per gym, covering a full calendar year.
+//
+// Parameters:
+//   doc        — jsPDF instance
+//   autoTable  — jspdf-autotable
+//   year       — statement year (e.g. 2026)
+//   staff      — { full_name, nric, employment_type, date_of_joining }
+//   branding   — { logoUrl, gymName, gymAddress }
+//   payslips   — all approved/paid payslips for this staff+gym+year
+//   payouts    — all approved/paid commission payouts for this staff+gym+year
+export async function renderAnnualStatementPdf(
+  doc: any,
+  autoTable: any,
+  year: number,
+  staff: { full_name: string; nric?: string | null; employment_type?: string | null; date_of_joining?: string | null },
+  branding: { logoUrl: string | null; gymName: string; gymAddress?: string | null },
+  payslips: any[],
+  payouts: any[]
+): Promise<void> {
+  let yPos = await addLogoHeader(doc, branding.logoUrl, 'Annual Income Statement', 14)
+
+  // ── Gym details ──────────────────────────────────────────
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10); doc.setTextColor(80)
+  doc.text(branding.gymName, 14, yPos); yPos += 5
+  if (branding.gymAddress) { doc.text(branding.gymAddress, 14, yPos); yPos += 5 }
+  doc.setFontSize(9); doc.setTextColor(120)
+  doc.text(`Year of Assessment ${year} (1 Jan ${year} – 31 Dec ${year})`, 14, yPos); yPos += 10
+  doc.setTextColor(0)
+
+  // ── Staff details block ───────────────────────────────────
+  doc.setFillColor(249, 249, 249)
+  doc.rect(14, yPos, 182, staff.nric && staff.date_of_joining ? 22 : 16, 'F')
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+  doc.text(staff.full_name, 18, yPos + 6)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80)
+  const metaParts = []
+  if (staff.nric) metaParts.push(`NRIC/FIN: ${staff.nric}`)
+  metaParts.push(staff.employment_type === 'part_time' ? 'Part-time' : 'Full-time')
+  if (staff.date_of_joining) metaParts.push(`Joined: ${staff.date_of_joining}`)
+  doc.text(metaParts.join('  ·  '), 18, yPos + 13)
+  yPos += (staff.nric && staff.date_of_joining ? 22 : 16) + 6
+  doc.setTextColor(0)
+
+  // ── Aggregate salary data ────────────────────────────────
+  const sal = payslips.reduce((acc, s) => ({
+    basic:   acc.basic   + (s.basic_salary || 0),
+    bonus:   acc.bonus   + (s.bonus_amount || 0),
+    gross:   acc.gross   + (s.gross_salary || 0),
+    empCpf:  acc.empCpf  + (s.employee_cpf_amount || 0),
+    erCpf:   acc.erCpf   + (s.employer_cpf_amount || 0),
+  }), { basic: 0, bonus: 0, gross: 0, empCpf: 0, erCpf: 0 })
+
+  // ── Aggregate commission data ────────────────────────────
+  const com = payouts.reduce((acc, p) => ({
+    ptSignup:    acc.ptSignup    + (p.pt_signup_commission_sgd || 0),
+    ptSession:   acc.ptSession   + (p.pt_session_commission_sgd || 0),
+    membership:  acc.membership  + (p.membership_commission_sgd || 0),
+    gross:       acc.gross       + (p.total_commission_sgd || 0),
+    empCpf:      acc.empCpf      + (p.employee_cpf_amount || 0),
+    erCpf:       acc.erCpf       + (p.employer_cpf_amount || 0),
+  }), { ptSignup: 0, ptSession: 0, membership: 0, gross: 0, empCpf: 0, erCpf: 0 })
+
+  const totalGross  = sal.gross + com.gross
+  const totalEmpCpf = sal.empCpf + com.empCpf
+  const totalErCpf  = sal.erCpf  + com.erCpf
+
+  // ── Statement table ───────────────────────────────────────
+  const rows: any[] = [
+    [{ content: 'Salary & Wages', styles: { fillColor: [245, 245, 245], textColor: [80, 80, 80], fontStyle: 'bold', fontSize: 8 } }, ''],
+    ['Basic Salary', formatSGD(sal.basic)],
+    ['Bonus', formatSGD(sal.bonus)],
+    ['Gross Salary', formatSGD(sal.gross)],
+    ['', ''],
+    [{ content: 'Commission', styles: { fillColor: [245, 245, 245], textColor: [80, 80, 80], fontStyle: 'bold', fontSize: 8 } }, ''],
+    ['PT Package Sign-up', formatSGD(com.ptSignup)],
+    ['PT Session', formatSGD(com.ptSession)],
+    ['Membership Sales', formatSGD(com.membership)],
+    ['Gross Commission', formatSGD(com.gross)],
+    ['', ''],
+  ]
+
+  const totalGrossIdx = rows.length
+  rows.push(['Total Gross Income', formatSGD(totalGross)])
+  rows.push(['', ''])
+  rows.push([{ content: 'CPF Contributions', styles: { fillColor: [245, 245, 245], textColor: [80, 80, 80], fontStyle: 'bold', fontSize: 8 } }, ''])
+  rows.push(['Employee CPF', formatSGD(totalEmpCpf)])
+  rows.push(['Employer CPF Contribution', formatSGD(totalErCpf)])
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Component', 'Amount (SGD)']],
+    body: rows,
+    ...PDF_TABLE_STYLE,
+    didParseCell: (data: any) => {
+      if (data.row.index === totalGrossIdx) {
+        data.cell.styles.fillColor = [234, 243, 222]
+        data.cell.styles.textColor = [39, 80, 10]
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
+  })
+
+  // ── Footer note ───────────────────────────────────────────
+  const finalY = (doc as any).lastAutoTable.finalY + 10
+  doc.setFontSize(8); doc.setTextColor(150)
+  doc.text(
+    `This statement is for income tax reference purposes only. Generated on ${new Date().toLocaleDateString('en-SG')}.`,
+    14, finalY
+  )
+}

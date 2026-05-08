@@ -593,6 +593,22 @@ export default function PayrollPage() {
         })}
       </div>
 
+    {/* ── Annual Income Statements ── */}
+    <div className="card p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-red-600" />
+          <div>
+            <h2 className="font-semibold text-gray-900 text-sm">Annual Income Statements</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Generate per-staff annual statements for income tax reporting</p>
+          </div>
+        </div>
+        <Link href="/dashboard/payroll/annual" className="btn-primary flex items-center gap-2 text-sm">
+          <FileText className="w-4 h-4" /> Generate
+        </Link>
+      </div>
+    </div>
+
     {/* ── Annual Payroll Archive Download ── */}
     <div className="card p-4 space-y-4">
       <div className="flex items-center gap-2">

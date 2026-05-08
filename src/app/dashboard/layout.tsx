@@ -28,7 +28,8 @@ const adminNav: NavItem[] = [
 const bizOpsNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { label: 'HR & Payroll', header: true },
-  { href: '/dashboard/payroll', label: 'Monthly Payroll', icon: Banknote },
+  { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
+  { href: '/dashboard/payroll/annual', label: 'Annual Statements', icon: FileText },
   { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
   { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
   { label: 'Gym Operations', header: true },
