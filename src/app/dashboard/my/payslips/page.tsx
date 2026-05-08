@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName } from '@/lib/utils'
-import { addLogoHeader, PDF_TABLE_STYLE } from '@/lib/pdf'
+import { addLogoHeader, PDF_TABLE_STYLE, renderPayslipPdf, renderCommissionPdf } from '@/lib/pdf'
 import { FileText, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -70,178 +70,25 @@ export default function MyPayslipsPage() {
     const { default: jsPDF } = await import('jspdf')
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
-
-    // Resolve gym for this payslip
     const gym = slip.gym_id ? gymsMap[slip.gym_id] : null
-    const gymName = gym?.name || 'Gym Library'
-    const logoUrl = gym?.logo_url || null
-    let yPos = await addLogoHeader(doc, logoUrl, 'PAYSLIP')
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11); doc.setTextColor(100)
-    doc.text(gymName, 14, yPos)
-    yPos += 6
-    doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos)
-    yPos += 14
-    doc.setTextColor(0)
-
-    doc.setFontSize(11); doc.text('Employee', 14, yPos); yPos += 8
-    doc.setFontSize(10); doc.setTextColor(80)
-    doc.text(`Name: ${user?.full_name}`, 14, yPos); yPos += 6
-    doc.text(`Email: ${user?.email}`, 14, yPos); yPos += 6
-    if ((user as any)?.date_of_joining) { doc.text(`Date of Joining: ${(user as any).date_of_joining}`, 14, yPos); yPos += 6 }
-    if (user?.nric) { doc.text(`NRIC/FIN/Passport: ${user.nric}`, 14, yPos); yPos += 6 }
-    doc.setTextColor(0); yPos += 4
-
-    const rows: any[] = []
-    if (slip.total_hours > 0) {
-      // Part-timer: show hours row only — basic_salary IS the hours calculation
-      rows.push([`Hours Worked (${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used)}/h)`, formatSGD(slip.basic_salary)])
-    } else {
-      rows.push(['Basic Salary', formatSGD(slip.basic_salary)])
-    }
-    if (slip.bonus_amount > 0) rows.push(['Bonus', formatSGD(slip.bonus_amount)])
-    rows.push(['Gross Salary', formatSGD(slip.gross_salary)])
-    rows.push(['', ''])
-    if (slip.is_cpf_liable) {
-      rows.push([`Employee CPF (${slip.employee_cpf_rate}%)`, `- ${formatSGD(slip.employee_cpf_amount)}`])
-    } else {
-      rows.push(['CPF', 'Not applicable'])
-    }
-    rows.push(['', ''])
-    rows.push(['Net Pay', formatSGD(slip.net_salary)])
-
-    if (slip.is_cpf_liable && !slip.low_income_flag) {
-      rows.splice(rows.length - 2, 0, [`Employer CPF (${slip.employer_cpf_rate}%)`, formatSGD(slip.employer_cpf_amount)])
-    }
-    const netPayRowIdx = rows.length - 1
-    autoTable(doc, {
-      startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE,
-      didParseCell: (data: any) => {
-        if (data.row.index === netPayRowIdx) {
-          data.cell.styles.fillColor = [234, 243, 222]
-          data.cell.styles.textColor = [39, 80, 10]
-          data.cell.styles.fontStyle = 'bold'
-        }
-      },
-    })
-
-    const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(10); doc.setTextColor(0)
-    doc.text(`Status: ${slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}`, 14, finalY)
-    if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
-
-    // ── YTD Table (calendar year Jan to payslip month) ────────
-    const ytdY = finalY + 32
-    doc.setFontSize(11); doc.setTextColor(0)
-    doc.text(`Year to Date (Jan – ${getMonthName(slip.month)} ${slip.year})`, 14, ytdY)
-
-    // Fetch all approved/paid payslips for this user in the same calendar year
-    // up to and including the current payslip month
-    const { data: ytdSlips } = await supabase
-      .from('payslips')
-      .select('gross_salary, bonus_amount, employee_cpf_amount, employer_cpf_amount, basic_salary')
-      .eq('user_id', user?.id)
-      .eq('year', slip.year)
-      .lte('month', slip.month)
-      .in('status', ['approved', 'paid'])
-
-    const ytd = (ytdSlips || []).reduce((acc: any, s: any) => ({
-      gross:    acc.gross    + (s.gross_salary || 0),
-      bonus:    acc.bonus    + (s.bonus_amount || 0),
-      empCpf:   acc.empCpf  + (s.employee_cpf_amount || 0),
-      erCpf:    acc.erCpf   + (s.employer_cpf_amount || 0),
-    }), { gross: 0, bonus: 0, empCpf: 0, erCpf: 0 })
-
-    autoTable(doc, {
-      startY: ytdY + 4,
-      head: [['', 'Amount (SGD)']],
-      body: [
-        ['Gross Salary', formatSGD(ytd.gross)],
-        ['Bonus', formatSGD(ytd.bonus)],
-        ['Employee CPF', formatSGD(ytd.empCpf)],
-        ['Employer CPF', formatSGD(ytd.erCpf)],
-      ],
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [100, 100, 100] },
-      columnStyles: { 1: { halign: 'right' } },
-    })
-
+    const branding = { logoUrl: gym?.logo_url || null, gymName: gym?.name || 'Gym Library' }
+    await renderPayslipPdf(doc, autoTable, slip, user!, branding, payslips)
     doc.save(`Payslip-${user?.full_name}-${getMonthName(slip.month)} ${slip.year}.pdf`)
     logActivity('export', 'My Payslips', `Downloaded payslip PDF — ${getMonthName(slip.month)} ${slip.year}`)
   }
 
-  const downloadCommissionSlip = async (payout: any) => {
+    const downloadCommissionSlip = async (payout: any) => {
     const { default: jsPDF } = await import('jspdf')
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
-
-    // Use gym logo from payout if available
     const gym = payout.gym_id ? gymsMap[payout.gym_id] : Object.values(gymsMap)[0]
-    const gymName = gym?.name || 'Gym Library'
-    const logoUrl = (gym as any)?.logo_url || null
-    let yPos = await addLogoHeader(doc, logoUrl, 'COMMISSION STATEMENT', 16)
-
-    // ── Gym + period ─────────────────────────────────────────
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10); doc.setTextColor(100)
-    doc.text(gymName, 14, yPos); yPos += 6
-    doc.text(`Period: ${payout.period_start} to ${payout.period_end}`, 14, yPos); yPos += 10
-    doc.setTextColor(0)
-
-    // ── Employee section ──────────────────────────────────────
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold')
-    doc.text('Employee', 14, yPos); yPos += 6
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(80)
-    doc.text(`Name: ${user?.full_name}`, 14, yPos); yPos += 6
-    doc.text(`Employment: ${(user as any)?.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
-    if (user?.nric) { doc.text(`NRIC/FIN/Passport: ${user.nric}`, 14, yPos); yPos += 6 }
-    if ((user as any)?.date_of_joining) { doc.text(`Date of Joining: ${(user as any).date_of_joining}`, 14, yPos); yPos += 6 }
-    doc.setTextColor(0); yPos += 4
-
-    // ── Commission table ──────────────────────────────────────
-    const cpfBody: any[] = [
-      ['PT Package Sign-up Commissions', payout.pt_signups_count || 0, formatSGD(payout.pt_signup_commission_sgd)],
-      ['PT Session Commissions', payout.pt_sessions_count || 0, formatSGD(payout.pt_session_commission_sgd)],
-      ['Membership Sale Commissions', payout.membership_sales_count || 0, formatSGD(payout.membership_commission_sgd)],
-      ['', '', ''],
-      ['Gross Commission', '', formatSGD(payout.total_commission_sgd)],
-      ['', '', ''],
-    ]
-    if (payout.is_cpf_liable && payout.employee_cpf_amount > 0) {
-      cpfBody.push([`Employee CPF (${payout.employee_cpf_rate}%)`, '', `- ${formatSGD(payout.employee_cpf_amount)}`])
-      cpfBody.push([`Employer CPF (${payout.employer_cpf_rate}%)`, '', formatSGD(payout.employer_cpf_amount)])
-      cpfBody.push(['', '', ''])
-      cpfBody.push(['Net Commission', '', formatSGD(payout.net_commission_sgd ?? (payout.total_commission_sgd - payout.employee_cpf_amount))])
-    } else if (!payout.is_cpf_liable) {
-      cpfBody.push(['CPF', '', 'Not applicable'])
-    }
-    const netCommRowIdx = cpfBody.length - 1
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Description', 'Count', 'Amount (SGD)']],
-      body: cpfBody,
-      ...PDF_TABLE_STYLE,
-      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right', fontStyle: 'bold' } },
-      didParseCell: (data: any) => {
-        if (payout.is_cpf_liable && payout.employee_cpf_amount > 0 && data.row.index === netCommRowIdx) {
-          data.cell.styles.fillColor = [234, 243, 222]
-          data.cell.styles.textColor = [39, 80, 10]
-          data.cell.styles.fontStyle = 'bold'
-        }
-      },
-    })
-
-    // ── Status ────────────────────────────────────────────────
-    const finalY = (doc as any).lastAutoTable.finalY + 8
-    doc.setFontSize(10); doc.setTextColor(0)
-    doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, finalY)
-    if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
-
-    doc.save(`Commission-${user?.full_name}-${getMonthName(parseInt(payout.period_start.split('-')[1]))} ${payout.period_start.split('-')[0]}.pdf`)
+    const branding = { logoUrl: (gym as any)?.logo_url || null, gymName: (gym as any)?.name || 'Gym Library' }
+    const commMonth = parseInt(payout.period_start.split('-')[1])
+    const commYear = payout.period_start.split('-')[0]
+    await renderCommissionPdf(doc, autoTable, payout, user!, branding)
+    doc.save(`Commission-${user?.full_name}-${getMonthName(commMonth)} ${commYear}.pdf`)
     logActivity('export', 'My Payslips', `Downloaded commission PDF — ${payout.period_start} to ${payout.period_end}`)
   }
-
 
   return (
     <div className="space-y-5 max-w-2xl">

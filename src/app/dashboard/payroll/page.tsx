@@ -280,7 +280,7 @@ export default function PayrollPage() {
     try {
       const { default: jsPDF } = await import('jspdf')
       const { default: autoTable } = await import('jspdf-autotable')
-      const { addLogoHeader, PDF_TABLE_STYLE } = await import('@/lib/pdf')
+      const { addLogoHeader, PDF_TABLE_STYLE, renderPayslipPdf, renderCommissionPdf } = await import('@/lib/pdf')
 
       const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', archiveGym).single()
       const gymName = (gym as any)?.name || 'Gym'
@@ -325,93 +325,18 @@ export default function PayrollPage() {
 
         for (const slip of payslips || []) {
           const doc = new jsPDF()
-          let yPos = await addLogoHeader(doc, logoUrl, 'PAYSLIP')
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(10); doc.setTextColor(100)
-          doc.text(gymName, 14, yPos); yPos += 6
-          doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos); yPos += 10
-          doc.setTextColor(0)
-          doc.text(`${staff.full_name} · ${staff.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
-          if (staff.nric) { doc.text(`NRIC: ${staff.nric}`, 14, yPos); yPos += 6 }
-
-          const rows: any[] = []
-          if (staff.employment_type === 'part_time' && slip.total_hours > 0) {
-            rows.push([`Hours: ${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used)}/h`, formatSGD(slip.basic_salary)])
-          } else {
-            rows.push(['Basic Salary', formatSGD(slip.basic_salary)])
-          }
-          if (slip.bonus_amount > 0) rows.push(['Bonus', formatSGD(slip.bonus_amount)])
-          rows.push(['Gross Salary', formatSGD(slip.gross_salary)])
-          rows.push(['', ''])
-          if (slip.is_cpf_liable && !slip.low_income_flag) {
-            rows.push([`Employee CPF (${slip.employee_cpf_rate}%)`, `- ${formatSGD(slip.employee_cpf_amount)}`])
-          } else {
-            rows.push(['CPF', slip.is_cpf_liable ? 'Exempt (low income)' : 'Not applicable'])
-          }
-          rows.push(['', ''])
-          rows.push(['Net Pay', formatSGD(slip.net_salary)])
-          const netPayIdx = rows.length - 1
-          autoTable(doc, {
-            startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE,
-            didParseCell: (data: any) => {
-              if (data.row.index === netPayIdx) {
-                data.cell.styles.fillColor = [234, 243, 222]
-                data.cell.styles.textColor = [39, 80, 10]
-                data.cell.styles.fontStyle = 'bold'
-              }
-            },
-          })
+          await renderPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips)
           folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
         }
 
-        // Load commission payouts — use correct column names (trainer_id, session_commissions_sgd)
-        const { data: commissions } = await supabase.from('commission_payouts')
-          .select('*').eq('user_id', staff.id)
-          .gte('period_start', `${archiveYear}-01-01`)
-          .lte('period_end', `${archiveYear}-12-31`)
-          .in('status', ['approved', 'paid']).order('period_start')
-
         for (const comm of commissions || []) {
           const doc = new jsPDF()
-          let yPos = await addLogoHeader(doc, logoUrl, 'COMMISSION PAYOUT')
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(10); doc.setTextColor(100)
-          doc.text(gymName, 14, yPos); yPos += 6
           const commMonth = parseInt((comm.period_start || '').split('-')[1] || '1')
           const commYear = parseInt((comm.period_start || '').split('-')[0] || '0')
-          doc.text(`${getMonthName(commMonth)} ${commYear}`, 14, yPos); yPos += 10
-          doc.setTextColor(0)
-          doc.text(staff.full_name as string, 14, yPos); yPos += 6
-
-          const commBodyRows: any[] = [
-            ['PT Signup Commission', formatSGD(comm.pt_signup_commission_sgd || 0)],
-            ['PT Session Commission', formatSGD(comm.pt_session_commission_sgd || 0)],
-            ['Membership Commission', formatSGD(comm.membership_commission_sgd || 0)],
-            ['', ''],
-            ['Gross Commission', formatSGD(comm.total_commission_sgd || 0)],
-            ['', ''],
-          ]
-          if (comm.is_cpf_liable && comm.employee_cpf_amount > 0) {
-            commBodyRows.push([`Employee CPF — AW (${comm.employee_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)})`, `- ${formatSGD(comm.employee_cpf_amount)}`])
-            commBodyRows.push([`Employer CPF — AW (${comm.employer_cpf_rate}% on ${formatSGD(comm.aw_subject_to_cpf)})`, formatSGD(comm.employer_cpf_amount)])
-            commBodyRows.push(['', ''])
-            commBodyRows.push(['Net commission (after employee CPF)', formatSGD(comm.net_commission_sgd ?? (comm.total_commission_sgd - comm.employee_cpf_amount))])
-          } else if (!comm.is_cpf_liable) {
-            commBodyRows.push(['CPF', 'Not applicable'])
-          }
-          const netCommIdx = commBodyRows.length - 1
-          autoTable(doc, {
-            startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: commBodyRows, ...PDF_TABLE_STYLE,
-            didParseCell: (data: any) => {
-              if (comm.is_cpf_liable && comm.employee_cpf_amount > 0 && data.row.index === netCommIdx) {
-                data.cell.styles.fillColor = [234, 243, 222]
-                data.cell.styles.textColor = [39, 80, 10]
-                data.cell.styles.fontStyle = 'bold'
-              }
-            },
-          })
+          await renderCommissionPdf(doc, autoTable, comm, staff, { logoUrl, gymName })
           folder!.file(`Commission-${staff.full_name}-${MONTHS[commMonth - 1]} ${commYear}.pdf`, doc.output('arraybuffer'))
         }
+
       }
 
       setArchiveProgress('Zipping files...')

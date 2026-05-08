@@ -1,11 +1,27 @@
 'use client'
 
 // ============================================================
-// Shared PDF helpers — used by payslip and commission PDF exports.
-// All functions are async-safe and browser-only (uses FileReader, Image).
+// src/lib/pdf.ts — Shared PDF helpers
+//
+// ARCHITECTURE NOTE — payroll PDF generation:
+// There are three places that generate payslip/commission PDFs:
+//
+//   hr/[id]/payroll/page.tsx   — biz-ops/manager: individual staff payslip
+//   my/payslips/page.tsx       — staff self-service: own payslip + commission
+//   payroll/page.tsx           — biz-ops bulk archive: all staff, zipped
+//
+// All three call renderPayslipPdf() and renderCommissionPdf() from this
+// file. Any layout change to the PDFs only needs to happen here.
+//
+// ROUTING INTENT:
+//   /hr/[id]/payroll  — per-person payroll, accessed via HR → Staff → person
+//   /payroll/*        — batch financial ops (bulk generate, commission, CPF)
+//   /my/payslips      — staff self-service (different audience: own records only)
 // ============================================================
 
-// Standard table style used across all payslip PDFs.
+import { formatSGD, getMonthName } from '@/lib/utils'
+
+// ── Standard table style ──────────────────────────────────────
 export const PDF_TABLE_STYLE = {
   styles: { fontSize: 10 },
   headStyles: { fillColor: [220, 38, 38] as [number, number, number] },
@@ -13,8 +29,6 @@ export const PDF_TABLE_STYLE = {
 }
 
 // ── loadLogoAsBase64 ─────────────────────────────────────────
-// Fetches a logo URL and converts it to a base64 data URL.
-// Returns null if the fetch or conversion fails.
 export async function loadLogoAsBase64(url: string): Promise<string | null> {
   try {
     const blob = await fetch(url).then(r => r.blob())
@@ -30,7 +44,6 @@ export async function loadLogoAsBase64(url: string): Promise<string | null> {
 }
 
 // ── getImageDimensions ───────────────────────────────────────
-// Returns natural width and height of a base64/URL image.
 export async function getImageDimensions(src: string): Promise<{ w: number; h: number }> {
   return new Promise(res => {
     const img = new Image()
@@ -41,10 +54,8 @@ export async function getImageDimensions(src: string): Promise<{ w: number; h: n
 }
 
 // ── addLogoHeader ────────────────────────────────────────────
-// Renders the gym logo + document title (e.g. 'PAYSLIP') in the
-// top-left of a jsPDF document. Supports rectangular logos at
-// natural aspect ratio (max 25mm tall, max 60mm wide).
-// Returns the Y position after the header block.
+// Renders gym logo + document title in top-left of a jsPDF document.
+// Returns Y position after the header block.
 export async function addLogoHeader(
   doc: any,
   logoUrl: string | null,
@@ -64,7 +75,7 @@ export async function addLogoHeader(
         doc.text(title, 14 + w + 4, 22)
         doc.setFont('helvetica', 'normal')
         return 38
-      } catch { /* fall through to no-logo path */ }
+      } catch { /* fall through */ }
     }
   }
   doc.setFontSize(fontSize); doc.setFont('helvetica', 'bold')
@@ -74,53 +85,216 @@ export async function addLogoHeader(
 }
 
 // ── resolvePayslipBranding ───────────────────────────────────
-// Resolves the logo URL and gym/company name for payslip PDFs
-// based on staff role:
-//   - business_ops  → group-level logo from app_settings
-//   - manager/staff → their assigned gym via manager_gym_id
-//   - trainer       → their primary gym via trainer_gyms
-// Returns { logoUrl, gymName, companyName }.
+// Resolves logo URL and gym name for a staff member's payslip.
 export async function resolvePayslipBranding(
   supabase: any,
   staffData: { role: string; manager_gym_id?: string | null; id: string }
 ): Promise<{ logoUrl: string | null; gymName: string; companyName: string }> {
   const { data: settings } = await supabase
-    .from('app_settings')
-    .select('payslip_logo_url, company_name')
-    .eq('id', 'global')
-    .single()
+    .from('app_settings').select('payslip_logo_url, company_name').eq('id', 'global').single()
   const companyName: string = settings?.company_name || 'Gym Operations'
 
-  if (staffData.role === 'business_ops') {
+  if (staffData.role === 'business_ops')
     return { logoUrl: settings?.payslip_logo_url || null, gymName: companyName, companyName }
-  }
 
   if (staffData.manager_gym_id) {
-    const { data: gym } = await supabase
-      .from('gyms')
-      .select('name, logo_url')
-      .eq('id', staffData.manager_gym_id)
-      .single()
-    return {
-      logoUrl: gym?.logo_url || null,
-      gymName: gym?.name || companyName,
-      companyName,
-    }
+    const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', staffData.manager_gym_id).single()
+    return { logoUrl: gym?.logo_url || null, gymName: gym?.name || companyName, companyName }
   }
 
   if (staffData.role === 'trainer' || staffData.role === 'staff') {
-    const { data: tg } = await supabase
-      .from('trainer_gyms')
-      .select('gyms(name, logo_url)')
-      .eq('trainer_id', staffData.id)
-      .eq('is_primary', true)
-      .single()
-    return {
-      logoUrl: (tg as any)?.gyms?.logo_url || null,
-      gymName: (tg as any)?.gyms?.name || companyName,
-      companyName,
-    }
+    const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name, logo_url)')
+      .eq('trainer_id', staffData.id).eq('is_primary', true).single()
+    return { logoUrl: (tg as any)?.gyms?.logo_url || null, gymName: (tg as any)?.gyms?.name || companyName, companyName }
   }
 
   return { logoUrl: null, gymName: companyName, companyName }
+}
+
+// ── renderPayslipPdf ──────────────────────────────────────────
+// Renders a complete payslip into a jsPDF document.
+// Called by all three payslip download paths.
+//
+// Parameters:
+//   doc        — jsPDF instance (caller imports jsPDF)
+//   autoTable  — jspdf-autotable (caller imports)
+//   slip       — payslip record from DB
+//   staff      — { full_name, employment_type, nric, date_of_joining }
+//   branding   — { logoUrl, gymName } from resolvePayslipBranding or gym map
+//   allSlips   — all payslips for this staff this year (YTD calc). Pass [] if unavailable.
+export async function renderPayslipPdf(
+  doc: any,
+  autoTable: any,
+  slip: any,
+  staff: { full_name: string; employment_type?: string | null; nric?: string | null; date_of_joining?: string | null },
+  branding: { logoUrl: string | null; gymName: string },
+  allSlips: any[] = []
+): Promise<void> {
+  const isPartTime = (slip.employment_type || staff.employment_type) === 'part_time'
+  let yPos = await addLogoHeader(doc, branding.logoUrl, 'PAYSLIP')
+
+  // ── Gym + period ─────────────────────────────────────────
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10); doc.setTextColor(100)
+  doc.text(branding.gymName, 14, yPos); yPos += 6
+  doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos); yPos += 10
+  doc.setTextColor(0)
+
+  // ── Employee section ──────────────────────────────────────
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+  doc.text('Employee', 14, yPos); yPos += 6
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(80)
+  doc.text(`Name: ${staff.full_name}`, 14, yPos); yPos += 6
+  doc.text(`Employment: ${isPartTime ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
+  if (staff.nric) { doc.text(`NRIC/FIN/Passport: ${staff.nric}`, 14, yPos); yPos += 6 }
+  if (staff.date_of_joining) { doc.text(`Date of Joining: ${staff.date_of_joining}`, 14, yPos); yPos += 6 }
+  doc.setTextColor(0); yPos += 4
+
+  // ── Earnings & CPF table ──────────────────────────────────
+  const rows: any[] = []
+  if (isPartTime && (slip.total_hours || 0) > 0) {
+    rows.push([`Hours Worked (${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used || 0)}/h)`, formatSGD(slip.basic_salary)])
+  } else {
+    rows.push(['Basic Salary', formatSGD(slip.basic_salary)])
+  }
+  if (slip.bonus_amount > 0) rows.push(['Bonus', formatSGD(slip.bonus_amount)])
+  rows.push(['Gross Salary', formatSGD(slip.gross_salary)])
+  rows.push(['', ''])
+  if (slip.is_cpf_liable) {
+    if (slip.low_income_flag) {
+      rows.push(['CPF', 'Exempt (low income threshold)'])
+    } else {
+      rows.push([`Employee CPF (${slip.employee_cpf_rate}%)`, `- ${formatSGD(slip.employee_cpf_amount)}`])
+      rows.push([`Employer CPF (${slip.employer_cpf_rate}%)`, formatSGD(slip.employer_cpf_amount)])
+    }
+  } else {
+    rows.push(['CPF', 'Not applicable'])
+  }
+  rows.push(['', ''])
+  rows.push(['Net Pay', formatSGD(slip.net_salary)])
+  const netPayIdx = rows.length - 1
+
+  autoTable(doc, {
+    startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE,
+    didParseCell: (data: any) => {
+      if (data.row.index === netPayIdx) {
+        data.cell.styles.fillColor = [234, 243, 222]
+        data.cell.styles.textColor = [39, 80, 10]
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
+  })
+
+  // ── Status ────────────────────────────────────────────────
+  const fy = (doc as any).lastAutoTable.finalY + 8
+  doc.setFontSize(10); doc.setTextColor(0)
+  doc.text(`Status: ${slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}`, 14, fy)
+  if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, fy + 6)
+
+  // ── YTD summary ───────────────────────────────────────────
+  const ytdY = fy + 22
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(0)
+  doc.text(`Year to Date (Jan – ${getMonthName(slip.month)} ${slip.year})`, 14, ytdY)
+  doc.setFont('helvetica', 'normal')
+
+  const ytdSlips = allSlips.filter((p: any) =>
+    p.year === slip.year && p.month <= slip.month && ['approved', 'paid'].includes(p.status)
+  )
+  const ytd = ytdSlips.reduce((acc: any, s: any) => ({
+    gross:  acc.gross  + (s.gross_salary || 0),
+    bonus:  acc.bonus  + (s.bonus_amount || 0),
+    empCpf: acc.empCpf + (s.employee_cpf_amount || 0),
+    erCpf:  acc.erCpf  + (s.employer_cpf_amount || 0),
+  }), { gross: 0, bonus: 0, empCpf: 0, erCpf: 0 })
+
+  autoTable(doc, {
+    startY: ytdY + 4,
+    head: [['', 'Amount (SGD)']],
+    body: [
+      ['Gross Salary', formatSGD(ytd.gross)],
+      ['Bonus', formatSGD(ytd.bonus)],
+      ['Employee CPF', formatSGD(ytd.empCpf)],
+      ['Employer CPF', formatSGD(ytd.erCpf)],
+    ],
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [100, 100, 100] },
+    columnStyles: { 1: { halign: 'right' } },
+  })
+}
+
+// ── renderCommissionPdf ───────────────────────────────────────
+// Renders a complete commission statement into a jsPDF document.
+// Called by all commission download paths.
+//
+// Parameters:
+//   doc       — jsPDF instance
+//   autoTable — jspdf-autotable
+//   payout    — commission_payout record from DB
+//   staff     — { full_name, employment_type, nric, date_of_joining }
+//   branding  — { logoUrl, gymName }
+export async function renderCommissionPdf(
+  doc: any,
+  autoTable: any,
+  payout: any,
+  staff: { full_name: string; employment_type?: string | null; nric?: string | null; date_of_joining?: string | null },
+  branding: { logoUrl: string | null; gymName: string }
+): Promise<void> {
+  let yPos = await addLogoHeader(doc, branding.logoUrl, 'COMMISSION STATEMENT', 16)
+
+  // ── Gym + period ─────────────────────────────────────────
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10); doc.setTextColor(100)
+  doc.text(branding.gymName, 14, yPos); yPos += 6
+  doc.text(`Period: ${payout.period_start} to ${payout.period_end}`, 14, yPos); yPos += 10
+  doc.setTextColor(0)
+
+  // ── Employee section ──────────────────────────────────────
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+  doc.text('Employee', 14, yPos); yPos += 6
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(80)
+  doc.text(`Name: ${staff.full_name}`, 14, yPos); yPos += 6
+  doc.text(`Employment: ${staff.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
+  if (staff.nric) { doc.text(`NRIC/FIN/Passport: ${staff.nric}`, 14, yPos); yPos += 6 }
+  if (staff.date_of_joining) { doc.text(`Date of Joining: ${staff.date_of_joining}`, 14, yPos); yPos += 6 }
+  doc.setTextColor(0); yPos += 4
+
+  // ── Commission table ──────────────────────────────────────
+  const cpfBody: any[] = [
+    ['PT Package Sign-up Commissions', payout.pt_signups_count || 0, formatSGD(payout.pt_signup_commission_sgd)],
+    ['PT Session Commissions', payout.pt_sessions_count || 0, formatSGD(payout.pt_session_commission_sgd)],
+    ['Membership Sale Commissions', payout.membership_sales_count || 0, formatSGD(payout.membership_commission_sgd)],
+    ['', '', ''],
+    ['Gross Commission', '', formatSGD(payout.total_commission_sgd)],
+    ['', '', ''],
+  ]
+  if (payout.is_cpf_liable && payout.employee_cpf_amount > 0) {
+    cpfBody.push([`Employee CPF (${payout.employee_cpf_rate}%)`, '', `- ${formatSGD(payout.employee_cpf_amount)}`])
+    cpfBody.push([`Employer CPF (${payout.employer_cpf_rate}%)`, '', formatSGD(payout.employer_cpf_amount)])
+    cpfBody.push(['', '', ''])
+    cpfBody.push(['Net Commission', '', formatSGD(payout.net_commission_sgd ?? (payout.total_commission_sgd - payout.employee_cpf_amount))])
+  } else if (!payout.is_cpf_liable) {
+    cpfBody.push(['CPF', '', 'Not applicable'])
+  }
+  const netCommRowIdx = cpfBody.length - 1
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Description', 'Count', 'Amount (SGD)']],
+    body: cpfBody,
+    ...PDF_TABLE_STYLE,
+    columnStyles: { 1: { halign: 'center' as const }, 2: { halign: 'right' as const, fontStyle: 'bold' as const } },
+    didParseCell: (data: any) => {
+      if (payout.is_cpf_liable && payout.employee_cpf_amount > 0 && data.row.index === netCommRowIdx) {
+        data.cell.styles.fillColor = [234, 243, 222]
+        data.cell.styles.textColor = [39, 80, 10]
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
+  })
+
+  // ── Status ────────────────────────────────────────────────
+  const finalY = (doc as any).lastAutoTable.finalY + 8
+  doc.setFontSize(10); doc.setTextColor(0)
+  doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, finalY)
+  if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
 }
