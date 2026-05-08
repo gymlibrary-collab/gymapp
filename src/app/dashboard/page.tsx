@@ -164,7 +164,7 @@ function BizOpsGymTabs() {
           .select('id', { count: 'exact', head: true }).eq('gym_id', g.id).eq('sale_status', 'pending')
         const { count: pendingSessions } = await supabase.from('sessions')
           .select('id', { count: 'exact', head: true })
-          .eq('gym_id', g.id).eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
+          .eq('gym_id', g.id).eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', false)
         const { data: lowPkgs } = await supabase.from('packages')
           .select('package_name, sessions_used, total_sessions, member:members(full_name)')
           .eq('gym_id', g.id).eq('status', 'active').filter('total_sessions - sessions_used', 'lte', 3).limit(5)
@@ -242,7 +242,7 @@ function BizOpsGymTabs() {
 
       // Sequential awaits — no Promise.all with Supabase
       let sessQ = supabase.from('sessions').select('session_commission_sgd')
-        .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
         .gte('marked_complete_at', bizCommPeriodStart).lte('marked_complete_at', bizCommPeriodEnd)
       if (gymFilter) sessQ = sessQ.eq('gym_id', gymFilter)
       const sessData = await sessQ
@@ -281,7 +281,7 @@ function BizOpsGymTabs() {
     // Sequential awaits — no Promise.all with Supabase
     let sessQ = supabase.from('sessions')
       .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name), gym_id')
-      .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+      .eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
       .gte('marked_complete_at', bizCommPeriodStart).lte('marked_complete_at', bizCommPeriodEnd)
     if (gymId) sessQ = sessQ.eq('gym_id', gymId)
     const sessData = await sessQ
@@ -1049,7 +1049,7 @@ export default function DashboardPage() {
         // Pending session confirmations
         const { count: sessPending } = await supabase.from('sessions')
           .select('id', { count: 'exact', head: true })
-          .eq('gym_id', gymId).eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
+          .eq('gym_id', gymId).eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', false)
         setPendingSessions(sessPending || 0)
 
         // Packages with ≤3 sessions remaining
@@ -1275,7 +1275,7 @@ export default function DashboardPage() {
       const { data: sessSales } = await supabase.from('sessions')
         .select('session_commission_sgd')
         .eq('trainer_id', authUser.id).eq('status', 'completed')
-        .eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
         .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
       sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
 
@@ -1310,7 +1310,7 @@ export default function DashboardPage() {
       const { data: sessSales } = await supabase.from('sessions')
         .select('session_commission_sgd')
         .eq('gym_id', gymId).eq('status', 'completed')
-        .eq('is_notes_complete', true).eq('manager_confirmed', true)
+        .not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
         .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
       sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
 
@@ -1366,7 +1366,7 @@ export default function DashboardPage() {
     // Sequential awaits — no Promise.all with Supabase
     let sessQ = supabase.from('sessions')
       .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name), gym_id')
-      .eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', true)
+      .eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
       .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
     if (gymId) sessQ = sessQ.eq('gym_id', gymId)
     const sessData = await sessQ
