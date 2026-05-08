@@ -232,7 +232,9 @@ export async function renderPayslipPdf(
     ? `Gross Commission (Jan – ${getMonthName(slip.month - 1)})`
     : 'Gross Commission'
 
-  const totalGross  = ytdSalary.gross + ytdSalary.bonus + ytdComm.gross
+  // gross_salary in DB already includes bonus (basic_salary + bonus_amount)
+  // so totalGross = ytdSalary.gross (salary+bonus) + ytdComm.gross — no double-count
+  const totalGross  = ytdSalary.gross + ytdComm.gross
   const totalEmpCpf = ytdSalary.empCpf + ytdComm.empCpf
   const totalErCpf  = ytdSalary.erCpf  + ytdComm.erCpf
 
@@ -240,12 +242,12 @@ export async function renderPayslipPdf(
     ['Gross Salary', formatSGD(ytdSalary.gross)],
     ['Bonus', formatSGD(ytdSalary.bonus)],
     [commLabel, formatSGD(ytdComm.gross)],
+    ['Total Gross (Salary + Bonus + Commission)', formatSGD(totalGross)],
     ['', ''],
-    ['Total Gross (Salary + Commission)', formatSGD(totalGross)],
     ['Employee CPF', formatSGD(totalEmpCpf)],
     ['Employer CPF', formatSGD(totalErCpf)],
   ]
-  const totalGrossRowIdx = ytdBody.findIndex(r => r[0] === 'Total Gross (Salary + Commission)')
+  const totalGrossRowIdx = ytdBody.findIndex(r => r[0] === 'Total Gross (Salary + Bonus + Commission)')
   autoTable(doc, {
     startY: ytdY + 4,
     head: [['', 'Amount (SGD)']],
