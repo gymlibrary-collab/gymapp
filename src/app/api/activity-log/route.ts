@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/db-server'
+import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
 
 // Admin client — bypasses RLS for writing logs
 const adminClient = createAdminClient()
@@ -58,6 +58,13 @@ function getClientIp(req: NextRequest): string {
 
 export async function POST(req: NextRequest) {
   try {
+    // Verify the caller is an authenticated session — prevents anonymous log pollution
+    const serverClient = createSupabaseServerClient()
+    const { data: { user: authUser } } = await serverClient.auth.getUser()
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await req.json()
     const { user_id, user_name, role, action_type, page, description } = body
 

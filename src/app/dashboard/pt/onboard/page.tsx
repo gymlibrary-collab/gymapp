@@ -12,7 +12,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtOnboardPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops'] })
   if (!user) return null
 
   const { logActivity } = useActivityLog()
