@@ -12,7 +12,7 @@ import { validatePhone, validateFullName, validateMembershipNumber, validateAll 
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function RegisterMemberPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff', 'trainer'] })
 
   const { logActivity } = useActivityLog()
   const [step, setStep] = useState<'member' | 'membership'>('member')
@@ -53,10 +53,21 @@ export default function RegisterMemberPage() {
 
       // Auto-detect gym — no dropdown for full-time staff/trainer/manager
       if (user?.manager_gym_id) {
-        // Full-time: use assigned gym
+        // Manager/staff: use assigned gym
         const gym = gymsData?.find((g: any) => g.id === user!.manager_gym_id)
         setMemberForm(f => ({ ...f, gym_id: user!.manager_gym_id ?? '' }))
         setGymName(gym?.name || '')
+      } else if (user?.role === 'trainer') {
+        // Trainer: use primary gym from trainer_gyms
+        const { data: tg } = await supabase.from('trainer_gyms')
+          .select('gym_id, gyms(name)')
+          .eq('trainer_id', authUser!.id)
+          .eq('is_primary', true)
+          .single()
+        if (tg?.gym_id) {
+          setMemberForm(f => ({ ...f, gym_id: tg.gym_id }))
+          setGymName((tg.gyms as any)?.name || '')
+        }
       } else if (user?.employment_type === 'part_time') {
         // Part-timer: look up today's or next upcoming roster shift
         const today = new Date().toISOString().split('T')[0]
@@ -80,7 +91,8 @@ export default function RegisterMemberPage() {
     load()
   }, [])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
