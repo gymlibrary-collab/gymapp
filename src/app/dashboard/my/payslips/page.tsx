@@ -52,10 +52,12 @@ export default function MyPayslipsPage() {
       }).eq('id', user!.id)
 
       // Load commission payouts — approved and paid only (drafts not visible to staff)
+      const commYearFrom = `${(new Date().getFullYear() - 1)}-01-01`
       const { data: payouts } = await supabase.from('commission_payouts')
         .select('*, gym:gyms(name)')
         .eq('user_id', user!.id)
         .in('status', ['approved', 'paid'])
+        .gte('period_start', commYearFrom)
         .order('period_end', { ascending: false })
         .limit(13)
       setCommissionPayouts(payouts || [])
@@ -72,7 +74,7 @@ export default function MyPayslipsPage() {
     const doc = new jsPDF()
     const gym = slip.gym_id ? gymsMap[slip.gym_id] : null
     const branding = { logoUrl: gym?.logo_url || null, gymName: gym?.name || 'Gym Library' }
-    await renderPayslipPdf(doc, autoTable, slip, user!, branding, payslips)
+    await renderPayslipPdf(doc, autoTable, slip, user!, branding, payslips, commissionPayouts)
     doc.save(`Payslip-${user?.full_name}-${getMonthName(slip.month)} ${slip.year}.pdf`)
     logActivity('export', 'My Payslips', `Downloaded payslip PDF — ${getMonthName(slip.month)} ${slip.year}`)
   }

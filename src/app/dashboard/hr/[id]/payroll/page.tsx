@@ -29,6 +29,7 @@ export default function StaffPayrollDetailPage() {
   const [salaryHistory, setSalaryHistory] = useState<any[]>([])
   const [bonuses, setBonuses] = useState<any[]>([])
   const [payslips, setPayslips] = useState<any[]>([])
+  const [commissionPayouts, setCommissionPayouts] = useState<any[]>([])
   const [rosterSummary, setRosterSummary] = useState<any[]>([])
   const [cpfRates, setCpfRates] = useState<any>(null)
   const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({ logoUrl: null, companyName: 'Gym Operations', gymName: 'Gym Operations' })
@@ -81,8 +82,12 @@ export default function StaffPayrollDetailPage() {
     const { data: bonusData } = await supabase.from('staff_bonuses').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false })
     setBonuses(bonusData || [])
 
-    const { data: slipData } = await supabase.from('payslips').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false }).limit(13)
+    const { data: slipData } = await supabase.from('payslips').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false }).limit(26)
     setPayslips(slipData || [])
+
+    const payoutYearFrom = `${(new Date().getFullYear() - 1)}-01-01`
+    const { data: payoutData } = await supabase.from('commission_payouts').select('*').eq('user_id', id).gte('period_start', payoutYearFrom).order('period_start', { ascending: false })
+    setCommissionPayouts(payoutData || [])
 
     // For part-timers: load last 3 months roster summary
     if (staffData?.employment_type === 'part_time') {
@@ -415,8 +420,9 @@ export default function StaffPayrollDetailPage() {
     const { default: jsPDF } = await import('jspdf')
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
-    await renderPayslipPdf(doc, autoTable, slip, staff!, payslipBranding, payslips)
+    await renderPayslipPdf(doc, autoTable, slip, staff!, payslipBranding, payslips, commissionPayouts)
     doc.save(`Payslip-${staff?.full_name}-${getMonthName(slip.month)} ${slip.year}.pdf`)
+    logActivity('export', 'Staff Payroll', `Downloaded payslip PDF — ${staff?.full_name} ${getMonthName(slip.month)} ${slip.year}`)
   }
 
   if (!staff) return <div className="card p-8 text-center"><p className="text-gray-500">Staff not found</p></div>

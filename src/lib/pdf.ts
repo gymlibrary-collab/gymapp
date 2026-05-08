@@ -128,7 +128,8 @@ export async function renderPayslipPdf(
   slip: any,
   staff: { full_name: string; employment_type?: string | null; nric?: string | null; date_of_joining?: string | null },
   branding: { logoUrl: string | null; gymName: string },
-  allSlips: any[] = []
+  allSlips: any[] = [],
+  allPayouts: any[] = []
 ): Promise<void> {
   const isPartTime = (slip.employment_type || staff.employment_type) === 'part_time'
   let yPos = await addLogoHeader(doc, branding.logoUrl, 'PAYSLIP')
@@ -192,6 +193,10 @@ export async function renderPayslipPdf(
   if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, fy + 6)
 
   // ── YTD summary ───────────────────────────────────────────
+  // Salary: Jan–[month] same year, status approved/paid
+  // Commission: Jan–[month-1] same year, status approved/paid
+  //   (commission for month M is paid in month M+1, so excluded from same month)
+  //   January edge case: no prior month in same year → commission = $0
   const ytdY = fy + 22
   doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(0)
   doc.text(`Year to Date (Jan – ${getMonthName(slip.month)} ${slip.year})`, 14, ytdY)
@@ -200,25 +205,59 @@ export async function renderPayslipPdf(
   const ytdSlips = allSlips.filter((p: any) =>
     p.year === slip.year && p.month <= slip.month && ['approved', 'paid'].includes(p.status)
   )
-  const ytd = ytdSlips.reduce((acc: any, s: any) => ({
+  const ytdSalary = ytdSlips.reduce((acc: any, s: any) => ({
     gross:  acc.gross  + (s.gross_salary || 0),
     bonus:  acc.bonus  + (s.bonus_amount || 0),
     empCpf: acc.empCpf + (s.employee_cpf_amount || 0),
     erCpf:  acc.erCpf  + (s.employer_cpf_amount || 0),
   }), { gross: 0, bonus: 0, empCpf: 0, erCpf: 0 })
 
+  // Commission YTD: period_start year = payslip year, month(period_start) < payslip month
+  // January payslip → no prior month in same year → commission = $0
+  const ytdPayouts = slip.month > 1
+    ? allPayouts.filter((p: any) => {
+        const pMonth = parseInt((p.period_start || '').split('-')[1] || '0')
+        const pYear  = parseInt((p.period_start || '').split('-')[0] || '0')
+        return pYear === slip.year && pMonth < slip.month && ['approved', 'paid'].includes(p.status)
+      })
+    : []
+  const ytdComm = ytdPayouts.reduce((acc: any, p: any) => ({
+    gross:  acc.gross  + (p.total_commission_sgd || 0),
+    empCpf: acc.empCpf + (p.employee_cpf_amount || 0),
+    erCpf:  acc.erCpf  + (p.employer_cpf_amount || 0),
+  }), { gross: 0, empCpf: 0, erCpf: 0 })
+
+  // Commission label: shows the range it covers e.g. "Jan – Apr" for a May payslip
+  const commLabel = slip.month > 1
+    ? `Gross Commission (Jan – ${getMonthName(slip.month - 1)})`
+    : 'Gross Commission'
+
+  const totalGross  = ytdSalary.gross + ytdSalary.bonus + ytdComm.gross
+  const totalEmpCpf = ytdSalary.empCpf + ytdComm.empCpf
+  const totalErCpf  = ytdSalary.erCpf  + ytdComm.erCpf
+
+  const ytdBody = [
+    ['Gross Salary', formatSGD(ytdSalary.gross)],
+    ['Bonus', formatSGD(ytdSalary.bonus)],
+    [commLabel, formatSGD(ytdComm.gross)],
+    ['', ''],
+    ['Total Gross (Salary + Commission)', formatSGD(totalGross)],
+    ['Employee CPF', formatSGD(totalEmpCpf)],
+    ['Employer CPF', formatSGD(totalErCpf)],
+  ]
+  const totalGrossRowIdx = ytdBody.findIndex(r => r[0] === 'Total Gross (Salary + Commission)')
   autoTable(doc, {
     startY: ytdY + 4,
     head: [['', 'Amount (SGD)']],
-    body: [
-      ['Gross Salary', formatSGD(ytd.gross)],
-      ['Bonus', formatSGD(ytd.bonus)],
-      ['Employee CPF', formatSGD(ytd.empCpf)],
-      ['Employer CPF', formatSGD(ytd.erCpf)],
-    ],
+    body: ytdBody,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [100, 100, 100] },
     columnStyles: { 1: { halign: 'right' } },
+    didParseCell: (data: any) => {
+      if (data.row.index === totalGrossRowIdx) {
+        data.cell.styles.fontStyle = 'bold'
+      }
+    },
   })
 }
 

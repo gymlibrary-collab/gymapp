@@ -323,18 +323,18 @@ export default function PayrollPage() {
           .select('*').eq('user_id', staff.id).eq('year', archiveYear)
           .in('status', ['approved', 'paid']).order('month')
 
-        for (const slip of payslips || []) {
-          const doc = new jsPDF()
-          await renderPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips || [])
-          folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
-        }
-
-        // Load commission payouts for this staff member
+        // Load commissions before payslip PDFs — needed for YTD table in payslip
         const { data: commissions } = await supabase.from('commission_payouts')
           .select('*').eq('user_id', staff.id)
           .gte('period_start', `${archiveYear}-01-01`)
           .lte('period_end', `${archiveYear}-12-31`)
           .in('status', ['approved', 'paid']).order('period_start')
+
+        for (const slip of payslips || []) {
+          const doc = new jsPDF()
+          await renderPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips || [], commissions || [])
+          folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
+        }
 
         for (const comm of commissions || []) {
           const doc = new jsPDF()
