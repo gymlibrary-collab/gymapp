@@ -122,7 +122,6 @@ export default function PtSessionNotesPage() {
 
     await supabase.from('sessions').update({
       performance_notes: notes,
-      is_notes_complete: true,
       is_last_session: isLastSession(),
       renewal_status: renewalStatus || null,
       non_renewal_reason: finalReason() || null,
@@ -261,7 +260,7 @@ export default function PtSessionNotesPage() {
         </div>
       )}
 
-      {!locked && session.is_notes_complete && isOwnSession && !isManagerView && (
+      {!locked && !!session.notes_submitted_at && isOwnSession && !isManagerView && (
         <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
           <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -273,7 +272,7 @@ export default function PtSessionNotesPage() {
         </div>
       )}
 
-      {!session.is_notes_complete && isOwnSession && !isManagerView && !locked && (
+      {!session.notes_submitted_at && isOwnSession && !isManagerView && !locked && (
         <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
           <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
           <p className="text-sm text-amber-700">
@@ -402,7 +401,7 @@ export default function PtSessionNotesPage() {
               <button type="submit" disabled={loading}
                 className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
                 <Save className="w-4 h-4" />
-                {loading ? 'Submitting...' : session.is_notes_complete
+                {loading ? 'Submitting...' : !!session.notes_submitted_at
                   ? `Save Edits (${Math.ceil(minutesRemaining)} min left)`
                   : 'Submit Notes for Manager Confirmation'}
               </button>
