@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/db-server'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
@@ -51,34 +52,16 @@ export async function GET(request: Request) {
 
   const user = data.session.user
 
-  // Create a new client using the access_token from the just-established session.
-  // This guarantees auth.uid() = user.id for the users_read_own RLS policy.
-  // The original supabase client above may not have the new session token available
-  // for subsequent queries since cookies are set on the response, not the request.
-  const { createClient } = await import('@supabase/supabase-js')
-  const sessionClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: { Authorization: `Bearer ${data.session.access_token}` }
-      },
-      auth: { autoRefreshToken: false, persistSession: false }
-    }
-  )
+  // Use admin client for users lookup — bypasses RLS entirely
+  const adminClient = createAdminClient()
 
-  const { data: userRecord, error: userError } = await sessionClient
+  const { data: userRecord } = await adminClient
     .from('users')
     .select('id, is_archived, is_active')
     .eq('id', user.id)
     .single()
 
-  if (userError) {
-    console.error('Auth callback — users query error:', JSON.stringify(userError))
-  }
-
   if (!userRecord) {
-    console.error('Auth callback — no userRecord for uid:', user.id, 'error:', userError?.message)
     await supabase.auth.signOut()
     return NextResponse.redirect(`${origin}/?error=not_authorised`)
   }
