@@ -1134,17 +1134,19 @@ export default function DashboardPage() {
               return acc
             }, []) || []
 
-          // Fetch non-renewal reason from last session notes for each at-risk member
-          const atRiskWithReason: any[] = []
-          for (const p of atRisk) {
-            const { data: lastSession } = await supabase.from('sessions')
-              .select('renewal_status, non_renewal_reason')
-              .eq('package_id', p.id)
-              .not('renewal_status', 'is', null)
-              .order('scheduled_at', { ascending: false })
-              .limit(1).single()
-            atRiskWithReason.push({ ...p, renewal_status: lastSession?.renewal_status, non_renewal_reason: lastSession?.non_renewal_reason })
-          }
+          // Fetch non-renewal reasons in one bulk query instead of N queries
+          const atRiskPkgIds = atRisk.map((p: any) => p.id)
+          const { data: atRiskSessions } = await supabase.from('sessions')
+            .select('package_id, renewal_status, non_renewal_reason, scheduled_at')
+            .in('package_id', atRiskPkgIds)
+            .not('renewal_status', 'is', null)
+            .order('scheduled_at', { ascending: false })
+
+          const atRiskWithReason = atRisk.map((p: any) => {
+            // Find the most recent session with a renewal_status for this package
+            const lastSession = atRiskSessions?.find((s: any) => s.package_id === p.id)
+            return { ...p, renewal_status: lastSession?.renewal_status, non_renewal_reason: lastSession?.non_renewal_reason }
+          })
           setAtRiskMembers(atRiskWithReason)
         }
 
