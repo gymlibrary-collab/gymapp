@@ -329,6 +329,13 @@ export default function PayrollPage() {
           folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
         }
 
+        // Load commission payouts for this staff member
+        const { data: commissions } = await supabase.from('commission_payouts')
+          .select('*').eq('user_id', staff.id)
+          .gte('period_start', `${archiveYear}-01-01`)
+          .lte('period_end', `${archiveYear}-12-31`)
+          .in('status', ['approved', 'paid']).order('period_start')
+
         for (const comm of commissions || []) {
           const doc = new jsPDF()
           const commMonth = parseInt((comm.period_start || '').split('-')[1] || '1')
