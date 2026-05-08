@@ -46,7 +46,8 @@ export default function TrainerCapacityPage() {
     const { data: trainerData } = await trainerQ.order('full_name')
 
     // For each trainer, get session counts
-    const enriched = await Promise.all((trainerData || []).map(async (t: any) => {
+    const enriched: any[] = []
+    for (const t of (trainerData || [])) {
       // This week: scheduled sessions
       const { count: weekScheduled } = await supabase.from('sessions')
         .select('id', { count: 'exact', head: true })
@@ -82,13 +83,13 @@ export default function TrainerCapacityPage() {
       const monthTarget = t.monthly_session_target || 80
       const monthPct = Math.min(Math.round((monthCompleted || 0) / monthTarget * 100), 100)
 
-      return {
+      enriched.push({
         ...t, weekScheduled: weekScheduled || 0, weekCompleted: weekCompleted || 0,
         weekTotal, weekMax, weekPct,
         monthCompleted: monthCompleted || 0, monthCancelled: monthCancelled || 0,
         monthTarget, monthPct, activePackages: activePackages || 0,
-      }
-    }))
+      })
+    }
 
     setTrainers(enriched)
   }

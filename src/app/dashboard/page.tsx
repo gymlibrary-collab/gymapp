@@ -155,7 +155,8 @@ function BizOpsGymTabs() {
     const load = async () => {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
-      const enriched = await Promise.all((gymsData || []).map(async (g: any) => {
+      const enriched: any[] = []
+      for (const g of (gymsData || [])) {
         // Activity
         const { data: todaySessions } = await supabase.from('sessions')
           .select('scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
@@ -209,7 +210,7 @@ function BizOpsGymTabs() {
 
         const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0) + filteredExpiringMems.length
 
-        return {
+        enriched.push({
           ...g,
           todaySessions: todaySessions || [],
           pendingMemberships: pendingMemberships || 0,
@@ -223,8 +224,8 @@ function BizOpsGymTabs() {
           membershipRevenue: memSales?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0,
           sessionsCount: sessions?.length || 0,
           commissionPayout: payouts?.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0) || 0,
-        }
-      }))
+        })
+      }
 
       setGyms(enriched)
       // Auto-select gym with most alerts, or first gym
@@ -1141,15 +1142,16 @@ export default function DashboardPage() {
             }, []) || []
 
           // Fetch non-renewal reason from last session notes for each at-risk member
-          const atRiskWithReason = await Promise.all(atRisk.map(async (p: any) => {
+          const atRiskWithReason: any[] = []
+          for (const p of atRisk) {
             const { data: lastSession } = await supabase.from('sessions')
               .select('renewal_status, non_renewal_reason')
               .eq('package_id', p.id)
               .not('renewal_status', 'is', null)
               .order('scheduled_at', { ascending: false })
               .limit(1).single()
-            return { ...p, renewal_status: lastSession?.renewal_status, non_renewal_reason: lastSession?.non_renewal_reason }
-          }))
+            atRiskWithReason.push({ ...p, renewal_status: lastSession?.renewal_status, non_renewal_reason: lastSession?.non_renewal_reason })
+          }
           setAtRiskMembers(atRiskWithReason)
         }
 
