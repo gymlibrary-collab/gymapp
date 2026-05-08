@@ -416,20 +416,30 @@ export default function StaffPayrollDetailPage() {
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
     const isPartTime = slip.employment_type === 'part_time'
-    // Resolve gym logo from payslipBranding
+
     let yPos = await addLogoHeader(doc, payslipBranding.logoUrl, 'PAYSLIP')
 
+    // ── Gym + period ─────────────────────────────────────────
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10); doc.setTextColor(100)
     doc.text(payslipBranding.gymName, 14, yPos); yPos += 6
     doc.text(`${getMonthName(slip.month)} ${slip.year}`, 14, yPos); yPos += 10
     doc.setTextColor(0)
-    doc.text(`${staff?.full_name} · ${isPartTime ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
-    if (staff?.nric) { doc.text(`NRIC: ${staff.nric}`, 14, yPos); yPos += 6 }
 
+    // ── Employee section ──────────────────────────────────────
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+    doc.text('Employee', 14, yPos); yPos += 6
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(80)
+    doc.text(`Name: ${staff?.full_name}`, 14, yPos); yPos += 6
+    doc.text(`Employment: ${isPartTime ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
+    if (staff?.nric) { doc.text(`NRIC/FIN/Passport: ${staff.nric}`, 14, yPos); yPos += 6 }
+    if (staff?.date_of_joining) { doc.text(`Date of Joining: ${staff.date_of_joining}`, 14, yPos); yPos += 6 }
+    doc.setTextColor(0); yPos += 4
+
+    // ── Earnings & CPF table ──────────────────────────────────
     const rows: any[] = []
     if (isPartTime && slip.total_hours > 0) {
-      rows.push([`Hours Worked: ${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used)}/h`, formatSGD(slip.basic_salary)])
+      rows.push([`Hours Worked (${slip.total_hours}h @ ${formatSGD(slip.hourly_rate_used)}/h)`, formatSGD(slip.basic_salary)])
     } else {
       rows.push(['Basic Salary', formatSGD(slip.basic_salary)])
     }
@@ -440,26 +450,63 @@ export default function StaffPayrollDetailPage() {
       if (slip.low_income_flag) {
         rows.push(['CPF', 'Exempt (low income threshold)'])
       } else {
-        rows.push([`Employee CPF - OW (${slip.employee_cpf_rate}% on ${formatSGD(slip.capped_ow ?? slip.basic_salary)})`, `- ${formatSGD(slip.employee_cpf_amount - (slip.employee_cpf_aw || 0))}`])
-        if ((slip.aw_subject_to_cpf || 0) > 0) {
-          rows.push([`Employee CPF - Bonus AW (${slip.employee_cpf_rate}% on ${formatSGD(slip.aw_subject_to_cpf)})`, `- ${formatSGD(slip.employee_cpf_aw || 0)}`])
-        }
-        if (slip.cpf_adjustment_amount && slip.cpf_adjustment_amount !== 0) {
-          rows.push([`Year-End CPF Adjustment`, `${slip.cpf_adjustment_amount > 0 ? '+' : ''}${formatSGD(slip.cpf_adjustment_amount)}`])
-        }
+        rows.push([`Employee CPF (${slip.employee_cpf_rate}%)`, `- ${formatSGD(slip.employee_cpf_amount)}`])
+        rows.push([`Employer CPF (${slip.employer_cpf_rate}%)`, formatSGD(slip.employer_cpf_amount)])
       }
-    } else rows.push(['CPF', 'Not applicable'])
+    } else {
+      rows.push(['CPF', 'Not applicable'])
+    }
     rows.push(['', ''])
     rows.push(['Net Pay', formatSGD(slip.net_salary)])
+    const netPayIdx = rows.length - 1
 
-    autoTable(doc, { startY: yPos + 2, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE })
+    autoTable(doc, {
+      startY: yPos, head: [['Description', 'Amount (SGD)']], body: rows, ...PDF_TABLE_STYLE,
+      didParseCell: (data: any) => {
+        if (data.row.index === netPayIdx) {
+          data.cell.styles.fillColor = [234, 243, 222]
+          data.cell.styles.textColor = [39, 80, 10]
+          data.cell.styles.fontStyle = 'bold'
+        }
+      },
+    })
+
+    // ── Status ────────────────────────────────────────────────
     const fy = (doc as any).lastAutoTable.finalY + 8
-    if (slip.is_cpf_liable && !slip.low_income_flag) {
-      doc.setFontSize(9); doc.setTextColor(100)
-      const erLine = `Employer CPF (${slip.employer_cpf_rate}%): ${formatSGD(slip.employer_cpf_amount)}` +
-        ((slip.aw_subject_to_cpf || 0) > 0 ? ` (OW: ${formatSGD(slip.employer_cpf_amount - (slip.employer_cpf_aw||0))} + Bonus AW: ${formatSGD(slip.employer_cpf_aw||0)})` : '')
-      doc.text(erLine, 14, fy)
-    }
+    doc.setFontSize(10); doc.setTextColor(0)
+    doc.text(`Status: ${slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}`, 14, fy)
+    if (slip.paid_at) doc.text(`Paid on: ${new Date(slip.paid_at).toLocaleDateString('en-SG')}`, 14, fy + 6)
+
+    // ── YTD summary (same calendar year, up to this month) ────
+    const ytdY = fy + 22
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(0)
+    doc.text(`Year to Date (Jan – ${getMonthName(slip.month)} ${slip.year})`, 14, ytdY)
+    doc.setFont('helvetica', 'normal')
+
+    const ytdSlips = (payslips || []).filter((p: any) =>
+      p.year === slip.year && p.month <= slip.month && ['approved', 'paid'].includes(p.status)
+    )
+    const ytd = ytdSlips.reduce((acc: any, s: any) => ({
+      gross:   acc.gross  + (s.gross_salary || 0),
+      bonus:   acc.bonus  + (s.bonus_amount || 0),
+      empCpf:  acc.empCpf + (s.employee_cpf_amount || 0),
+      erCpf:   acc.erCpf  + (s.employer_cpf_amount || 0),
+    }), { gross: 0, bonus: 0, empCpf: 0, erCpf: 0 })
+
+    autoTable(doc, {
+      startY: ytdY + 4,
+      head: [['', 'Amount (SGD)']],
+      body: [
+        ['Gross Salary', formatSGD(ytd.gross)],
+        ['Bonus', formatSGD(ytd.bonus)],
+        ['Employee CPF', formatSGD(ytd.empCpf)],
+        ['Employer CPF', formatSGD(ytd.erCpf)],
+      ],
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [100, 100, 100] },
+      columnStyles: { 1: { halign: 'right' } },
+    })
+
     doc.save(`payslip_${staff?.full_name}_${getMonthName(slip.month)}_${slip.year}.pdf`)
   }
 

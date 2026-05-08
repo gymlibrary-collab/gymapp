@@ -182,14 +182,25 @@ export default function MyPayslipsPage() {
     const logoUrl = (gym as any)?.logo_url || null
     let yPos = await addLogoHeader(doc, logoUrl, 'COMMISSION STATEMENT', 16)
 
+    // ── Gym + period ─────────────────────────────────────────
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10); doc.setTextColor(100)
     doc.text(gymName, 14, yPos); yPos += 6
     doc.text(`Period: ${payout.period_start} to ${payout.period_end}`, 14, yPos); yPos += 10
     doc.setTextColor(0)
-    doc.text(`${user?.full_name}`, 14, yPos); yPos += 6
 
-    const commRows: any[] = [
+    // ── Employee section ──────────────────────────────────────
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+    doc.text('Employee', 14, yPos); yPos += 6
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(80)
+    doc.text(`Name: ${user?.full_name}`, 14, yPos); yPos += 6
+    doc.text(`Employment: ${(user as any)?.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}`, 14, yPos); yPos += 6
+    if (user?.nric) { doc.text(`NRIC/FIN/Passport: ${user.nric}`, 14, yPos); yPos += 6 }
+    if ((user as any)?.date_of_joining) { doc.text(`Date of Joining: ${(user as any).date_of_joining}`, 14, yPos); yPos += 6 }
+    doc.setTextColor(0); yPos += 4
+
+    // ── Commission table ──────────────────────────────────────
+    const cpfBody: any[] = [
       ['PT Package Sign-up Commissions', payout.pt_signups_count || 0, formatSGD(payout.pt_signup_commission_sgd)],
       ['PT Session Commissions', payout.pt_sessions_count || 0, formatSGD(payout.pt_session_commission_sgd)],
       ['Membership Sale Commissions', payout.membership_sales_count || 0, formatSGD(payout.membership_commission_sgd)],
@@ -197,33 +208,32 @@ export default function MyPayslipsPage() {
       ['Gross Commission', '', formatSGD(payout.total_commission_sgd)],
       ['', '', ''],
     ]
-    const cpfBody: any[] = [...commRows]
     if (payout.is_cpf_liable && payout.employee_cpf_amount > 0) {
-      cpfBody.push([`Employee CPF — AW (${payout.employee_cpf_rate}% on ${formatSGD(payout.aw_subject_to_cpf)})`, '', `- ${formatSGD(payout.employee_cpf_amount)}`])
-      cpfBody.push([`Employer CPF — AW (${payout.employer_cpf_rate}% on ${formatSGD(payout.aw_subject_to_cpf)})`, '', formatSGD(payout.employer_cpf_amount)])
+      cpfBody.push([`Employee CPF (${payout.employee_cpf_rate}%)`, '', `- ${formatSGD(payout.employee_cpf_amount)}`])
+      cpfBody.push([`Employer CPF (${payout.employer_cpf_rate}%)`, '', formatSGD(payout.employer_cpf_amount)])
       cpfBody.push(['', '', ''])
-      cpfBody.push(['Net commission (after employee CPF)', '', formatSGD(payout.net_commission_sgd ?? (payout.total_commission_sgd - payout.employee_cpf_amount))])
+      cpfBody.push(['Net Commission', '', formatSGD(payout.net_commission_sgd ?? (payout.total_commission_sgd - payout.employee_cpf_amount))])
     } else if (!payout.is_cpf_liable) {
       cpfBody.push(['CPF', '', 'Not applicable'])
     }
     const netCommRowIdx = cpfBody.length - 1
     autoTable(doc, {
-      startY: yPos + 2,
+      startY: yPos,
       head: [['Description', 'Count', 'Amount (SGD)']],
       body: cpfBody,
-      styles: { fontSize: 10 },
-      headStyles: { fillColor: [220, 38, 38] },
-      columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } },
+      ...PDF_TABLE_STYLE,
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right', fontStyle: 'bold' } },
       didParseCell: (data: any) => {
         if (payout.is_cpf_liable && payout.employee_cpf_amount > 0 && data.row.index === netCommRowIdx) {
-          data.cell.styles.fillColor = [234, 243, 222] // light green — same as success bg
+          data.cell.styles.fillColor = [234, 243, 222]
           data.cell.styles.textColor = [39, 80, 10]
           data.cell.styles.fontStyle = 'bold'
         }
       },
     })
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10
+    // ── Status ────────────────────────────────────────────────
+    const finalY = (doc as any).lastAutoTable.finalY + 8
     doc.setFontSize(10); doc.setTextColor(0)
     doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, finalY)
     if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
