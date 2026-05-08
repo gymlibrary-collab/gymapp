@@ -13,8 +13,6 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PtOnboardPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops'] })
-  if (!user) return null
-
   const { logActivity } = useActivityLog()
   const supabase = createClient()
   const router = useRouter()
@@ -33,6 +31,8 @@ export default function PtOnboardPage() {
     secondary_member_id: '',
   })
   const [trainerMembers, setTrainerMembers] = useState<any[]>([]) // members with active package by this trainer
+
+  if (!user) return null
 
 
   const loadData = async () => {
