@@ -23,7 +23,6 @@ export default function CommissionConfigPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'Commission Rates', 'Viewed commission rates configuration')
-    // Route guard
 
       const { data } = await supabase.from('commission_config').select('*')
       const cfg: Record<string, any> = {}

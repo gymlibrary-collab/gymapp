@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   // Find sessions in the next 24h that haven't been reminded
   const { data: sessions } = await supabase
     .from('sessions')
-    .select('*, clients(full_name, phone), users(full_name, phone), gyms(name)')
+    .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
     .eq('status', 'scheduled')
     .eq('reminder_24h_sent', false)
     .gte('scheduled_at', windowStart.toISOString())
@@ -53,17 +53,17 @@ export async function GET(request: Request) {
 
   for (const session of sessions) {
     const { clientMessage, trainerMessage } = formatWhatsAppReminder({
-      clientName: session.clients?.full_name || 'Client',
-      trainerName: session.users?.full_name || 'Trainer',
+      clientName: session.member?.full_name || 'Client',
+      trainerName: session.trainer?.full_name || 'Trainer',
       scheduledAt: session.scheduled_at,
       location: session.location,
-      gymName: session.gyms?.name || 'the gym',
+      gymName: session.gym?.name || 'the gym',
     })
 
     // Send to client
-    if (session.clients?.phone && clientEnabled) {
+    if (session.member?.phone && clientEnabled) {
       try {
-        const clientPhone = session.clients.phone.replace(/\s/g, '')
+        const clientPhone = session.member.phone.replace(/\s/g, '')
         const msg = await twilioClient.messages.create({
           from: process.env.TWILIO_WHATSAPP_FROM,
           to: `whatsapp:${clientPhone}`,
@@ -72,14 +72,14 @@ export async function GET(request: Request) {
         logs.push({ session_id: session.id, recipient_type: 'client', recipient_phone: clientPhone, message: clientMessage, status: 'sent', twilio_sid: msg.sid })
         sentCount++
       } catch (err: any) {
-        logs.push({ session_id: session.id, recipient_type: 'client', recipient_phone: session.clients.phone, message: clientMessage, status: 'failed' })
+        logs.push({ session_id: session.id, recipient_type: 'client', recipient_phone: session.member.phone, message: clientMessage, status: 'failed' })
       }
     }
 
     // Send to trainer
-    if (session.users?.phone && trainerEnabled) {
+    if (session.trainer?.phone && trainerEnabled) {
       try {
-        const trainerPhone = session.users.phone.replace(/\s/g, '')
+        const trainerPhone = session.trainer.phone.replace(/\s/g, '')
         const msg = await twilioClient.messages.create({
           from: process.env.TWILIO_WHATSAPP_FROM,
           to: `whatsapp:${trainerPhone}`,
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
         logs.push({ session_id: session.id, recipient_type: 'trainer', recipient_phone: trainerPhone, message: trainerMessage, status: 'sent', twilio_sid: msg.sid })
         sentCount++
       } catch (err: any) {
-        logs.push({ session_id: session.id, recipient_type: 'trainer', recipient_phone: session.users.phone, message: trainerMessage, status: 'failed' })
+        logs.push({ session_id: session.id, recipient_type: 'trainer', recipient_phone: session.trainer.phone, message: trainerMessage, status: 'failed' })
       }
     }
 

@@ -29,7 +29,6 @@ export default function PublicHolidaysPage() {
 
   const load = async () => {
     logActivity('page_view', 'Public Holidays', 'Viewed public holidays')
-    // Route guard
 
     const { data } = await supabase.from('public_holidays')
       .select('*').eq('year', selectedYear).order('holiday_date')
