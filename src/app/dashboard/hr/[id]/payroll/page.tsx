@@ -63,8 +63,6 @@ export default function StaffPayrollDetailPage() {
   // getBracketRates: alias of getCpfBracketRates from @/lib/cpf
   const getBracketRates = getCpfBracketRates
 
-    useEffect(() => { loadData() }, [id])
-
   const loadData = async () => {
     logActivity('page_view', 'Staff Payroll', 'Viewed staff payroll')
     // Guard — only business_ops can access payroll
@@ -110,6 +108,8 @@ export default function StaffPayrollDetailPage() {
     const branding = await resolvePayslipBranding(supabase, staffData)
     setPayslipBranding({ logoUrl: branding.logoUrl, companyName: branding.companyName, gymName: branding.gymName })
   }
+
+  useEffect(() => { if (!user) return; loadData() }, [id, user])
 
   const handleSavePayroll = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
