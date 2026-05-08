@@ -63,10 +63,14 @@ export default function RegisterMemberPage() {
           .select('gym_id, gyms(name)')
           .eq('trainer_id', user!.id)
           .eq('is_primary', true)
-          .single()
+          .maybeSingle()
         if (tg?.gym_id) {
           setMemberForm(f => ({ ...f, gym_id: tg.gym_id }))
           setGymName((tg.gyms as any)?.name || '')
+        } else if (gymsData?.length === 1) {
+          // Fallback: single gym setup
+          setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
+          setGymName(gymsData[0].name)
         }
       } else if (user?.employment_type === 'part_time') {
         // Part-timer: look up today's or next upcoming roster shift
@@ -193,8 +197,8 @@ export default function RegisterMemberPage() {
           {gyms.length > 1 && (
             <div>
               <label className="label">Gym Location *</label>
-              {gymName ? (
-                <div className="input bg-gray-50 text-gray-700 cursor-default">{gymName}</div>
+              {(gymName || user?.role === 'trainer' || user?.role === 'staff') ? (
+                <div className="input bg-gray-50 text-gray-700 cursor-default">{gymName || 'Auto-detecting...'}</div>
               ) : (
                 <select className="input" required value={memberForm.gym_id} onChange={e => setMemberForm(f => ({ ...f, gym_id: e.target.value }))}>
                   <option value="">Select gym outlet...</option>
