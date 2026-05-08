@@ -325,7 +325,7 @@ export default function PayrollPage() {
 
         for (const slip of payslips || []) {
           const doc = new jsPDF()
-          await renderPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips)
+          await renderPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips || [])
           folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
         }
 
