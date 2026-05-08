@@ -19,6 +19,7 @@ export default function RegisterMemberPage() {
   const [gyms, setGyms] = useState<any[]>([])
   const [membershipTypes, setMembershipTypes] = useState<any[]>([])
   const [gymName, setGymName] = useState<string>('')
+  const [gymLocked, setGymLocked] = useState(false)
   const [commissionPct, setCommissionPct] = useState(5)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [error, setError] = useState('')
@@ -51,26 +52,29 @@ export default function RegisterMemberPage() {
       // Use per-staff membership commission rate, not global config
       setCommissionPct((user as any)?.membership_commission_sgd || 0)
 
-      // Auto-detect gym — no dropdown for full-time staff/trainer/manager
+      // Auto-detect gym — lock field for manager/staff/trainer, show dropdown only for biz_ops
       if (user?.manager_gym_id) {
-        // Manager/staff: use assigned gym
+        // Manager/full-time staff: use assigned gym
         const gym = gymsData?.find((g: any) => g.id === user!.manager_gym_id)
         setMemberForm(f => ({ ...f, gym_id: user!.manager_gym_id ?? '' }))
-        setGymName(gym?.name || '')
+        setGymName(gym?.name || user!.manager_gym_id)
+        setGymLocked(true)
       } else if (user?.role === 'trainer') {
-        // Trainer: use primary gym from trainer_gyms
-        const { data: tg } = await supabase.from('trainer_gyms')
+        // Trainer: get first assigned gym (any gym in trainer_gyms)
+        const { data: tgs } = await supabase.from('trainer_gyms')
           .select('gym_id, gyms(name)')
           .eq('trainer_id', user!.id)
-          .eq('is_primary', true)
-          .maybeSingle()
+          .order('is_primary', { ascending: false })
+          .limit(1)
+        const tg = tgs?.[0]
         if (tg?.gym_id) {
           setMemberForm(f => ({ ...f, gym_id: tg.gym_id }))
-          setGymName((tg.gyms as any)?.name || '')
+          setGymName((tg.gyms as any)?.name || tg.gym_id)
+          setGymLocked(true)
         } else if (gymsData?.length === 1) {
-          // Fallback: single gym setup
           setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
           setGymName(gymsData[0].name)
+          setGymLocked(true)
         }
       } else if (user?.employment_type === 'part_time') {
         // Part-timer: look up today's or next upcoming roster shift
@@ -85,11 +89,13 @@ export default function RegisterMemberPage() {
         if (rosterShift?.gym_id) {
           setMemberForm(f => ({ ...f, gym_id: rosterShift.gym_id }))
           setGymName((rosterShift.gyms as any)?.name || '')
+          setGymLocked(true)
         }
         // If no roster found — fall back to dropdown (gymName stays empty = show dropdown)
       } else if (gymsData?.length === 1) {
         setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
         setGymName(gymsData[0].name)
+        setGymLocked(true)
       }
     }
     load()
@@ -197,8 +203,8 @@ export default function RegisterMemberPage() {
           {gyms.length > 1 && (
             <div>
               <label className="label">Gym Location *</label>
-              {(gymName || user?.role === 'trainer' || user?.role === 'staff') ? (
-                <div className="input bg-gray-50 text-gray-700 cursor-default">{gymName || 'Auto-detecting...'}</div>
+              {gymLocked ? (
+                <div className="input bg-gray-50 text-gray-700 cursor-default">{gymName}</div>
               ) : (
                 <select className="input" required value={memberForm.gym_id} onChange={e => setMemberForm(f => ({ ...f, gym_id: e.target.value }))}>
                   <option value="">Select gym outlet...</option>
