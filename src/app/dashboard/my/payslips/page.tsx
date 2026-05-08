@@ -167,7 +167,7 @@ export default function MyPayslipsPage() {
       columnStyles: { 1: { halign: 'right' } },
     })
 
-    doc.save(`payslip_${getMonthName(slip.month)}_${slip.year}.pdf`)
+    doc.save(`Payslip-${user?.full_name}-${getMonthName(slip.month)} ${slip.year}.pdf`)
     logActivity('export', 'My Payslips', `Downloaded payslip PDF — ${getMonthName(slip.month)} ${slip.year}`)
   }
 
@@ -238,7 +238,7 @@ export default function MyPayslipsPage() {
     doc.text(`Status: ${payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}`, 14, finalY)
     if (payout.paid_at) doc.text(`Paid on: ${new Date(payout.paid_at).toLocaleDateString('en-SG')}`, 14, finalY + 6)
 
-    doc.save(`commission_${payout.period_start}_${payout.period_end}.pdf`)
+    doc.save(`Commission-${user?.full_name}-${getMonthName(parseInt(payout.period_start.split('-')[1]))} ${payout.period_start.split('-')[0]}.pdf`)
     logActivity('export', 'My Payslips', `Downloaded commission PDF — ${payout.period_start} to ${payout.period_end}`)
   }
 

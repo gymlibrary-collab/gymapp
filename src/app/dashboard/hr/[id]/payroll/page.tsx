@@ -507,7 +507,7 @@ export default function StaffPayrollDetailPage() {
       columnStyles: { 1: { halign: 'right' } },
     })
 
-    doc.save(`payslip_${staff?.full_name}_${getMonthName(slip.month)}_${slip.year}.pdf`)
+    doc.save(`Payslip-${staff?.full_name}-${getMonthName(slip.month)} ${slip.year}.pdf`)
   }
 
   if (!staff) return <div className="card p-8 text-center"><p className="text-gray-500">Staff not found</p></div>

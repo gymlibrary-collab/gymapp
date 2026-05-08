@@ -361,7 +361,7 @@ export default function PayrollPage() {
               }
             },
           })
-          folder!.file(`payslip-${MONTHS[slip.month - 1]}.pdf`, doc.output('arraybuffer'))
+          folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
         }
 
         // Load commission payouts — use correct column names (trainer_id, session_commissions_sgd)
@@ -410,7 +410,7 @@ export default function PayrollPage() {
               }
             },
           })
-          folder!.file(`comm-${MONTHS[commMonth - 1]}.pdf`, doc.output('arraybuffer'))
+          folder!.file(`Commission-${staff.full_name}-${MONTHS[commMonth - 1]} ${commYear}.pdf`, doc.output('arraybuffer'))
         }
       }
 
