@@ -55,13 +55,18 @@ export async function GET(request: Request) {
   // Use admin client for users lookup — bypasses RLS entirely
   const adminClient = createAdminClient()
 
-  const { data: userRecord } = await adminClient
+  const { data: userRecord, error: userError } = await adminClient
     .from('users')
     .select('id, is_archived, is_active')
     .eq('id', user.id)
     .single()
 
+  if (userError) {
+    console.error('Auth callback — adminClient query error:', JSON.stringify(userError))
+  }
+
   if (!userRecord) {
+    console.error('Auth callback — no userRecord for uid:', user.id, 'error:', userError?.message)
     await supabase.auth.signOut()
     return NextResponse.redirect(`${origin}/?error=not_authorised`)
   }
