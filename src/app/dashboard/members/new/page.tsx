@@ -61,7 +61,7 @@ export default function RegisterMemberPage() {
         // Trainer: use primary gym from trainer_gyms
         const { data: tg } = await supabase.from('trainer_gyms')
           .select('gym_id, gyms(name)')
-          .eq('trainer_id', authUser!.id)
+          .eq('trainer_id', user!.id)
           .eq('is_primary', true)
           .single()
         if (tg?.gym_id) {
