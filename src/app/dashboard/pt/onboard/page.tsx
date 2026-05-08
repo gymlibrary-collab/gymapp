@@ -32,9 +32,6 @@ export default function PtOnboardPage() {
   })
   const [trainerMembers, setTrainerMembers] = useState<any[]>([]) // members with active package by this trainer
 
-  if (!user) return null
-
-
   const loadData = async () => {
     logActivity('page_view', 'PT Onboarding', 'Viewed pt onboarding')
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -47,6 +44,7 @@ export default function PtOnboardPage() {
       router.replace('/dashboard'); return
     }
 
+    setCurrentUser(me)
     const gymId = me.manager_gym_id || me.gym_id
 
     // Trainer's existing members — members with an active package assigned to this trainer
@@ -91,6 +89,8 @@ export default function PtOnboardPage() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  if (!user) return null
 
 
   const selectedTemplate = templates.find(t => t.id === form.template_id)
