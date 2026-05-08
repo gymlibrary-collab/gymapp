@@ -183,10 +183,9 @@ function BizOpsGymTabs() {
         const bizOpsThresholds = await loadEscalationThresholds(supabase)
         const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', bizOpsThresholds.membership_expiry, 'system', g.id)
         if (expiryCount > 0) {
-          // user already available from useCurrentUser()
-          const bizOpsUser = { id: user!.id }
-          const bizMe = { full_name: user!.full_name, role: user!.role }
-          await logEscalation((bizMe as any)?.full_name || 'Biz Ops', (bizMe as any)?.role || 'business_ops', bizOpsUser?.id || '', 'membership_expiry', expiryCount)
+          // logEscalation for biz-ops expiry — use supabase session for user id
+          const { data: { user: bzUser } } = await supabase.auth.getUser()
+          await logEscalation('Biz Ops', 'business_ops', bzUser?.id || '', 'membership_expiry', expiryCount)
         }
 
         // Expiring memberships — Biz Ops sees escalated + unactioned only
