@@ -174,10 +174,9 @@ function BizOpsGymTabs() {
           .eq('gym_id', g.id).eq('status', 'active')
           .lte('end_date_calculated', in7Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5)
 
-        // Auto-expire stale memberships
-        await supabase.from('gym_memberships').update({ status: 'expired' })
-          .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
-          .lt('end_date', now.toISOString().split('T')[0])
+        // Note: membership auto-expiry is handled by the daily cron job
+        // at /api/cron/expire-memberships (runs at 0001 SGT).
+        // Removed from dashboard load to keep it pure read.
 
         // Membership expiry escalation — Biz Ops as fallback trigger
         // (Manager dashboard also triggers this — see main dashboard load)
@@ -1094,14 +1093,8 @@ export default function DashboardPage() {
         }
 
         // Gym memberships expiring within 30 days
-        // Auto-expire any memberships past their end_date
-        await supabase.from('gym_memberships')
-          .update({ status: 'expired' })
-          .eq('gym_id', gymId)
-          .eq('status', 'active')
-          .eq('sale_status', 'confirmed')
-          .lt('end_date', now.toISOString().split('T')[0])
-
+        // Note: membership auto-expiry is handled by the daily cron job
+        // at /api/cron/expire-memberships (runs at 0001 SGT).
         const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         const { data: expiringMems } = await supabase.from('gym_memberships')
           .select('id, end_date, member_id, membership_type_name, membership_actioned, escalated_to_biz_ops, member:members(id, full_name)')
