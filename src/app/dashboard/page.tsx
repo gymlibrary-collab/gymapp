@@ -854,11 +854,11 @@ export default function DashboardPage() {
   const { isActingAsTrainer } = useViewMode()
 
   useEffect(() => {
+    if (!user) return
     const load = async () => {
       // user is already available from useCurrentUser() — no need to re-fetch
       const authUser = { id: user!.id }
       const u = user!
-      if (!u) return
       setUser(u)
 
       // ── Admin ────────────────────────────────────────────
@@ -1250,7 +1250,7 @@ export default function DashboardPage() {
       setLoading(false)
     }
     load()
-  }, [isActingAsTrainer])
+  }, [user, isActingAsTrainer])
 
   // ── Commission stats loader — reloads on month navigation ──
   const loadCommissionStats = async (periodStart: string, periodEnd: string) => {
