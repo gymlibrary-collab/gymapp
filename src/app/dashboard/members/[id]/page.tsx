@@ -70,7 +70,7 @@ export default function MemberProfilePage() {
         m.end_date >= today
       )
       if (!hasActive) {
-        await supabase.from('members').update({ status: 'inactive' }).eq('id', id)
+        await supabase.from('members').update({ is_active: false }).eq('id', id)
       }
     }
     return count
