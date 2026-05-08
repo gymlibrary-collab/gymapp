@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { Activity, Download, RefreshCw, Search, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
@@ -131,6 +132,7 @@ function MiniCalendar({ from, to, onChange }: { from: string; to: string; onChan
 }
 
 export default function ActivityLogsPage() {
+  const { user } = useCurrentUser({ allowedRoles: ['admin'] })
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
