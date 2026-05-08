@@ -51,10 +51,23 @@ export async function GET(request: Request) {
 
   const user = data.session.user
 
-  // Use the session client (anon key + user session cookie) to look up the user's own row.
-  // users_read_own policy (id = auth.uid()) allows this without needing the service role.
-  // The session was just established by exchangeCodeForSession above so auth.uid() is valid.
-  const { data: userRecord, error: userError } = await supabase
+  // Create a new client using the access_token from the just-established session.
+  // This guarantees auth.uid() = user.id for the users_read_own RLS policy.
+  // The original supabase client above may not have the new session token available
+  // for subsequent queries since cookies are set on the response, not the request.
+  const { createClient } = await import('@supabase/supabase-js')
+  const sessionClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: { Authorization: `Bearer ${data.session.access_token}` }
+      },
+      auth: { autoRefreshToken: false, persistSession: false }
+    }
+  )
+
+  const { data: userRecord, error: userError } = await sessionClient
     .from('users')
     .select('id, is_archived, is_active')
     .eq('id', user.id)
