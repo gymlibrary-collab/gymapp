@@ -1,4 +1,3 @@
-import { createAdminClient } from '@/lib/db-server'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
@@ -52,17 +51,17 @@ export async function GET(request: Request) {
 
   const user = data.session.user
 
-  // Use admin client for users lookup — bypasses RLS entirely
-  const adminClient = createAdminClient()
-
-  const { data: userRecord, error: userError } = await adminClient
+  // Use the session client (anon key + user session cookie) to look up the user's own row.
+  // users_read_own policy (id = auth.uid()) allows this without needing the service role.
+  // The session was just established by exchangeCodeForSession above so auth.uid() is valid.
+  const { data: userRecord, error: userError } = await supabase
     .from('users')
     .select('id, is_archived, is_active')
     .eq('id', user.id)
     .single()
 
   if (userError) {
-    console.error('Auth callback — adminClient query error:', JSON.stringify(userError))
+    console.error('Auth callback — users query error:', JSON.stringify(userError))
   }
 
   if (!userRecord) {
