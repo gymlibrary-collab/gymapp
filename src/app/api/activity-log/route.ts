@@ -59,7 +59,7 @@ function getClientIp(req: NextRequest): string {
 export async function POST(req: NextRequest) {
   try {
     // Verify the caller is an authenticated session — prevents anonymous log pollution
-    const serverClient = createSupabaseServerClient()
+    const serverClient = await createSupabaseServerClient()
     const { data: { user: authUser } } = await serverClient.auth.getUser()
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
