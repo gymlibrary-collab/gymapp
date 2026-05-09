@@ -16,6 +16,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import AdminDashboard from './_components/AdminDashboard'
 import NotificationBanners from './_components/NotificationBanners'
 import NonRenewalModal from './_components/NonRenewalModal'
+import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
 
 
 
@@ -1791,67 +1792,18 @@ export default function DashboardPage() {
 
       {/* ── Manager commission drill-down modal ── */}
       {commissionDrillDown && isManager && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 pt-16 overflow-y-auto" onClick={() => setCommissionDrillDown(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-5 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-900">Commission Breakdown</h3>
-                <p className="text-xs text-gray-400">{commissionPeriodLabel} · My Gym</p>
-              </div>
-              <button onClick={() => setCommissionDrillDown(false)}><X className="w-4 h-4 text-gray-400" /></button>
-            </div>
-            {/* Group by toggle */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-              {(['staff', 'type'] as const).map(opt => (
-                <button key={opt} onClick={() => {
-                  setDrillDownGroupBy(opt)
-                  loadDrillDown(commissionPeriodStart, commissionPeriodEnd, opt)
-                }}
-                  className={cn('flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                    drillDownGroupBy === opt ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500')}>
-                  By {opt === 'staff' ? 'Staff' : 'Commission Type'}
-                </button>
-              ))}
-            </div>
-            {drillDownLoading ? (
-              <div className="flex justify-center py-6"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600" /></div>
-            ) : drillDownData.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">No commission data for this period</p>
-            ) : drillDownGroupBy === 'staff' ? (
-              <div className="divide-y divide-gray-100">
-                {drillDownData.map((row: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{row.name}</p>
-                      <p className="text-xs text-gray-400">
-                        {row.session > 0 && `Sessions: ${formatSGD(row.session)} `}
-                        {row.signup > 0 && `Signup: ${formatSGD(row.signup)} `}
-                        {row.membership > 0 && `Membership: ${formatSGD(row.membership)}`}
-                      </p>
-                    </div>
-                    <p className="text-sm font-bold text-green-700">{formatSGD(row.total)}</p>
-                  </div>
-                ))}
-                <div className="flex justify-between pt-2.5">
-                  <p className="text-sm font-semibold text-gray-900">Total</p>
-                  <p className="text-sm font-bold text-green-700">{formatSGD(drillDownData.reduce((s: number, r: any) => s + r.total, 0))}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {drillDownData.map((row: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{row.name}</p>
-                      <p className="text-xs text-gray-400">{row.count} transaction{row.count !== 1 ? 's' : ''}</p>
-                    </div>
-                    <p className="text-sm font-bold text-green-700">{formatSGD(row.amount)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <CommissionDrillDownModal
+          open={commissionDrillDown}
+          periodLabel={commissionPeriodLabel}
+          groupBy={drillDownGroupBy}
+          onGroupByChange={(opt) => {
+            setDrillDownGroupBy(opt)
+            loadDrillDown(commissionPeriodStart, commissionPeriodEnd, opt)
+          }}
+          loading={drillDownLoading}
+          data={drillDownData}
+          onClose={() => setCommissionDrillDown(false)}
+        />
       )}
 
       {/* ── Biz Ops: gym tabs ── */}
