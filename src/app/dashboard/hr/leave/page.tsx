@@ -84,7 +84,13 @@ export default function LeaveManagementPage() {
       .in('user_id', staffIds)
       .order('created_at', { ascending: false })
     if (filter === 'pending') {
-      q = q.eq('status', 'pending').eq('escalated_to_biz_ops', user!.role === 'business_ops')
+      q = q.eq('status', 'pending')
+      if (user!.role === 'business_ops') {
+        // Biz-ops pending tab: escalated_to_biz_ops=true covers both
+        // manager leave (always escalated) and escalated trainer/staff leave
+        q = q.eq('escalated_to_biz_ops', true)
+      }
+      // Manager: no escalation filter — retains visibility even after escalation to biz-ops
     } else if (filter !== 'all') {
       q = q.eq('status', filter)
     }

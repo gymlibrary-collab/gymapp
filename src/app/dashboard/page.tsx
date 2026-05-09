@@ -22,7 +22,8 @@ import NonRenewalModal from './_components/NonRenewalModal'
 
 // Biz Ops action alerts: pending manager leave + public holidays setup prompt
 function BizOpsDashboardAlerts() {
-  const [pendingLeave, setPendingLeave] = useState(0)
+  const [pendingManagerLeave, setPendingManagerLeave] = useState(0)
+  const [escalatedLeave, setEscalatedLeave] = useState(0)
   const [holidaysSetUp, setHolidaysSetUp] = useState(true)
   const [cpfRatesSetUp, setCpfRatesSetUp] = useState(true)
   const [leaveEntitlementReminder, setLeaveEntitlementReminder] = useState(false)
@@ -30,14 +31,24 @@ function BizOpsDashboardAlerts() {
 
   useEffect(() => {
     const load = async () => {
-      // Pending leave for biz-ops:
-      //   1. Manager leave (always biz-ops to approve)
-      //   2. Trainer + staff leave escalated after 48h (escalated_to_biz_ops=true)
+      // Banner 1: Manager leave — always goes direct to biz-ops (no escalation)
+      const { data: mgrIds } = await supabase.from('users')
+        .select('id').eq('role', 'manager')
+      const managerUserIds = mgrIds?.map((m: any) => m.id) || []
+      if (managerUserIds.length > 0) {
+        const { count: mgrLeaveCount } = await supabase.from('leave_applications')
+          .select('id', { count: 'exact', head: true })
+          .in('user_id', managerUserIds).eq('status', 'pending')
+        setPendingManagerLeave(mgrLeaveCount || 0)
+      }
+
+      // Banner 2: Escalated trainer/staff leave (pending > 48h, escalated_to_biz_ops=true)
       const { count: escalatedCount } = await supabase.from('leave_applications')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending')
         .eq('escalated_to_biz_ops', true)
-      setPendingLeave(escalatedCount || 0)
+        .not('user_id', 'in', `(${(mgrIds || []).map((m: any) => m.id).join(',') || 'null'})`)
+      setEscalatedLeave(escalatedCount || 0)
 
       // Check if next year public holidays are set up (prompt from 15 Nov through 31 Dec)
       const now = new Date()
@@ -66,16 +77,27 @@ function BizOpsDashboardAlerts() {
     load()
   }, [])
 
-  if (pendingLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder) return null
+  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder) return null
 
   return (
     <div className="space-y-3">
-      {pendingLeave > 0 && (
+      {pendingManagerLeave > 0 && (
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
           <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-blue-800">
-              {pendingLeave} manager leave application{pendingLeave > 1 ? 's' : ''} awaiting your approval
+              {pendingManagerLeave} manager leave application{pendingManagerLeave > 1 ? 's' : ''} awaiting your approval
+            </p>
+          </div>
+          <Link href="/dashboard/hr/leave" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
+        </div>
+      )}
+      {escalatedLeave > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <Calendar className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">
+              Escalated: {escalatedLeave} leave application{escalatedLeave > 1 ? 's' : ''} awaiting your approval
             </p>
           </div>
           <Link href="/dashboard/hr/leave" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
@@ -1208,8 +1230,7 @@ export default function DashboardPage() {
           const { count: leavePending } = await supabase.from('leave_applications')
             .select('id', { count: 'exact', head: true })
             .in('user_id', leaveStaffIds)
-            .eq('status', 'pending')
-            .eq('escalated_to_biz_ops', false)
+            .eq('status', 'pending') // show all pending regardless of escalation — manager retains visibility
           setPendingLeave(leavePending || 0)
         } else {
           setPendingLeave(0)
