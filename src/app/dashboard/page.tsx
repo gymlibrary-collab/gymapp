@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import AdminDashboard from './_components/AdminDashboard'
+import NotificationBanners from './_components/NotificationBanners'
 
 
 
@@ -1640,130 +1641,19 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* ── Payslip notification ── */}
-      {newPayslip && (
-        <Link href="/dashboard/my/payslips" onClick={dismissNotifications}
-          className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-4 hover:bg-green-100 transition-colors">
-          <FileText className="w-5 h-5 text-green-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-green-800">
-              New payslip available — {getMonthName(newPayslip.month)} {newPayslip.year}
-            </p>
-            <p className="text-xs text-green-600 mt-0.5">
-              {newPayslip.status === 'paid' ? 'Paid' : 'Approved'} · Net {formatSGD(newPayslip.net_salary)}
-            </p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-green-400 flex-shrink-0" />
-        </Link>
-      )}
-
-      {/* ── Commission notification ── */}
-      {newCommission && (
-        <Link href="/dashboard/my/payslips?tab=commission" onClick={dismissNotifications}
-          className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-4 hover:bg-green-100 transition-colors">
-          <DollarSign className="w-5 h-5 text-green-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-green-800">
-              Commission payout approved — {newCommission.period_start ? new Date(newCommission.period_start).toLocaleDateString('en-SG', { month: 'long', year: 'numeric' }) : ''}
-            </p>
-            <p className="text-xs text-green-600 mt-0.5">
-              {formatSGD(newCommission.total_commission_sgd)} ready for collection
-            </p>
-          </div>
-          <ChevronRight className="w-4 h-4 text-green-400 flex-shrink-0" />
-        </Link>
-      )}
-
-      {/* ── PT package rejection notifications ── */}
-      {rejectionNotifs.length > 0 && (
-        <div className="card p-4 bg-red-50 border border-red-200 space-y-2">
-          <p className="text-sm font-medium text-red-800 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {rejectionNotifs.length} PT package sale{rejectionNotifs.length > 1 ? 's were' : ' was'} rejected
-          </p>
-          {rejectionNotifs.map((n: any) => (
-            <p key={n.id} className="text-xs text-red-700">
-              · {n.package_name} for {n.member_name} — rejected by {n.rejected_by_name}
-            </p>
-          ))}
-          <button onClick={dismissRejections}
-            className="text-xs text-red-600 underline mt-1">
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* ── Leave decision notifications ── */}
-      {leaveDecisionNotifs.length > 0 && (
-        <div className={cn('card p-4 space-y-2',
-          leaveDecisionNotifs.some(n => n.decision === 'rejected') ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200')}>
-          <p className={cn('text-sm font-medium flex items-center gap-2',
-            leaveDecisionNotifs.some(n => n.decision === 'rejected') ? 'text-red-800' : 'text-green-800')}>
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {leaveDecisionNotifs.length} leave application{leaveDecisionNotifs.length > 1 ? 's' : ''} updated
-          </p>
-          {leaveDecisionNotifs.map((n: any) => (
-            <p key={n.id} className={cn('text-xs', n.decision === 'rejected' ? 'text-red-700' : 'text-green-700')}>
-              · {n.decision === 'approved' ? '✓' : '✗'} {n.leave_type} leave {formatDate(n.start_date)}–{formatDate(n.end_date)} ({n.days_applied} days)
-              {n.decision === 'rejected' && n.rejection_reason && ` — ${n.rejection_reason}`}
-              {n.decided_by_name && ` · by ${n.decided_by_name}`}
-            </p>
-          ))}
-          <button onClick={dismissLeaveNotifs} className="text-xs underline mt-1">Dismiss</button>
-        </div>
-      )}
-
-      {/* ── Annual payroll archive reminder (1 Apr onwards) ── */}
-      {isBizOps && (() => {
-        const now = new Date()
-        const isAprilOnwards = now.getMonth() >= 3 // April = month 3
-        const dismissedYear = typeof window !== 'undefined' ? parseInt(localStorage.getItem('payroll_archive_dismissed') || '0') : 0
-        const alreadyDismissed = dismissedYear >= now.getFullYear()
-        if (!isAprilOnwards || alreadyDismissed) return null
-        const archiveYear = now.getFullYear() - 1
-        return (
-          <div className="card p-3 bg-amber-50 border border-amber-200 flex items-center gap-3">
-            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <p className="text-sm text-amber-800 flex-1">
-              Annual payroll archive reminder — download and store {archiveYear} payslips and commission payouts offsite.
-            </p>
-            <Link href="/dashboard/payroll" className="text-xs text-amber-700 font-medium underline flex-shrink-0">Download</Link>
-            <button onClick={() => {
-              localStorage.setItem('payroll_archive_dismissed', String(new Date().getFullYear()))
-              window.location.reload()
-            }} className="text-xs text-amber-600 hover:text-amber-800 flex-shrink-0">Dismiss</button>
-          </div>
-        )
-      })()}
-
-      {/* ── Membership sale pending banner ── */}
-      {pendingMemSales > 0 && (
-        <div className="card p-3 bg-amber-50 border border-amber-200 flex items-center gap-3">
-          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <p className="text-sm text-amber-800 flex-1">
-            {pendingMemSales} membership sale{pendingMemSales > 1 ? 's' : ''} pending manager confirmation
-          </p>
-          <Link href="/dashboard/membership/sales" className="text-xs text-amber-700 font-medium underline flex-shrink-0">View</Link>
-        </div>
-      )}
-
-      {/* ── Membership rejection notifications ── */}
-      {memRejectionNotifs.length > 0 && (
-        <div className="card p-4 bg-red-50 border border-red-200 space-y-2">
-          <p className="text-sm font-medium text-red-800 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {memRejectionNotifs.length} membership sale{memRejectionNotifs.length > 1 ? 's were' : ' was'} rejected
-          </p>
-          {memRejectionNotifs.map((n: any) => (
-            <p key={n.id} className="text-xs text-red-700">
-              · {n.membership_type_name} for {n.member_name} — rejected by {n.rejected_by_name}
-              {n.was_new_member && ' · Member record removed, please re-register'}
-              {!n.was_new_member && ' · Existing membership remains active'}
-            </p>
-          ))}
-          <button onClick={dismissMemRejections} className="text-xs text-red-600 underline mt-1">Dismiss</button>
-        </div>
-      )}
+      <NotificationBanners
+        newPayslip={newPayslip}
+        newCommission={newCommission}
+        onDismissPayslipNotif={dismissNotifications}
+        pkgRejectionNotifs={rejectionNotifs}
+        onDismissPkgRejections={dismissRejections}
+        leaveDecisionNotifs={leaveDecisionNotifs}
+        onDismissLeaveNotifs={dismissLeaveNotifs}
+        memRejectionNotifs={memRejectionNotifs}
+        onDismissMemRejections={dismissMemRejections}
+        pendingMemSales={pendingMemSales}
+        isBizOps={isBizOps}
+      />
 
       {/* ── Non-renewal modal ── */}
       {nonRenewalModal && (
