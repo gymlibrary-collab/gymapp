@@ -155,74 +155,107 @@ function BizOpsGymTabs() {
     const load = async () => {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
+      // Hoist queries that are identical for every gym — run once, not N times
+      const bizOpsThresholds = await loadEscalationThresholds(supabase)
+      const { data: { user: bizOpsUserHoisted } } = await supabase.auth.getUser()
+      const { data: bizMeHoisted } = await supabase.from('users')
+        .select('full_name, role').eq('id', bizOpsUserHoisted?.id || '').single()
+
+      // ── Bulk queries for all gyms at once ────────────────────
+      // Replaces 10×N per-gym queries with 10 bulk IN() queries.
+      // runEscalationCheck (write operation) stays per-gym.
+      const gymIds = (gymsData || []).map((g: any) => g.id)
+      const todayStr = now.toISOString().split('T')[0]
+      const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+      const [
+        { data: allTodaySessions },
+        { data: allPendingMems },
+        { data: allPendingSessions },
+        { data: allLowPkgs },
+        { data: allExpiringPkgs },
+        { data: allExpiringMems },
+        { data: allMembers },
+        { data: allMemSales },
+        { data: allSessions },
+        { data: allPayouts },
+      ] = await Promise.all([
+        supabase.from('sessions')
+          .select('gym_id, scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
+          .in('gym_id', gymIds).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
+        supabase.from('gym_memberships')
+          .select('gym_id')
+          .in('gym_id', gymIds).eq('sale_status', 'pending'),
+        supabase.from('sessions')
+          .select('gym_id')
+          .in('gym_id', gymIds).eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', false),
+        supabase.from('packages')
+          .select('gym_id, package_name, sessions_used, total_sessions, member:members(full_name)')
+          .in('gym_id', gymIds).eq('status', 'active').limit(200),
+        supabase.from('packages')
+          .select('gym_id, package_name, end_date_calculated, member:members(full_name)')
+          .in('gym_id', gymIds).eq('status', 'active')
+          .lte('end_date_calculated', in7Days).gte('end_date_calculated', todayStr).limit(50),
+        supabase.from('gym_memberships')
+          .select('gym_id, id, end_date, member_id, membership_type_name, membership_actioned, escalated_to_biz_ops, member:members(full_name)')
+          .in('gym_id', gymIds).eq('status', 'active').eq('sale_status', 'confirmed')
+          .eq('escalated_to_biz_ops', true).eq('membership_actioned', false)
+          .lte('end_date', in30DaysBizOps).gte('end_date', todayStr),
+        supabase.from('members')
+          .select('gym_id')
+          .in('gym_id', gymIds),
+        supabase.from('gym_memberships')
+          .select('gym_id, price_sgd')
+          .in('gym_id', gymIds).eq('sale_status', 'confirmed').gte('created_at', monthStart),
+        supabase.from('sessions')
+          .select('gym_id, session_commission_sgd')
+          .in('gym_id', gymIds).eq('status', 'completed').gte('marked_complete_at', monthStart),
+        supabase.from('commission_payouts')
+          .select('gym_id, total_commission_sgd')
+          .in('gym_id', gymIds).in('status', ['approved', 'paid']).gte('generated_at', monthStart),
+      ])
+
+      // ── Per-gym assembly + escalation check ───────────────────
+      // Note: Promise.all is used above for pure reads only.
+      // runEscalationCheck (write op) stays sequential per gym.
       const enriched: any[] = []
       for (const g of (gymsData || [])) {
-        // Activity
-        const { data: todaySessions } = await supabase.from('sessions')
-          .select('scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
-          .eq('gym_id', g.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
-        const { count: pendingMemberships } = await supabase.from('gym_memberships')
-          .select('id', { count: 'exact', head: true }).eq('gym_id', g.id).eq('sale_status', 'pending')
-        const { count: pendingSessions } = await supabase.from('sessions')
-          .select('id', { count: 'exact', head: true })
-          .eq('gym_id', g.id).eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', false)
-        const { data: lowPkgs } = await supabase.from('packages')
-          .select('package_name, sessions_used, total_sessions, member:members(full_name)')
-          .eq('gym_id', g.id).eq('status', 'active').filter('total_sessions - sessions_used', 'lte', 3).limit(5)
-        const { data: expiringPkgs } = await supabase.from('packages')
-          .select('package_name, end_date_calculated, member:members(full_name)')
-          .eq('gym_id', g.id).eq('status', 'active')
-          .lte('end_date_calculated', in7Days).gte('end_date_calculated', now.toISOString().split('T')[0]).limit(5)
+        const gId = g.id
 
-        // Note: membership auto-expiry is handled by the daily cron job
-        // at /api/cron/expire-memberships (runs at 0001 SGT).
-        // Removed from dashboard load to keep it pure read.
+        // Group bulk results by gym_id
+        const todaySessions   = (allTodaySessions || []).filter((s: any) => s.gym_id === gId)
+        const pendingMems     = (allPendingMems || []).filter((s: any) => s.gym_id === gId).length
+        const pendingSess     = (allPendingSessions || []).filter((s: any) => s.gym_id === gId).length
+        const lowPkgs         = (allLowPkgs || []).filter((p: any) => p.gym_id === gId && (p.total_sessions - p.sessions_used) <= 3).slice(0, 5)
+        const expiringPkgs    = (allExpiringPkgs || []).filter((p: any) => p.gym_id === gId).slice(0, 5)
+        const filteredExpiringMems = (allExpiringMems || []).filter((m: any) => m.gym_id === gId).slice(0, 10)
+        const memberCount     = (allMembers || []).filter((m: any) => m.gym_id === gId).length
+        const gymMemSales     = (allMemSales || []).filter((m: any) => m.gym_id === gId)
+        const gymSessions     = (allSessions || []).filter((s: any) => s.gym_id === gId)
+        const gymPayouts      = (allPayouts || []).filter((p: any) => p.gym_id === gId)
 
-        // Membership expiry escalation — Biz Ops as fallback trigger
-        // (Manager dashboard also triggers this — see main dashboard load)
-        const bizOpsThresholds = await loadEscalationThresholds(supabase)
-        const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', bizOpsThresholds.membership_expiry, 'system', g.id)
+        // Escalation check — write op, must stay sequential
+        const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', bizOpsThresholds.membership_expiry, 'system', gId)
         if (expiryCount > 0) {
-          const { data: { user: bizOpsUser } } = await supabase.auth.getUser()
-          const { data: bizMe } = await supabase.from('users').select('full_name, role').eq('id', bizOpsUser?.id || '').single()
-          await logEscalation((bizMe as any)?.full_name || 'Biz Ops', (bizMe as any)?.role || 'business_ops', bizOpsUser?.id || '', 'membership_expiry', expiryCount)
+          await logEscalation((bizMeHoisted as any)?.full_name || 'Biz Ops', (bizMeHoisted as any)?.role || 'business_ops', bizOpsUserHoisted?.id || '', 'membership_expiry', expiryCount)
         }
 
-        // Expiring memberships — Biz Ops sees escalated + unactioned only
-        const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        const { data: expiringMems } = await supabase.from('gym_memberships')
-          .select('id, end_date, member_id, membership_type_name, membership_actioned, escalated_to_biz_ops, member:members(full_name)')
-          .eq('gym_id', g.id).eq('status', 'active').eq('sale_status', 'confirmed')
-          .eq('escalated_to_biz_ops', true).eq('membership_actioned', false)
-          .lte('end_date', in30DaysBizOps).gte('end_date', now.toISOString().split('T')[0]).limit(10)
-        const filteredExpiringMems = expiringMems || []
-
-        // Financials
-        const { count: members } = await supabase.from('members')
-          .select('id', { count: 'exact', head: true }).eq('gym_id', g.id)
-        const { data: memSales } = await supabase.from('gym_memberships')
-          .select('price_sgd').eq('gym_id', g.id).eq('sale_status', 'confirmed').gte('created_at', monthStart)
-        const { data: sessions } = await supabase.from('sessions')
-          .select('session_commission_sgd').eq('gym_id', g.id).eq('status', 'completed').gte('marked_complete_at', monthStart)
-        const { data: payouts } = await supabase.from('commission_payouts')
-          .select('total_commission_sgd').eq('gym_id', g.id).in('status', ['approved', 'paid']).gte('generated_at', monthStart)
-
-        const totalAlerts = (pendingMemberships || 0) + (pendingSessions || 0) + (lowPkgs?.length || 0) + (expiringPkgs?.length || 0) + filteredExpiringMems.length
+        const totalAlerts = pendingMems + pendingSess + lowPkgs.length + expiringPkgs.length + filteredExpiringMems.length
 
         enriched.push({
           ...g,
-          todaySessions: todaySessions || [],
-          pendingMemberships: pendingMemberships || 0,
-          pendingSessions: pendingSessions || 0,
-          lowPkgs: lowPkgs || [],
-          expiringPkgs: expiringPkgs || [],
-          expiringMems: filteredExpiringMems,
+          todaySessions,
+          pendingMemberships: pendingMems,
+          pendingSessions:    pendingSess,
+          lowPkgs,
+          expiringPkgs,
+          expiringMems:       filteredExpiringMems,
           totalAlerts,
-          members: members || 0,
-          membershipSalesCount: memSales?.length || 0,
-          membershipRevenue: memSales?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0,
-          sessionsCount: sessions?.length || 0,
-          commissionPayout: payouts?.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0) || 0,
+          members:            memberCount,
+          membershipSalesCount: gymMemSales.length,
+          membershipRevenue:  gymMemSales.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0),
+          sessionsCount:      gymSessions.length,
+          commissionPayout:   gymPayouts.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0),
         })
       }
 
