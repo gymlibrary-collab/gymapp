@@ -13,6 +13,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import AdminDashboard from './_components/AdminDashboard'
 
 
 
@@ -1578,7 +1579,9 @@ export default function DashboardPage() {
   const totalAlerts = lowSessionPackages.length + expiringPackages.length + atRiskMembers.length
 
   // ── Admin dashboard ──────────────────────────────────────
-  if (isAdmin) return (
+  if (isAdmin) return <AdminDashboard user={user} />
+
+  if (false) return (
     <div className="space-y-6">
       <div><h1 className="text-xl font-bold text-gray-900">{getGreeting(user.full_name.split(' ')[0])} 👋</h1><p className="text-sm text-gray-500">Admin · View only</p></div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1629,7 +1632,7 @@ export default function DashboardPage() {
         ))}
       </div>
     </div>
-  )
+  ) /* end dead code — admin JSX preserved for reference until AdminDashboard.tsx is confirmed working */
 
   // ── Manager / Trainer dashboard ──────────────────────────
   return (
