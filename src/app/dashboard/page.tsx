@@ -17,6 +17,7 @@ import AdminDashboard from './_components/AdminDashboard'
 import NotificationBanners from './_components/NotificationBanners'
 import NonRenewalModal from './_components/NonRenewalModal'
 import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
+import StatsRow from './_components/StatsRow'
 
 
 
@@ -1698,97 +1699,23 @@ export default function DashboardPage() {
       />
 
       {/* ── Stats row ── */}
-      {isTrainer ? (
-        // Trainer: own stats
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">My Members</p><Users className="w-4 h-4 text-red-600" /></div>
-            <p className="text-2xl font-bold">{stats.members}</p>
-            <p className="text-xs text-gray-400 mt-1">Active packages</p>
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Active Packages</p><Package className="w-4 h-4 text-red-600" /></div>
-            <p className="text-2xl font-bold">{stats.packages}</p>
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Sessions This Month</p><CheckCircle className="w-4 h-4 text-green-600" /></div>
-            <p className="text-2xl font-bold">{stats.sessions}</p>
-          </div>
-          <div className="stat-card col-span-2 md:col-span-1">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">My Commission</p>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setCommissionOffset(o => Math.max(o - 1, -2))}
-                  disabled={commissionOffset <= -2}
-                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">←</button>
-                <span className="text-xs text-gray-400 min-w-16 text-center">{commissionPeriodLabel.split(' ')[0].slice(0,3)}</span>
-                <button onClick={() => setCommissionOffset(o => Math.min(o + 1, 0))}
-                  disabled={commissionOffset >= 0}
-                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">→</button>
-              </div>
-            </div>
-            <p className="text-xl font-bold text-green-700 mt-1">
-              {commissionLoading ? '...' : formatSGD(commissionStats.total)}
-            </p>
-            <div className="mt-1 space-y-0.5">
-              {(isTrainer) && <p className="text-xs text-gray-400">Sessions: {formatSGD(commissionStats.session)}</p>}
-              {(isTrainer) && <p className="text-xs text-gray-400">Signup: {formatSGD(commissionStats.signup)}</p>}
-              <p className="text-xs text-gray-400">Membership: {formatSGD(commissionStats.membership)}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        // Manager / Biz Ops: gym-wide stats
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Members</p><Users className="w-4 h-4 text-red-600" /></div>
-            <p className="text-2xl font-bold">{stats.members}</p>
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Sessions This Month</p><CheckCircle className="w-4 h-4 text-green-600" /></div>
-            <p className="text-2xl font-bold">{stats.sessions}</p>
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Membership Sales</p><CreditCard className="w-4 h-4 text-red-600" /></div>
-            <p className="text-2xl font-bold">{stats.membershipSalesCount ?? 0}</p>
-            {stats.membershipRevenue > 0 && <p className="text-xs text-gray-400 mt-1">{formatSGD(stats.membershipRevenue)}</p>}
-          </div>
-          <div className="stat-card">
-            <div className="flex items-center justify-between"><p className="text-xs text-gray-500">Active PT Packages</p><Package className="w-4 h-4 text-red-600" /></div>
-            <p className="text-2xl font-bold">{stats.packages}</p>
-          </div>
-          <div className="stat-card col-span-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">Commission Earned</p>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setCommissionOffset(o => Math.max(o - 1, -2))}
-                  disabled={commissionOffset <= -2}
-                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">←</button>
-                <span className="text-xs text-gray-400 min-w-16 text-center">{commissionPeriodLabel.split(' ')[0].slice(0,3)} {commissionPeriodLabel.split(' ')[1]}</span>
-                <button onClick={() => setCommissionOffset(o => Math.min(o + 1, 0))}
-                  disabled={commissionOffset >= 0}
-                  className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-30 px-1">→</button>
-              </div>
-            </div>
-            <p className="text-xl font-bold text-green-700 mt-1">
-              {commissionLoading ? '...' : formatSGD(commissionStats.total)}
-            </p>
-            <div className="flex gap-4 mt-1">
-              <p className="text-xs text-gray-400">Sessions: {formatSGD(commissionStats.session)}</p>
-              <p className="text-xs text-gray-400">Signup: {formatSGD(commissionStats.signup)}</p>
-              <p className="text-xs text-gray-400">Membership: {formatSGD(commissionStats.membership)}</p>
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">Confirmed only — pending manager/Biz Ops ack excluded</p>
-            <button onClick={() => {
-              setCommissionDrillDown(true)
-              setDrillDownGroupBy('staff')
-              loadDrillDown(commissionPeriodStart, commissionPeriodEnd, 'staff')
-            }} className="text-xs text-red-600 hover:underline mt-1.5">
-              View breakdown →
-            </button>
-          </div>
-        </div>
-      )}
+      <StatsRow
+        stats={stats}
+        commissionStats={commissionStats}
+        commissionLoading={commissionLoading}
+        commissionOffset={commissionOffset}
+        onCommissionOffsetChange={setCommissionOffset}
+        commissionPeriodLabel={commissionPeriodLabel}
+        commissionPeriodStart={commissionPeriodStart}
+        commissionPeriodEnd={commissionPeriodEnd}
+        isTrainer={isTrainer}
+        showDrillDown={isManager}
+        onDrillDown={() => {
+          setCommissionDrillDown(true)
+          setDrillDownGroupBy('staff')
+          loadDrillDown(commissionPeriodStart, commissionPeriodEnd, 'staff')
+        }}
+      />
 
       {/* ── Manager commission drill-down modal ── */}
       {commissionDrillDown && isManager && (
