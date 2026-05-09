@@ -666,8 +666,8 @@ export async function fetchPendingLeave(
 
   const { count } = await supabase.from('leave_applications')
     .select('id', { count: 'exact', head: true })
-    .in('user_id', leaveStaffIds)
+    .in('user_id', leaveStaffIds) // caller must exclude manager's own ID if needed
     .eq('status', 'pending')
-    .eq('escalated_to_biz_ops', false) // match leave review page — escalated leaves are no longer manager's to action
+    .or('escalated_to_biz_ops.is.null,escalated_to_biz_ops.eq.false')
   return count || 0
 }

@@ -1204,8 +1204,10 @@ export default function DashboardPage() {
         ]
         if (leaveStaffIds.length > 0) {
           const { count: leavePending } = await supabase.from('leave_applications')
-            .select('id', { count: 'exact', head: true }).in('user_id', leaveStaffIds)
-            .eq('status', 'pending').eq('escalated_to_biz_ops', false) // match leave review page filter
+            .select('id', { count: 'exact', head: true })
+            .in('user_id', leaveStaffIds.filter((id: string) => id !== authUser.id)) // exclude manager's own leave (they can't approve their own)
+            .eq('status', 'pending')
+            .or('escalated_to_biz_ops.is.null,escalated_to_biz_ops.eq.false')
           setPendingLeave(leavePending || 0)
         }
       }
