@@ -1186,29 +1186,34 @@ export default function DashboardPage() {
           setAtRiskMembers(atRiskWithReason)
         }
 
-        // Pending leave approvals — full-time trainers + ops staff only (not part-timers)
-        const { data: opsStaffIds } = await supabase.from('users')
-          .select('id').eq('manager_gym_id', gymId).eq('role', 'staff')
-        const { data: gymTrainerIds } = await supabase.from('trainer_gyms')
+        // Pending leave — exactly mirrors hr/leave/page.tsx manager query
+        // so the badge count always matches what the leave page shows
+        const { data: leaveOpsStaff } = await supabase.from('users')
+          .select('id').eq('manager_gym_id', gymId).eq('role', 'staff').neq('id', authUser.id)
+        const { data: leaveGymTrainers } = await supabase.from('trainer_gyms')
           .select('trainer_id').eq('gym_id', gymId)
-        const rawTrainerIds = gymTrainerIds?.map((t: any) => t.trainer_id) || []
-        let ftTrainerIds: string[] = []
-        if (rawTrainerIds.length > 0) {
-          const { data: ftOnly } = await supabase.from('users')
-            .select('id').in('id', rawTrainerIds).eq('employment_type', 'full_time')
-          ftTrainerIds = ftOnly?.map((t: any) => t.id) || []
+        const leaveRawTrainerIds = (leaveGymTrainers?.map((t: any) => t.trainer_id) || [])
+          .filter((id: string) => id !== authUser.id)
+        let leaveFtTrainerIds: string[] = []
+        if (leaveRawTrainerIds.length > 0) {
+          const { data: leaveFtOnly } = await supabase.from('users')
+            .select('id').in('id', leaveRawTrainerIds)
+            .eq('role', 'trainer').eq('employment_type', 'full_time')
+          leaveFtTrainerIds = leaveFtOnly?.map((t: any) => t.id) || []
         }
         const leaveStaffIds = [
-          ...(opsStaffIds?.map((s: any) => s.id) || []),
-          ...ftTrainerIds,
+          ...(leaveOpsStaff?.map((s: any) => s.id) || []),
+          ...leaveFtTrainerIds,
         ]
         if (leaveStaffIds.length > 0) {
           const { count: leavePending } = await supabase.from('leave_applications')
             .select('id', { count: 'exact', head: true })
-            .in('user_id', leaveStaffIds.filter((id: string) => id !== authUser.id)) // exclude manager's own leave (they can't approve their own)
+            .in('user_id', leaveStaffIds)
             .eq('status', 'pending')
-            .or('escalated_to_biz_ops.is.null,escalated_to_biz_ops.eq.false')
+            .eq('escalated_to_biz_ops', false)
           setPendingLeave(leavePending || 0)
+        } else {
+          setPendingLeave(0)
         }
       }
 
