@@ -1581,58 +1581,7 @@ export default function DashboardPage() {
   // ── Admin dashboard ──────────────────────────────────────
   if (isAdmin) return <AdminDashboard user={user} />
 
-  if (false) return (
-    <div className="space-y-6">
-      <div><h1 className="text-xl font-bold text-gray-900">{getGreeting(user.full_name.split(' ')[0])} 👋</h1><p className="text-sm text-gray-500">Admin · View only</p></div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="stat-card"><div className="flex items-center gap-1.5 mb-1"><Building2 className="w-4 h-4 text-red-600" /><p className="text-xs text-gray-500">Active Gyms</p></div><p className="text-2xl font-bold">{gymBreakdown.filter(g => g.is_active).length}</p></div>
-        {(['business_ops', 'manager', 'trainer'] as const).map(role => {
-          const icons = { business_ops: Briefcase, manager: UserCheck, trainer: Dumbbell }
-          const colors = { business_ops: 'text-purple-600', manager: 'text-yellow-700', trainer: 'text-green-700' }
-          const labels = { business_ops: 'Business Ops', manager: 'Managers', trainer: 'Trainers' }
-          const Icon = icons[role]
-          return <div key={role} className="stat-card"><div className="flex items-center gap-1.5 mb-1"><Icon className={cn('w-4 h-4', colors[role])} /><p className="text-xs text-gray-500">{labels[role]}</p></div><p className="text-2xl font-bold">{roleCounts[role] || 0}</p></div>
-        })}
-      </div>
-      <div className="card">
-        {pendingLeave > 0 && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-blue-800">
-              {pendingLeave} Business Ops leave application{pendingLeave > 1 ? 's' : ''} awaiting your approval
-            </p>
-          </div>
-          <Link href="/dashboard/hr/leave" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
-        </div>
-      )}
-      <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm">Gym Clubs · Staff Breakdown</h2></div>
-        {gymBreakdown.map(gym => (
-          <div key={gym.id} className={cn('p-4 border-b border-gray-100 last:border-0', !gym.is_active && 'opacity-50')}>
-            <div className="flex items-center gap-3">
-              <Building2 className="w-4 h-4 text-red-600 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{gym.name}{!gym.is_active && ' (Inactive)'}</p>
-                {gym.address && <p className="text-xs text-gray-400">{gym.address}</p>}
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full font-medium">{gym.managers} Mgr</span>
-                <span className="bg-green-50 text-green-700 px-2 py-0.5 rounded-full font-medium">{gym.trainers} Trainers</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="card p-4">
-        <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
-        {[{ href: '/dashboard/admin/staff', l: 'Business Ops Staff', icon: Briefcase }, { href: '/dashboard/hr/leave', l: 'Leave Approvals', icon: Calendar }, { href: '/dashboard/admin/settings', l: 'App Settings', icon: Settings }].map(({ href, l, icon: Icon }) => (
-          <Link key={href} href={href} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-            <Icon className="w-4 h-4 text-red-600 flex-shrink-0" /><span className="text-sm text-gray-700 flex-1">{l}</span><ChevronRight className="w-4 h-4 text-gray-400" />
-          </Link>
-        ))}
-      </div>
-    </div>
-  ) /* end dead code — admin JSX preserved for reference until AdminDashboard.tsx is confirmed working */
+
 
   // ── Manager / Trainer dashboard ──────────────────────────
   return (
