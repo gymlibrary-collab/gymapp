@@ -19,6 +19,7 @@ import NonRenewalModal from './_components/NonRenewalModal'
 import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
 import StatsRow from './_components/StatsRow'
 import SessionSchedule from './_components/SessionSchedule'
+import ManagerAlertsSection from './_components/ManagerAlertsSection'
 
 
 
@@ -1753,126 +1754,15 @@ export default function DashboardPage() {
 
 
       {/* ── Manager alerts section ── */}
-      {isManager && totalAlerts > 0 && (
-        <div className="space-y-3">
-          <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" /> Alerts Requiring Attention
-          </h2>
+      <ManagerAlertsSection
+        totalAlerts={totalAlerts}
+        lowSessionPackages={lowSessionPackages}
+        expiringMemberships={expiringMemberships}
+        expiringPackages={expiringPackages}
+        atRiskMembers={atRiskMembers}
+        onNonRenewal={(m) => { setNonRenewalModal(m); setNonRenewalReason(''); setNonRenewalOther('') }}
+      />
 
-          {/* Low session packages */}
-          {lowSessionPackages.length > 0 && (
-            <div className="card">
-              <div className="p-3 border-b border-amber-100 bg-amber-50 rounded-t-xl">
-                <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
-                  <Package className="w-4 h-4" /> {lowSessionPackages.length} PT Package{lowSessionPackages.length > 1 ? 's' : ''} Running Low (≤3 sessions left)
-                </p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {lowSessionPackages.map((pkg: any) => (
-                  <div key={pkg.id} className="flex items-center gap-3 p-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{pkg.member?.full_name}</p>
-                      <p className="text-xs text-gray-500">{pkg.package_name} · {pkg.trainer?.full_name}</p>
-                    </div>
-                    <span className="text-sm font-bold text-amber-600 flex-shrink-0">
-                      {pkg.total_sessions - pkg.sessions_used} left
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Expiring memberships — non-dismissible, manager must action each */}
-          {expiringMemberships.filter((m: any) => !m.membership_actioned).length > 0 && (
-            <div className="card border border-amber-300 overflow-hidden">
-              <div className="bg-amber-500 px-4 py-2 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-white flex-shrink-0" />
-                <p className="text-sm font-semibold text-white">
-                  {expiringMemberships.filter((m: any) => !m.membership_actioned).length} membership{expiringMemberships.filter((m: any) => !m.membership_actioned).length > 1 ? 's' : ''} expiring — action required
-                </p>
-              </div>
-              <div className="divide-y divide-amber-100">
-                {expiringMemberships.filter((m: any) => !m.membership_actioned).map((m: any) => (
-                  <div key={m.id} className="flex items-center gap-3 p-3 bg-amber-50">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{m.member?.full_name}</p>
-                      <p className="text-xs text-amber-700">{m.membership_type_name} · expires {formatDate(m.end_date)}
-                        {m.escalated_to_biz_ops && <span className="ml-2 text-red-600 font-medium">⚠ Escalated to Biz Ops</span>}
-                      </p>
-                    </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      <Link href={`/dashboard/members/${m.member_id}`}
-                        className="text-xs bg-red-600 text-white px-2.5 py-1.5 rounded-lg font-medium hover:bg-red-700">
-                        Renew
-                      </Link>
-                      <button onClick={() => { setNonRenewalModal(m); setNonRenewalReason(''); setNonRenewalOther('') }}
-                        className="text-xs bg-white text-amber-700 border border-amber-300 px-2.5 py-1.5 rounded-lg font-medium hover:bg-amber-50">
-                        Non-Renewal
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-      {expiringPackages.length > 0 && (
-            <div className="card">
-              <div className="p-3 border-b border-red-100 bg-red-50 rounded-t-xl">
-                <p className="text-sm font-medium text-red-800 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" /> {expiringPackages.length} PT Package{expiringPackages.length > 1 ? 's' : ''} Expiring Within 14 Days
-                </p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {expiringPackages.map((pkg: any) => (
-                  <div key={pkg.id} className="flex items-center gap-3 p-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{pkg.member?.full_name}</p>
-                      <p className="text-xs text-gray-500">{pkg.package_name} · {pkg.trainer?.full_name}</p>
-                    </div>
-                    <span className="text-xs text-red-600 font-medium flex-shrink-0">
-                      Expires {formatDate(pkg.end_date_calculated)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* At-risk members */}
-          {atRiskMembers.length > 0 && (
-            <div className="card">
-              <div className="p-3 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-                <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <UserX className="w-4 h-4" /> {atRiskMembers.length} Member{atRiskMembers.length > 1 ? 's' : ''} with Expired Package — Not Renewed
-                </p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {atRiskMembers.map((m: any) => (
-                  <div key={m.member_id} className="flex items-start gap-3 p-3">
-                    <UserX className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{m.member?.full_name}</p>
-                      <p className="text-xs text-gray-500">{m.member?.phone} · expired {formatDate(m.end_date_calculated)}</p>
-                      {m.non_renewal_reason && (
-                        <p className="text-xs text-red-500 mt-0.5">Reason: {m.non_renewal_reason}</p>
-                      )}
-                      {m.renewal_status === 'undecided' && (
-                        <p className="text-xs text-amber-500 mt-0.5">Member was undecided — follow up needed</p>
-                      )}
-                      {!m.renewal_status && (
-                        <p className="text-xs text-gray-400 mt-0.5 italic">No renewal decision recorded</p>
-                      )}
-                    </div>
-                    <Link href={`/dashboard/members/${m.member_id}`} className="text-xs text-red-600 font-medium flex-shrink-0">View</Link>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Upcoming sessions ── */}
       {upcomingSessions.length > 0 && (
