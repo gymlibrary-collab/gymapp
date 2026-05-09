@@ -668,5 +668,6 @@ export async function fetchPendingLeave(
     .select('id', { count: 'exact', head: true })
     .in('user_id', leaveStaffIds)
     .eq('status', 'pending')
+    .eq('escalated_to_biz_ops', false) // match leave review page — escalated leaves are no longer manager's to action
   return count || 0
 }

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import AdminDashboard from './_components/AdminDashboard'
 import NotificationBanners from './_components/NotificationBanners'
+import NonRenewalModal from './_components/NonRenewalModal'
 
 
 
@@ -1203,7 +1204,8 @@ export default function DashboardPage() {
         ]
         if (leaveStaffIds.length > 0) {
           const { count: leavePending } = await supabase.from('leave_applications')
-            .select('id', { count: 'exact', head: true }).in('user_id', leaveStaffIds).eq('status', 'pending')
+            .select('id', { count: 'exact', head: true }).in('user_id', leaveStaffIds)
+            .eq('status', 'pending').eq('escalated_to_biz_ops', false) // match leave review page filter
           setPendingLeave(leavePending || 0)
         }
       }
@@ -1656,48 +1658,16 @@ export default function DashboardPage() {
       />
 
       {/* ── Non-renewal modal ── */}
-      {nonRenewalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setNonRenewalModal(null)}>
-          <div className="fixed inset-0 bg-black/30" />
-          <div className="relative bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm mx-4 space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900 text-sm">Record Non-Renewal</h3>
-              <button onClick={() => setNonRenewalModal(null)}><X className="w-4 h-4 text-gray-400" /></button>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Member</p>
-              <p className="text-sm font-medium text-gray-900">{nonRenewalModal.member?.full_name}</p>
-              <p className="text-xs text-gray-400">{nonRenewalModal.membership_type_name} · expires {formatDate(nonRenewalModal.end_date)}</p>
-            </div>
-            <div>
-              <label className="label">Reason for non-renewal *</label>
-              <select className="input" value={nonRenewalReason} onChange={e => setNonRenewalReason(e.target.value)}>
-                <option value="">Select reason...</option>
-                {['Relocating', 'Financial', 'Health', 'Schedule', 'Switched gym', 'Travel', 'Completed fitness goals', 'Dissatisfied with service', 'Temporary pause', 'Other'].map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-            {nonRenewalReason === 'Other' && (
-              <div>
-                <label className="label">Please specify *</label>
-                <textarea className="input min-h-[70px]" value={nonRenewalOther}
-                  onChange={e => setNonRenewalOther(e.target.value)}
-                  placeholder="Describe the reason..." />
-              </div>
-            )}
-            <p className="text-xs text-amber-600">Membership remains active until {formatDate(nonRenewalModal.end_date)}. Member profile will become inactive after that date.</p>
-            <div className="flex gap-2">
-              <button onClick={() => setNonRenewalModal(null)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={handleNonRenewal}
-                disabled={!nonRenewalReason || (nonRenewalReason === 'Other' && !nonRenewalOther.trim()) || nonRenewalSaving}
-                className="btn-primary flex-1 disabled:opacity-50">
-                {nonRenewalSaving ? 'Saving...' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NonRenewalModal
+        membership={nonRenewalModal}
+        reason={nonRenewalReason}
+        onReasonChange={setNonRenewalReason}
+        otherText={nonRenewalOther}
+        onOtherTextChange={setNonRenewalOther}
+        saving={nonRenewalSaving}
+        onConfirm={handleNonRenewal}
+        onClose={() => setNonRenewalModal(null)}
+      />
 
       {/* ── Stats row ── */}
       {isTrainer ? (
