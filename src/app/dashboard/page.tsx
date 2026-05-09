@@ -21,6 +21,7 @@ import StatsRow from './_components/StatsRow'
 import SessionSchedule from './_components/SessionSchedule'
 import ManagerAlertsSection from './_components/ManagerAlertsSection'
 import PendingConfirmationsBanner from './_components/PendingConfirmationsBanner'
+import QuickActions from './_components/QuickActions'
 
 
 
@@ -1764,26 +1765,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Trainer quick actions ── */}
-      {isTrainer && (
-        <div className="card p-4">
-          <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <Link href="/dashboard/members/new" className="btn-primary text-center text-sm">Register Member</Link>
-            <Link href="/dashboard/pt/sessions/new" className="btn-secondary text-center text-sm">Schedule Session</Link>
-          </div>
-        </div>
-      )}
-      {/* ── Staff quick actions ── */}
-      {isStaff && (
-        <div className="card p-4">
-          <h2 className="font-semibold text-gray-900 text-sm mb-3">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <Link href="/dashboard/membership/sales" className="btn-primary text-center text-sm">Log Membership Sale</Link>
-            <Link href="/dashboard/members" className="btn-secondary text-center text-sm">Member Lookup</Link>
-          </div>
-        </div>
-      )}
+      {/* ── Quick actions ── */}
+      {isTrainer && <QuickActions role="trainer" />}
+      {isStaff && <QuickActions role="staff" />}
     </div>
   )
 }
