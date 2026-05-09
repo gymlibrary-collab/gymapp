@@ -41,6 +41,7 @@ export default function MyLeavePage() {
 
 
   useEffect(() => {
+    if (!user) return
     const load = async () => {
       logActivity('page_view', 'My Leave', 'Viewed own leave')
 
@@ -83,7 +84,7 @@ export default function MyLeavePage() {
       setHolidays(ph?.map((h: any) => h.holiday_date) || [])
     }
     load()
-  }, [])
+  }, [user])
 
   if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
