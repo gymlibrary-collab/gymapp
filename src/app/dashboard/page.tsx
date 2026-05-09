@@ -30,15 +30,14 @@ function BizOpsDashboardAlerts() {
 
   useEffect(() => {
     const load = async () => {
-      // Pending leave: managers awaiting biz ops approval
-      const { data: managers } = await supabase.from('users').select('id').eq('role', 'manager')
-      const mgrIds = managers?.map((m: any) => m.id) || []
-      if (mgrIds.length > 0) {
-        const { count } = await supabase.from('leave_applications')
-          .select('id', { count: 'exact', head: true })
-          .in('user_id', mgrIds).eq('status', 'pending')
-        setPendingLeave(count || 0)
-      }
+      // Pending leave for biz-ops:
+      //   1. Manager leave (always biz-ops to approve)
+      //   2. Trainer + staff leave escalated after 48h (escalated_to_biz_ops=true)
+      const { count: escalatedCount } = await supabase.from('leave_applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .eq('escalated_to_biz_ops', true)
+      setPendingLeave(escalatedCount || 0)
 
       // Check if next year public holidays are set up (prompt from 15 Nov through 31 Dec)
       const now = new Date()

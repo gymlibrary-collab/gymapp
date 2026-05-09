@@ -62,10 +62,14 @@ export default function LeaveManagementPage() {
       const opsIds = opsStaff?.map((s: any) => s.id) || []
       staffIds = Array.from(new Set([...opsIds, ...ftTrainerIds]))
     } else if (user!.role === 'business_ops') {
-      // Biz Ops approves managers' leave
-      const { data: managers } = await supabase.from('users')
-        .select('id').eq('role', 'manager')
-      staffIds = managers?.map((m: any) => m.id) || []
+      // Biz Ops approves:
+      //   1. Manager leave (always)
+      //   2. Trainer + staff leave escalated after 48h without manager action
+      // staffIds must cover all three groups — the pending filter then applies
+      // escalated_to_biz_ops=true to show only what needs biz-ops attention
+      const { data: allStaff } = await supabase.from('users')
+        .select('id').in('role', ['manager', 'trainer', 'staff']).eq('is_archived', false)
+      staffIds = allStaff?.map((m: any) => m.id) || []
     } else if (user!.role === 'admin') {
       // Admin approves Business Ops leave
       const { data: bizOps } = await supabase.from('users')
