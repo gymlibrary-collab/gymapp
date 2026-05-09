@@ -1,47 +1,78 @@
 // ============================================================
 // src/lib/dashboard.ts — Shared dashboard query functions
 //
+// PURPOSE:
+//   Central repository of all Supabase query functions used by
+//   dashboard components. Prevents duplication as the dashboard
+//   is split from one large page.tsx into role-specific components.
+//
+// HOW TO USE:
+//   Import only the functions your component needs:
+//     import { fetchTodaySessions, fetchNotifications } from '@/lib/dashboard'
+//
 // ARCHITECTURE:
-//   All reusable query logic for dashboard components lives here.
-//   Role-specific components import what they need — no duplication.
+//   dashboard/page.tsx               — thin router: reads user.role, renders component
+//   dashboard/_components/           — role-specific dashboard components (one per role)
+//     AdminDashboard.tsx             — 4 queries, system health overview
+//     BizOpsDashboard.tsx            — gym overview cards, financials, escalations
+//     ManagerDashboard.tsx           — gym ops, packages, members, leave
+//     TrainerDashboard.tsx           — own sessions, packages, commission
+//     StaffDashboard.tsx             — today's sessions, memberships, notifications
+//   lib/dashboard.ts (this file)     — shared query functions called by all components
+//   lib/escalation.ts                — escalation check + logging functions
+//   lib/pdf.ts                       — PDF generation (payslip, commission, annual)
 //
-// USAGE:
-//   import { fetchTodaySessions, fetchNotifications } from '@/lib/dashboard'
-//   const sessions = await fetchTodaySessions(supabase, gymId, todayStart, todayEnd)
+// SUPABASE CLIENT:
+//   All functions accept `supabase` as first param (browser client from createClient()).
+//   This keeps functions testable and avoids importing the client directly.
+//   Always pass the browser client, not the admin client — RLS must apply.
 //
-// ROUTING CONTEXT:
-//   /dashboard/page.tsx          — thin router: reads role, renders component
-//   /dashboard/_components/      — role-specific dashboard components
-//   Each component calls these functions directly.
+// DATA CONVENTIONS:
+//   - Dates: ISO strings for Supabase, YYYY-MM-DD for date-only fields
+//   - Counts: always return number (never null) — use || 0
+//   - Lists: always return any[] (never null) — use || []
+//   - All functions are async — always await them
+//
+// ADDING NEW FUNCTIONS:
+//   1. Add JSDoc with @param, @returns, and "Used by" line
+//   2. Keep functions single-purpose — one query pattern per function
+//   3. Accept options object for optional filters (not positional args)
+//   4. Update this header's ARCHITECTURE section if adding new callers
 // ============================================================
 
 // ── Date helpers ─────────────────────────────────────────────
+// Used throughout dashboard components for consistent date ranges.
+// All return ISO strings or YYYY-MM-DD strings as documented.
 
-/** Returns ISO string for start of today (00:00:00) */
+/** Returns ISO datetime string for start of today (00:00:00 local time) */
 export function getTodayStart(): string {
   const now = new Date()
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
 }
 
-/** Returns ISO string for end of today (23:59:59) */
+/** Returns ISO datetime string for end of today (23:59:59 local time) */
 export function getTodayEnd(): string {
   const now = new Date()
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
 }
 
-/** Returns ISO string for start of current month */
+/** Returns ISO datetime string for the first day of the current month (00:00:00) */
 export function getMonthStart(): string {
   const now = new Date()
   return new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 }
 
-/** Returns YYYY-MM-DD string N days from today */
+/**
+ * Returns a YYYY-MM-DD string for N days from today.
+ * Use negative values for past dates (e.g. getDaysFromToday(-30) = 30 days ago).
+ * @param days - Number of days offset from today (positive = future, negative = past)
+ */
 export function getDaysFromToday(days: number): string {
   const now = new Date()
   return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 }
 
-/** Returns today as YYYY-MM-DD */
+/** Returns today's date as YYYY-MM-DD string */
 export function getTodayStr(): string {
   return new Date().toISOString().split('T')[0]
 }
@@ -49,8 +80,17 @@ export function getTodayStr(): string {
 // ── Session queries ───────────────────────────────────────────
 
 /**
- * Fetches today's sessions for a gym or trainer.
- * Used by: manager, trainer, staff dashboards.
+ * Fetches sessions scheduled for today, with member and trainer names.
+ * Scope is either a specific trainer (trainer dashboard) or a gym (manager/staff).
+ *
+ * @param supabase - Browser Supabase client (RLS applies)
+ * @param options.gymId - Scope to a specific gym (manager/staff view)
+ * @param options.trainerId - Scope to a specific trainer (trainer view, overrides gymId)
+ * @param options.todayStart - ISO string for start of today (use getTodayStart())
+ * @param options.todayEnd - ISO string for end of today (use getTodayEnd())
+ * @returns Array of session records with nested member and trainer names
+ *
+ * Used by: ManagerDashboard, TrainerDashboard, StaffDashboard
  */
 export async function fetchTodaySessions(
   supabase: any,
@@ -70,8 +110,17 @@ export async function fetchTodaySessions(
 }
 
 /**
- * Fetches upcoming sessions (next 5, after today).
- * Used by: manager, trainer, staff dashboards.
+ * Fetches the next 5 upcoming sessions (after today, status=scheduled).
+ * Scope is either a trainer or a gym/gym list.
+ *
+ * @param supabase - Browser Supabase client
+ * @param options.gymId - Single gym scope (manager/staff)
+ * @param options.gymIds - Multiple gym scope (trainer assigned to multiple gyms)
+ * @param options.trainerId - Trainer scope (overrides gym options)
+ * @param options.todayEnd - ISO string for end of today — sessions after this are "upcoming"
+ * @returns Up to 5 upcoming session records with member and trainer names
+ *
+ * Used by: ManagerDashboard, TrainerDashboard, StaffDashboard
  */
 export async function fetchUpcomingSessions(
   supabase: any,
@@ -93,8 +142,16 @@ export async function fetchUpcomingSessions(
 }
 
 /**
- * Fetches gym schedule — sessions for next 14 days.
- * Used by: manager, trainer, staff dashboards.
+ * Fetches all scheduled and completed sessions for the next 14 days.
+ * Powers the gym schedule calendar on manager/trainer/staff dashboards.
+ *
+ * @param supabase - Browser Supabase client
+ * @param options.gymId - Single gym (manager/staff)
+ * @param options.gymIds - Multiple gyms (trainer assigned to multiple gyms — currently single gym per trainer)
+ * @param options.trainerId - Trainer scope (for trainer view)
+ * @returns Up to 200 sessions with full member, trainer, and package details
+ *
+ * Used by: ManagerDashboard, TrainerDashboard, StaffDashboard
  */
 export async function fetchGymSchedule(
   supabase: any,
@@ -121,8 +178,14 @@ export async function fetchGymSchedule(
 }
 
 /**
- * Fetches count of completed sessions pending manager confirmation.
- * Used by: manager dashboard.
+ * Counts completed sessions that have notes submitted but haven't been
+ * confirmed by the manager yet. Drives the "pending confirmation" alert badge.
+ *
+ * @param supabase - Browser Supabase client
+ * @param gymId - The manager's assigned gym ID
+ * @returns Count of unconfirmed completed sessions
+ *
+ * Used by: ManagerDashboard
  */
 export async function fetchPendingSessionConfirmations(
   supabase: any,
@@ -140,8 +203,18 @@ export async function fetchPendingSessionConfirmations(
 // ── Package queries ───────────────────────────────────────────
 
 /**
- * Fetches active packages with ≤ N sessions remaining.
- * Used by: manager, trainer dashboards.
+ * Fetches active PT packages with few sessions remaining (≤ threshold).
+ * Used to warn managers/trainers that a package is about to run out
+ * so they can prompt the member to renew.
+ *
+ * @param supabase - Browser Supabase client
+ * @param options.gymId - Gym scope (manager view)
+ * @param options.trainerId - Trainer scope (trainer's own packages)
+ * @param options.threshold - Max sessions remaining to qualify (default: 3)
+ * @param options.limit - Max results to return (default: 10)
+ * @returns Package records with member and trainer names, ordered by sessions_used desc
+ *
+ * Used by: ManagerDashboard, TrainerDashboard
  */
 export async function fetchLowSessionPackages(
   supabase: any,
@@ -165,8 +238,18 @@ export async function fetchLowSessionPackages(
 }
 
 /**
- * Fetches active packages expiring within N days.
- * Used by: manager, trainer dashboards.
+ * Fetches active PT packages whose calculated end date falls within the next N days.
+ * Used to warn managers/trainers that a package is expiring by time even if
+ * sessions haven't been used up.
+ *
+ * @param supabase - Browser Supabase client
+ * @param options.gymId - Gym scope (manager view)
+ * @param options.trainerId - Trainer scope
+ * @param options.withinDays - Lookahead window in days (default: 7)
+ * @param options.limit - Max results (default: 10)
+ * @returns Package records ordered by end_date_calculated ascending
+ *
+ * Used by: ManagerDashboard, TrainerDashboard
  */
 export async function fetchExpiringPackages(
   supabase: any,
@@ -195,8 +278,14 @@ export async function fetchExpiringPackages(
 // ── Membership queries ────────────────────────────────────────
 
 /**
- * Fetches count of pending membership sales.
- * Used by: manager, staff dashboards.
+ * Counts gym membership sales with sale_status = 'pending' (awaiting manager confirmation).
+ * Drives the pending memberships alert badge on manager and staff dashboards.
+ *
+ * @param supabase - Browser Supabase client
+ * @param gymId - The gym to count pending sales for
+ * @returns Count of pending membership sales
+ *
+ * Used by: ManagerDashboard, StaffDashboard
  */
 export async function fetchPendingMemberships(
   supabase: any,
@@ -210,10 +299,23 @@ export async function fetchPendingMemberships(
 }
 
 /**
- * Fetches memberships expiring within N days.
- * bizOpsOnly=true: only escalated + unactioned (for biz-ops view)
- * bizOpsOnly=false: all expiring (for manager view)
- * Used by: manager, biz-ops dashboards.
+ * Fetches gym memberships expiring within N days.
+ * Two modes controlled by bizOpsOnly:
+ *   - Manager view (bizOpsOnly=false): all confirmed active memberships expiring soon
+ *   - Biz-ops view (bizOpsOnly=true): only those escalated and not yet actioned
+ *
+ * Note: Excludes members who have already renewed (have a later end_date membership).
+ * Filtering for renewed members must be done client-side after calling this function
+ * (see ManagerDashboard for the renewedMemberIds logic).
+ *
+ * @param supabase - Browser Supabase client
+ * @param gymId - The gym to fetch expiring memberships for
+ * @param options.withinDays - Lookahead window (default: 30)
+ * @param options.bizOpsOnly - If true, only escalated + unactioned (default: false)
+ * @param options.limit - Max results (default: 20)
+ * @returns Membership records with nested member name
+ *
+ * Used by: ManagerDashboard, BizOpsDashboard
  */
 export async function fetchExpiringMemberships(
   supabase: any,
@@ -246,10 +348,22 @@ export async function fetchExpiringMemberships(
 // ── At-risk members (manager) ─────────────────────────────────
 
 /**
- * Fetches members whose PT packages expired in the last 30 days
- * with no new active package — potential churn risk.
- * Includes non-renewal reason from last session notes.
- * Used by: manager dashboard only.
+ * Fetches members at churn risk: their PT package expired in the last 30 days
+ * and they have not started a new active package.
+ *
+ * Runs 3 queries:
+ *   1. Packages expired in last 30 days for this gym
+ *   2. Active packages for those members (to exclude already-renewed)
+ *   3. Bulk fetch of last session renewal notes for remaining at-risk packages
+ *
+ * The renewal_status and non_renewal_reason come from the last session's notes,
+ * recorded by the trainer at the end of the package (is_last_session flow).
+ *
+ * @param supabase - Browser Supabase client
+ * @param gymId - The manager's gym
+ * @returns Deduplicated list of at-risk members with renewal_status and non_renewal_reason
+ *
+ * Used by: ManagerDashboard only
  */
 export async function fetchAtRiskMembers(
   supabase: any,
@@ -257,7 +371,6 @@ export async function fetchAtRiskMembers(
 ): Promise<any[]> {
   const thirtyDaysAgo = getDaysFromToday(-30)
 
-  // Step 1: packages expired in last 30 days
   const { data: expiredPkgs } = await supabase.from('packages')
     .select('id, member_id, member:members(full_name, phone), end_date_calculated')
     .eq('gym_id', gymId)
@@ -266,7 +379,6 @@ export async function fetchAtRiskMembers(
 
   if (!expiredPkgs || expiredPkgs.length === 0) return []
 
-  // Step 2: exclude members who already have a new active package
   const expiredMemberIds = Array.from(new Set(expiredPkgs.map((p: any) => p.member_id)))
   const { data: activePkgs } = await supabase.from('packages')
     .select('member_id')
@@ -284,11 +396,10 @@ export async function fetchAtRiskMembers(
 
   if (atRisk.length === 0) return []
 
-  // Step 3: bulk fetch non-renewal reasons from last session notes
-  const atRiskPkgIds = atRisk.map((p: any) => p.id)
+  // Bulk fetch renewal reasons — one query instead of N
   const { data: atRiskSessions } = await supabase.from('sessions')
     .select('package_id, renewal_status, non_renewal_reason, scheduled_at')
-    .in('package_id', atRiskPkgIds)
+    .in('package_id', atRisk.map((p: any) => p.id))
     .not('renewal_status', 'is', null)
     .order('scheduled_at', { ascending: false })
 
@@ -301,8 +412,21 @@ export async function fetchAtRiskMembers(
 // ── Commission stats ──────────────────────────────────────────
 
 /**
- * Fetches commission stats for a period.
- * Used by: trainer, manager, biz-ops dashboards.
+ * Fetches commission and revenue stats for a given period.
+ * Handles both trainer view (session + signup commission) and
+ * manager/biz-ops view (membership revenue + commission payouts).
+ *
+ * @param supabase - Browser Supabase client
+ * @param options.userId - The user whose stats to fetch
+ * @param options.gymId - Optional gym filter (for manager/biz-ops scoping)
+ * @param options.periodStart - ISO string for period start
+ * @param options.periodEnd - ISO string for period end
+ * @param options.isTrainer - If true, fetches trainer-specific metrics (session + signup commission)
+ *                            If false, fetches membership revenue + commission payout totals
+ * @returns Object with sessionCommission, signupCommission, membershipRevenue,
+ *          membershipSalesCount, totalCommissionPayout, sessCount
+ *
+ * Used by: TrainerDashboard, ManagerDashboard, BizOpsDashboard
  */
 export async function fetchCommissionStats(
   supabase: any,
@@ -321,7 +445,6 @@ export async function fetchCommissionStats(
   totalCommissionPayout: number
   sessCount: number
 }> {
-  // Session commission
   let sessQ = supabase.from('sessions')
     .select('session_commission_sgd')
     .eq('status', 'completed')
@@ -333,18 +456,15 @@ export async function fetchCommissionStats(
   const sessionCommission = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
   const sessCount = sessData?.length || 0
 
-  // Signup commission (trainers only)
   let signupCommission = 0
   if (options.isTrainer) {
-    let pkgQ = supabase.from('packages')
+    const { data: pkgData } = await supabase.from('packages')
       .select('signup_commission_sgd')
       .eq('trainer_id', options.userId)
       .gte('created_at', options.periodStart)
-    const { data: pkgData } = await pkgQ
     signupCommission = pkgData?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
   }
 
-  // Membership revenue + payout (non-trainers)
   let membershipRevenue = 0
   let membershipSalesCount = 0
   let totalCommissionPayout = 0
@@ -373,8 +493,20 @@ export async function fetchCommissionStats(
 // ── Notifications ─────────────────────────────────────────────
 
 /**
- * Fetches all unread notifications for a user.
- * Used by: trainer, manager, staff dashboards.
+ * Fetches all unread (seen_at IS NULL) notifications for a user.
+ * Three types of notifications are checked:
+ *   - mem_rejection_notif: manager rejected a membership sale this user submitted
+ *   - leave_decision_notif: manager approved or rejected this user's leave application
+ *   - pkg_rejection_notif: manager rejected a PT package this trainer submitted
+ *
+ * Returns empty arrays for roles that don't receive notifications (admin, business_ops).
+ *
+ * @param supabase - Browser Supabase client
+ * @param userId - The authenticated user's ID
+ * @param role - The user's role — only trainer/staff/manager receive notifications
+ * @returns Object with three arrays: memRejectionNotifs, leaveDecisionNotifs, pkgRejectionNotifs
+ *
+ * Used by: TrainerDashboard, ManagerDashboard, StaffDashboard
  */
 export async function fetchNotifications(
   supabase: any,
@@ -410,8 +542,19 @@ export async function fetchNotifications(
 }
 
 /**
- * Dismisses notifications by setting seen_at to now.
- * Used by: trainer, manager, staff dashboards.
+ * Marks notifications as seen by setting seen_at to the current timestamp.
+ * Called when user dismisses a notification banner.
+ *
+ * Runs updates sequentially (not parallel) to avoid Supabase connection issues.
+ *
+ * @param supabase - Browser Supabase client
+ * @param type - Which notification table to update:
+ *   'leave'          → leave_decision_notif
+ *   'mem_rejection'  → mem_rejection_notif
+ *   'pkg_rejection'  → pkg_rejection_notif
+ * @param ids - Array of notification record IDs to mark as seen
+ *
+ * Used by: TrainerDashboard, ManagerDashboard, StaffDashboard
  */
 export async function dismissNotifications(
   supabase: any,
@@ -431,9 +574,24 @@ export async function dismissNotifications(
 }
 
 /**
- * Fetches latest payslip and commission payout for payslip/commission
- * notification banners.
- * Used by: trainer, staff, manager dashboards.
+ * Checks whether the user has a new payslip or commission payout since
+ * they last dismissed the notification banner.
+ *
+ * Logic:
+ *   - Fetches the most recent approved/paid payslip and commission payout
+ *   - Compares approved_at against the user's seen timestamp (from users table)
+ *   - If approved_at > seen timestamp → show notification banner
+ *
+ * The seen timestamps (payslip_notif_seen_at, commission_notif_seen_at) are
+ * stored on the users record and updated when the user clicks dismiss.
+ *
+ * @param supabase - Browser Supabase client
+ * @param userId - The authenticated user's ID
+ * @param seenPayslipAt - ISO string of when user last dismissed payslip notif (or null if never)
+ * @param seenCommissionAt - ISO string of when user last dismissed commission notif (or null if never)
+ * @returns Object with newPayslip and newCommission (null if no new notification)
+ *
+ * Used by: TrainerDashboard, ManagerDashboard, StaffDashboard
  */
 export async function fetchPayslipNotifications(
   supabase: any,
@@ -468,18 +626,28 @@ export async function fetchPayslipNotifications(
 // ── Pending leave ─────────────────────────────────────────────
 
 /**
- * Fetches count of pending leave applications for a manager's gym.
- * Used by: manager dashboard.
+ * Counts pending leave applications for staff under a manager's gym.
+ * Includes full-time trainers and operations staff — excludes part-timers
+ * (part-time staff are not entitled to leave under current business rules).
+ *
+ * Runs 3 queries:
+ *   1. ops staff IDs (role=staff, manager_gym_id=gymId)
+ *   2. trainer IDs assigned to this gym via trainer_gyms
+ *   3. filter trainers to full-time only, then count pending leave
+ *
+ * @param supabase - Browser Supabase client
+ * @param gymId - The manager's assigned gym
+ * @returns Count of pending leave applications across all eligible staff
+ *
+ * Used by: ManagerDashboard
  */
 export async function fetchPendingLeave(
   supabase: any,
   gymId: string
 ): Promise<number> {
-  // Full-time staff at this gym
   const { data: opsStaffIds } = await supabase.from('users')
     .select('id').eq('manager_gym_id', gymId).eq('role', 'staff')
 
-  // Full-time trainers at this gym
   const { data: gymTrainerIds } = await supabase.from('trainer_gyms')
     .select('trainer_id').eq('gym_id', gymId)
   const rawTrainerIds = gymTrainerIds?.map((t: any) => t.trainer_id) || []
