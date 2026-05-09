@@ -20,6 +20,7 @@ import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
 import StatsRow from './_components/StatsRow'
 import SessionSchedule from './_components/SessionSchedule'
 import ManagerAlertsSection from './_components/ManagerAlertsSection'
+import PendingConfirmationsBanner from './_components/PendingConfirmationsBanner'
 
 
 
@@ -1627,37 +1628,15 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
 
-      {/* ── Pending actions banner ── */}
-      {isManager && totalPending > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <Bell className="w-5 h-5 text-amber-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800">
-              {totalPending} item{totalPending > 1 ? 's' : ''} pending your confirmation
-            </p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              {pendingMemberships > 0 && `${pendingMemberships} membership sale${pendingMemberships > 1 ? 's' : ''}`}
-              {pendingMemberships > 0 && pendingSessions > 0 && ' · '}
-              {pendingSessions > 0 && `${pendingSessions} PT session${pendingSessions > 1 ? 's' : ''}`}
-            </p>
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-            {pendingMemberships > 0 && <Link href="/dashboard/membership/sales" className="btn-primary text-xs py-1.5">Memberships</Link>}
-            {pendingSessions > 0 && <Link href="/dashboard/pt/sessions" className="btn-secondary text-xs py-1.5">Sessions</Link>}
-          </div>
-        </div>
+      {/* ── Pending confirmations + leave banner ── */}
+      {isManager && (
+        <PendingConfirmationsBanner
+          pendingMemberships={pendingMemberships}
+          pendingSessions={pendingSessions}
+          pendingLeave={pendingLeave}
+        />
       )}
 
-      {/* ── Pending leave banner ── */}
-      {isManager && pendingLeave > 0 && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-blue-800">{pendingLeave} leave application{pendingLeave > 1 ? 's' : ''} awaiting approval</p>
-          </div>
-          <Link href="/dashboard/hr/leave" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
-        </div>
-      )}
 
       {/* ── Staff birthday panel (upcoming 7 days) ── */}
       {isManager && (
