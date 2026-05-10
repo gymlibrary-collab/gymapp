@@ -36,7 +36,6 @@ import { createClient } from '@/lib/supabase-browser'
 import { Clock } from 'lucide-react'
 import Link from 'next/link'
 import { formatSGD, formatDateTime, getMonthName } from '@/lib/utils'
-import { runEscalationCheck, loadEscalationThresholds, logEscalation } from '@/lib/escalation'
 import NotificationBanners from './NotificationBanners'
 import NonRenewalModal from './NonRenewalModal'
 import StatsRow from './StatsRow'
@@ -209,11 +208,9 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       const now = new Date()
 
       // ── Escalation checks ────────────────────────────────
-      const thresholds = await loadEscalationThresholds(supabase)
-      const memSalesCount = await runEscalationCheck(supabase, 'membership_sales', thresholds.membership_sales, user.id)
-      await logEscalation(user.full_name, user.role, user.id, 'membership_sales', memSalesCount)
-      const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', thresholds.membership_expiry, user.id, gymId)
-      await logEscalation(user.full_name, user.role, user.id, 'membership_expiry', expiryCount)
+      // Membership sales + expiry escalation now handled by daily cron jobs:
+      //   /api/cron/escalate-membership-sales      (0103 SGT)
+      //   /api/cron/escalate-expiring-memberships  (0102 SGT)
 
       // ── Today's sessions ──────────────────────────────────
       const { data: todayData } = await supabase.from('sessions')
@@ -267,18 +264,8 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
         .order('end_date_calculated').limit(10)
       setExpiringPackages(expPkgs || [])
 
-      // ── Membership expiry escalation ───────────────────────
-      const in7Days = getDaysFromToday(7)
-      const todayStr = getTodayStr()
-      const { data: toEscalate } = await supabase.from('gym_memberships')
-        .select('id').eq('gym_id', gymId).eq('status', 'active').eq('sale_status', 'confirmed')
-        .eq('membership_actioned', false).eq('escalated_to_biz_ops', false)
-        .lte('end_date', in7Days).gte('end_date', todayStr)
-      if (toEscalate && toEscalate.length > 0) {
-        await supabase.from('gym_memberships')
-          .update({ escalated_to_biz_ops: true, escalated_at: now.toISOString() })
-          .in('id', toEscalate.map((m: any) => m.id))
-      }
+      // Membership expiry escalation is now handled by the daily cron
+      // at /api/cron/expire-memberships (runs at 0001 SGT).
 
       // ── Expiring memberships ───────────────────────────────
       const in30Days = getDaysFromToday(30)

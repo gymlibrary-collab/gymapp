@@ -30,7 +30,6 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { Clock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { formatSGD, formatDateTime, getMonthName, cn } from '@/lib/utils'
-import { runEscalationCheck, loadEscalationThresholds, logEscalation } from '@/lib/escalation'
 import NotificationBanners from './NotificationBanners'
 import StatsRow from './StatsRow'
 import SessionSchedule from './SessionSchedule'
@@ -84,10 +83,8 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       const monthStart = getMonthStart()
       const now = new Date()
 
-      // ── Escalation check ──────────────────────────────────
-      const thresholds = await loadEscalationThresholds(supabase)
-      const memSalesCount = await runEscalationCheck(supabase, 'membership_sales', thresholds.membership_sales, user.id)
-      await logEscalation(user.full_name, user.role, user.id, 'membership_sales', memSalesCount)
+      // Membership sales escalation is now handled by the daily cron
+      // at /api/cron/escalate-membership-sales (runs at 0103 SGT).
 
       // ── Today's sessions ──────────────────────────────────
       if (gymId) {
