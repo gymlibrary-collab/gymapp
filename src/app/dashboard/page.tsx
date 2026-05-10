@@ -16,6 +16,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import AdminDashboard from './_components/AdminDashboard'
 import StaffDashboard from './_components/StaffDashboard'
 import TrainerDashboard from './_components/TrainerDashboard'
+import ManagerDashboard from './_components/ManagerDashboard'
 import NotificationBanners from './_components/NotificationBanners'
 import NonRenewalModal from './_components/NonRenewalModal'
 import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
@@ -638,7 +639,7 @@ function getGreeting(firstName: string): string {
 // ── Birthday panel ───────────────────────────────────────────
 // Shows staff birthdays in the next 7 days for Manager / Biz Ops.
 // Hidden when empty. Slide-out panel on click.
-function BirthdayPanel({ gymId, isBizOps }: { gymId?: string | null, isBizOps?: boolean }) {
+function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string | null, isBizOps?: boolean }) {
   const [birthdays, setBirthdays] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const supabase = createClient()
@@ -1620,6 +1621,7 @@ export default function DashboardPage() {
   if (isAdmin) return <AdminDashboard user={user} />
   if (isStaff) return <StaffDashboard user={user} />
   if (isTrainer) return <TrainerDashboard user={user} isActingAsTrainer={isActingAsTrainer} />
+  if (isManager) return <ManagerDashboard user={user} />
 
 
 
@@ -1645,7 +1647,7 @@ export default function DashboardPage() {
 
       {/* ── Staff birthday panel (upcoming 7 days) ── */}
       {isManager && (
-        <BirthdayPanel gymId={user.manager_gym_id} isBizOps={false} />
+        <StaffBirthdayPanel gymId={user.manager_gym_id} isBizOps={false} />
       )}
 
       {/* ── Member birthday today ── */}
@@ -1720,7 +1722,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── Biz Ops: gym tabs ── */}
-      {isBizOps && <BirthdayPanel isBizOps={true} />}
+      {isBizOps && <StaffBirthdayPanel isBizOps={true} />}
       {isBizOps && <BizOpsDashboardAlerts />}
       {isBizOps && <BizOpsGymTabs />}
 
@@ -1733,7 +1735,7 @@ export default function DashboardPage() {
         isTrainer={isTrainer}
         isManager={isManager}
         isBizOps={isBizOps}
-        showCalendar={isManager || isTrainer || isStaff}
+        showCalendar={isManager || isTrainer}
       />
 
 
@@ -1769,9 +1771,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Quick actions ── */}
+      {/* ── Quick actions (manager acting as trainer only) ── */}
       {isTrainer && <QuickActions role="trainer" />}
-      {isStaff && <QuickActions role="staff" />}
     </div>
   )
 }
