@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { loadEscalationThresholds, runEscalationCheck, logEscalation } from '@/lib/escalation'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react'
@@ -45,10 +44,8 @@ export default function MyLeavePage() {
     const load = async () => {
       logActivity('page_view', 'My Leave', 'Viewed own leave')
 
-      // ── Leave escalation check (configurable threshold) ─────
-      const thresholds = await loadEscalationThresholds(supabase)
-      const leaveCount = await runEscalationCheck(supabase, 'leave', thresholds.leave, user!.id)
-      await logEscalation(user!.full_name, user!.role, user!.id, 'leave', leaveCount)
+      // Leave escalation is now handled by the daily cron job at
+      // /api/cron/escalate-leave (runs at 0100 SGT).
 
       const { data: apps } = await supabase.from('leave_applications')
         .select('*').eq('user_id', user!.id)
