@@ -28,6 +28,10 @@
     {
       "path": "/api/cron/escalate-pt-session-notes",
       "schedule": "5 17 * * *"
+    },
+    {
+      "path": "/api/cron/expire-pt-packages",
+      "schedule": "6 17 * * *"
     }
   ]
 }
