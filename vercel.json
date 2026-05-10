@@ -34,7 +34,7 @@
       "schedule": "6 17 * * *"
     },
     {
-      "path": "/api/cron/refresh-staff-birthdays",
+      "path": "/api/cron/check-staff-birthdays",
       "schedule": "50 16 * * *"
     }
   ]

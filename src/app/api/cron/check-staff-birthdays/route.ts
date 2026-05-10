@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
 
 // ============================================================
-// /api/cron/refresh-staff-birthdays
+// /api/cron/check-staff-birthdays
 //
 // PURPOSE:
 //   Pre-computes staff birthdays falling within the next 7 days
@@ -15,7 +15,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 //   midnight so the table is ready when managers log in at the
 //   start of the day.
 //   Registered in vercel.json:
-//     { "path": "/api/cron/refresh-staff-birthdays", "schedule": "50 16 * * *" }
+//     { "path": "/api/cron/check-staff-birthdays", "schedule": "50 16 * * *" }
 //
 // STRATEGY:
 //   Truncate + re-insert (not upsert). Brief empty window is
