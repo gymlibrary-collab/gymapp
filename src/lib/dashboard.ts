@@ -643,14 +643,17 @@ export async function fetchPayslipNotifications(
  */
 export async function fetchPendingLeave(
   supabase: any,
-  gymId: string
+  gymId: string,
+  excludeUserId?: string
 ): Promise<number> {
   const { data: opsStaffIds } = await supabase.from('users')
     .select('id').eq('manager_gym_id', gymId).eq('role', 'staff')
+    .neq('id', excludeUserId || '')
 
   const { data: gymTrainerIds } = await supabase.from('trainer_gyms')
     .select('trainer_id').eq('gym_id', gymId)
-  const rawTrainerIds = gymTrainerIds?.map((t: any) => t.trainer_id) || []
+  const rawTrainerIds = (gymTrainerIds?.map((t: any) => t.trainer_id) || [])
+    .filter((id: string) => id !== excludeUserId)
   let ftTrainerIds: string[] = []
   if (rawTrainerIds.length > 0) {
     const { data: ftOnly } = await supabase.from('users')
@@ -666,7 +669,7 @@ export async function fetchPendingLeave(
 
   const { count } = await supabase.from('leave_applications')
     .select('id', { count: 'exact', head: true })
-    .in('user_id', leaveStaffIds) // caller must exclude manager's own ID if needed
+    .in('user_id', leaveStaffIds)
     .eq('status', 'pending')
     .or('escalated_to_biz_ops.is.null,escalated_to_biz_ops.eq.false')
   return count || 0

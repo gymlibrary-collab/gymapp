@@ -270,7 +270,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setAtRiskMembers(await fetchAtRiskMembers(supabase, gymId))
 
       // ── Pending leave ──────────────────────────────────────
-      setPendingLeave(await fetchPendingLeave(supabase, gymId))
+      setPendingLeave(await fetchPendingLeave(supabase, gymId, user.id))
 
       // ── Pending membership sales ───────────────────────────
       const { count: pendingCount } = await supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
