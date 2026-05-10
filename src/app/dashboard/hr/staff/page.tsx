@@ -328,9 +328,10 @@ export default function TrainersPage() {
 
               {/* Role — Biz Ops cannot create admin or business_ops accounts */}
               <div className="grid grid-cols-2 gap-2">
-                {ALL_ROLES.filter(r => isBizOps ? !['admin', 'business_ops'].includes(r.value) : true).map(r => (
+                {ALL_ROLES.filter(r => isBizOps ? !['admin', 'business_ops'].includes(r.value) : ['trainer', 'staff'].includes(r.value)).map(r => (
                   <label key={r.value} className={cn('flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors', createForm.role === r.value ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300')}>
-                    <input type="radio" name="create_role" value={r.value} checked={createForm.role === r.value} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))} className="mt-0.5 flex-shrink-0" />
+                    <input type="radio" name="create_role" value={r.value} checked={createForm.role === r.value} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value, // Trainers must be full-time
+                      employment_type: e.target.value === 'trainer' ? 'full_time' : f.employment_type }))} className="mt-0.5 flex-shrink-0" />
                     <div><p className="text-xs font-medium text-gray-900">{r.label}</p><p className="text-xs text-gray-400">{r.description}</p></div>
                   </label>
                 ))}
@@ -709,21 +710,29 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
 }
 
 function EmploymentFields({ form, setF, isBizOps }: { form: any; setF: any; isBizOps: boolean }) {
+  // Trainers must be full-time — part-time option is disabled for trainer role
+  const isTrainer = form.role === 'trainer'
   return (
     <>
       <div>
         <label className="label">Employment Type *</label>
+        {isTrainer && (
+          <p className="text-xs text-amber-600 mb-1.5">Trainers must be full-time employees.</p>
+        )}
         <div className="flex gap-2">
-          {['full_time', 'part_time'].map(et => (
-            <label key={et} className={cn('flex-1 flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors',
-              form.employment_type === et ? 'border-red-500 bg-red-50' : 'border-gray-200 hover:border-gray-300')}>
-              <input type="radio" checked={form.employment_type === et} onChange={() => setF((f: any) => ({ ...f, employment_type: et }))} />
+          {['full_time', 'part_time'].map(et => {
+            const disabled = isTrainer && et === 'part_time'
+            return (
+            <label key={et} className={cn('flex-1 flex items-center gap-2 p-3 rounded-lg border transition-colors',
+              disabled ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed' :
+              form.employment_type === et ? 'border-red-500 bg-red-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer')}>
+              <input type="radio" checked={form.employment_type === et} disabled={disabled} onChange={() => !disabled && setF((f: any) => ({ ...f, employment_type: et }))} />
               <div>
                 <p className="text-sm font-medium text-gray-900">{et === 'full_time' ? 'Full Time' : 'Part Time'}</p>
                 <p className="text-xs text-gray-400">{et === 'full_time' ? 'Fixed monthly salary' : 'Hourly rate per shift'}</p>
               </div>
             </label>
-          ))}
+          )})}
         </div>
       </div>
       {form.employment_type === 'part_time' && isBizOps && (

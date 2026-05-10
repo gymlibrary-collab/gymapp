@@ -15,11 +15,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { full_name, email, phone, role, commission_signup_pct, commission_session_pct,
+    const { full_name, email, phone, role, employment_type, commission_signup_pct, commission_session_pct,
       gym_ids, manager_gym_id, is_also_trainer } = body
 
-    if (currentUser.role === 'manager' && !['trainer', 'manager'].includes(role)) {
-      return NextResponse.json({ error: 'Managers can only create trainer or manager accounts' }, { status: 403 })
+    if (currentUser.role === 'manager' && !['trainer', 'staff'].includes(role)) {
+      return NextResponse.json({ error: 'Managers can only create trainer or staff accounts' }, { status: 403 })
+    }
+    // Trainers must be full-time
+    if (role === 'trainer' && employment_type === 'part_time') {
+      return NextResponse.json({ error: 'Trainers must be full-time employees' }, { status: 400 })
     }
 
     const adminClient = createAdminClient()
