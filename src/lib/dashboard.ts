@@ -654,7 +654,7 @@ export async function fetchPendingLeave(
   let ftTrainerIds: string[] = []
   if (rawTrainerIds.length > 0) {
     const { data: ftOnly } = await supabase.from('users')
-      .select('id').in('id', rawTrainerIds).eq('employment_type', 'full_time')
+      .select('id').in('id', rawTrainerIds).eq('role', 'trainer').eq('employment_type', 'full_time')
     ftTrainerIds = ftOnly?.map((t: any) => t.id) || []
   }
 

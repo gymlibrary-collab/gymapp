@@ -36,7 +36,7 @@ import SessionSchedule from './SessionSchedule'
 import QuickActions from './QuickActions'
 import {
   getTodayStart, getTodayEnd, getMonthStart,
-  fetchPayslipNotifications,
+  fetchPayslipNotifications, fetchNotifications, dismissNotifications, fetchUpcomingSessions,
 } from '@/lib/dashboard'
 
 interface StaffDashboardProps {
@@ -94,10 +94,7 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
         setTodaySessions(todayData || [])
 
         // ── Upcoming sessions ──────────────────────────────
-        const { data: upData } = await supabase.from('sessions')
-          .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
-          .eq('gym_id', gymId).eq('status', 'scheduled').gt('scheduled_at', todayEnd).order('scheduled_at').limit(5)
-        setUpcomingSessions(upData || [])
+        setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
 
         // ── Gym schedule ───────────────────────────────────
         const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
@@ -138,20 +135,11 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       setPendingMemSales(pendingCount || 0)
 
       // ── Notifications ──────────────────────────────────────
-      const { data: memRejections } = await supabase.from('mem_rejection_notif')
-        .select('id, member_name, membership_type_name, rejection_reason, was_new_member, rejected_by_name, rejected_at')
-        .eq('seller_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
-      setMemRejectionNotifs(memRejections || [])
-
-      const { data: leaveNotifs } = await supabase.from('leave_decision_notif')
-        .select('id, leave_type, start_date, end_date, days_applied, decision, rejection_reason, decided_by_name')
-        .eq('user_id', user.id).is('seen_at', null).order('decided_at', { ascending: false })
-      setLeaveDecisionNotifs(leaveNotifs || [])
-
-      const { data: pkgRejections } = await supabase.from('pkg_rejection_notif')
-        .select('id, package_name, member_name, rejected_by_name, rejected_at')
-        .eq('trainer_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
-      setRejectionNotifs(pkgRejections || [])
+      const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
+        await fetchNotifications(supabase, user.id, user.role)
+      setMemRejectionNotifs(memRej)
+      setLeaveDecisionNotifs(leaveNotifs)
+      setRejectionNotifs(pkgRej)
 
       const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(
         supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at
@@ -169,18 +157,15 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
     setNewPayslip(null); setNewCommission(null)
   }
   const dismissMemRejections = async () => {
-    const now = new Date().toISOString()
-    for (const n of memRejectionNotifs) await supabase.from('mem_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'mem_rejection', memRejectionNotifs.map((n: any) => n.id))
     setMemRejectionNotifs([])
   }
   const dismissLeaveNotifs = async () => {
-    const now = new Date().toISOString()
-    for (const n of leaveDecisionNotifs) await supabase.from('leave_decision_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'leave', leaveDecisionNotifs.map((n: any) => n.id))
     setLeaveDecisionNotifs([])
   }
   const dismissRejections = async () => {
-    const now = new Date().toISOString()
-    for (const n of rejectionNotifs) await supabase.from('pkg_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'pkg_rejection', rejectionNotifs.map((n: any) => n.id))
     setRejectionNotifs([])
   }
 

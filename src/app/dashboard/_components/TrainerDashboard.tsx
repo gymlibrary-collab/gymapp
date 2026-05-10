@@ -40,7 +40,8 @@ import SessionSchedule from './SessionSchedule'
 import QuickActions from './QuickActions'
 import {
   getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
-  fetchPayslipNotifications,
+  fetchPayslipNotifications, fetchLowSessionPackages, fetchExpiringPackages,
+  fetchNotifications, dismissNotifications, fetchUpcomingSessions, fetchCommissionStats,
 } from '@/lib/dashboard'
 
 interface TrainerDashboardProps {
@@ -99,21 +100,15 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
     setCommissionPeriodStart(start)
     setCommissionPeriodEnd(end)
 
-    const { data: sessData } = await supabase.from('sessions')
-      .select('session_commission_sgd').eq('trainer_id', user.id).eq('status', 'completed')
-      .gte('marked_complete_at', start).lte('marked_complete_at', end)
-    const session = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
-
-    const { data: pkgData } = await supabase.from('packages')
-      .select('signup_commission_sgd').eq('trainer_id', user.id).gte('created_at', start).lte('created_at', end)
-    const signup = pkgData?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
-
-    const { data: memData } = await supabase.from('gym_memberships')
-      .select('commission_sgd').eq('sold_by_user_id', user.id).eq('sale_status', 'confirmed')
-      .gte('created_at', start).lte('created_at', end)
-    const membership = memData?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
-
-    setCommissionStats({ total: session + signup + membership, session, signup, membership })
+    const result = await fetchCommissionStats(supabase, {
+      userId: user.id, periodStart: start, periodEnd: end, isTrainer: true,
+    })
+    setCommissionStats({
+      total: result.sessionCommission + result.signupCommission,
+      session: result.sessionCommission,
+      signup: result.signupCommission,
+      membership: 0,
+    })
     setCommissionLoading(false)
   }, [user.id])
 
@@ -142,10 +137,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       setTodaySessions(todayData || [])
 
       // ── Upcoming sessions ──────────────────────────────────
-      const { data: upData } = await supabase.from('sessions')
-        .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
-        .eq('trainer_id', user.id).eq('status', 'scheduled').gt('scheduled_at', todayEnd).order('scheduled_at').limit(5)
-      setUpcomingSessions(upData || [])
+      setUpcomingSessions(await fetchUpcomingSessions(supabase, { trainerId: user.id, todayEnd }))
 
       // ── Gym schedule ───────────────────────────────────────
       const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
@@ -177,20 +169,8 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       setStats({ members: memberCount, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: sessionCommission + signupCommission, sessionCommission, signupCommission, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
 
       // ── Package alerts ─────────────────────────────────────
-      const { data: lowPkgs } = await supabase.from('packages')
-        .select('*, member:members(full_name), trainer:users!packages_trainer_id_fkey(full_name)')
-        .eq('trainer_id', user.id).eq('status', 'active')
-        .filter('total_sessions - sessions_used', 'lte', 3)
-        .order('sessions_used', { ascending: false }).limit(10)
-      setLowSessionPackages(lowPkgs || [])
-
-      const { data: expPkgs } = await supabase.from('packages')
-        .select('*, member:members(full_name), trainer:users!packages_trainer_id_fkey(full_name)')
-        .eq('trainer_id', user.id).eq('status', 'active')
-        .lte('end_date_calculated', getDaysFromToday(7))
-        .gte('end_date_calculated', getTodayStr())
-        .order('end_date_calculated').limit(10)
-      setExpiringPackages(expPkgs || [])
+      setLowSessionPackages(await fetchLowSessionPackages(supabase, { trainerId: user.id, limit: 10 }))
+      setExpiringPackages(await fetchExpiringPackages(supabase, { trainerId: user.id, withinDays: 7, limit: 10 }))
 
       // ── Pending membership sales ───────────────────────────
       const { count: pendingCount } = await supabase.from('gym_memberships')
@@ -198,20 +178,11 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       setPendingMemSales(pendingCount || 0)
 
       // ── Notifications ──────────────────────────────────────
-      const { data: memRejections } = await supabase.from('mem_rejection_notif')
-        .select('id, member_name, membership_type_name, rejection_reason, was_new_member, rejected_by_name, rejected_at')
-        .eq('seller_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
-      setMemRejectionNotifs(memRejections || [])
-
-      const { data: leaveNotifs } = await supabase.from('leave_decision_notif')
-        .select('id, leave_type, start_date, end_date, days_applied, decision, rejection_reason, decided_by_name')
-        .eq('user_id', user.id).is('seen_at', null).order('decided_at', { ascending: false })
-      setLeaveDecisionNotifs(leaveNotifs || [])
-
-      const { data: pkgRejections } = await supabase.from('pkg_rejection_notif')
-        .select('id, package_name, member_name, rejected_by_name, rejected_at')
-        .eq('trainer_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
-      setRejectionNotifs(pkgRejections || [])
+      const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
+        await fetchNotifications(supabase, user.id, user.role)
+      setMemRejectionNotifs(memRej)
+      setLeaveDecisionNotifs(leaveNotifs)
+      setRejectionNotifs(pkgRej)
 
       const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(
         supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at
@@ -229,18 +200,15 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
     setNewPayslip(null); setNewCommission(null)
   }
   const dismissMemRejections = async () => {
-    const now = new Date().toISOString()
-    for (const n of memRejectionNotifs) await supabase.from('mem_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'mem_rejection', memRejectionNotifs.map((n: any) => n.id))
     setMemRejectionNotifs([])
   }
   const dismissLeaveNotifs = async () => {
-    const now = new Date().toISOString()
-    for (const n of leaveDecisionNotifs) await supabase.from('leave_decision_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'leave', leaveDecisionNotifs.map((n: any) => n.id))
     setLeaveDecisionNotifs([])
   }
   const dismissRejections = async () => {
-    const now = new Date().toISOString()
-    for (const n of rejectionNotifs) await supabase.from('pkg_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'pkg_rejection', rejectionNotifs.map((n: any) => n.id))
     setRejectionNotifs([])
   }
 
