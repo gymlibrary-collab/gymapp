@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/expire-pt-packages",
       "schedule": "6 17 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-staff-birthdays",
+      "schedule": "50 16 * * *"
     }
   ]
 }
