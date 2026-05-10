@@ -25,7 +25,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/db-browser'
+import { createClient } from '@/lib/supabase-browser'
 
 export interface CurrentUser {
   id: string
