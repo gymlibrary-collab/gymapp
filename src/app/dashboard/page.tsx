@@ -17,6 +17,7 @@ import AdminDashboard from './_components/AdminDashboard'
 import StaffDashboard from './_components/StaffDashboard'
 import TrainerDashboard from './_components/TrainerDashboard'
 import ManagerDashboard from './_components/ManagerDashboard'
+import BizOpsDashboard from './_components/BizOpsDashboard'
 import NotificationBanners from './_components/NotificationBanners'
 import NonRenewalModal from './_components/NonRenewalModal'
 import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
@@ -1622,6 +1623,7 @@ export default function DashboardPage() {
   if (isStaff) return <StaffDashboard user={user} />
   if (isTrainer) return <TrainerDashboard user={user} isActingAsTrainer={isActingAsTrainer} />
   if (isManager) return <ManagerDashboard user={user} />
+  if (isBizOps) return <BizOpsDashboard user={user} />
 
 
 
