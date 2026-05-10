@@ -16,6 +16,18 @@
     {
       "path": "/api/cron/escalate-expiring-memberships",
       "schedule": "2 17 * * *"
+    },
+    {
+      "path": "/api/cron/escalate-membership-sales",
+      "schedule": "3 17 * * *"
+    },
+    {
+      "path": "/api/cron/escalate-pt-package-sales",
+      "schedule": "4 17 * * *"
+    },
+    {
+      "path": "/api/cron/escalate-pt-session-notes",
+      "schedule": "5 17 * * *"
     }
   ]
 }
