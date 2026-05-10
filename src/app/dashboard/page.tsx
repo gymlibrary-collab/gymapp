@@ -14,6 +14,8 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import AdminDashboard from './_components/AdminDashboard'
+import StaffDashboard from './_components/StaffDashboard'
+import TrainerDashboard from './_components/TrainerDashboard'
 import NotificationBanners from './_components/NotificationBanners'
 import NonRenewalModal from './_components/NonRenewalModal'
 import CommissionDrillDownModal from './_components/CommissionDrillDownModal'
@@ -1616,6 +1618,8 @@ export default function DashboardPage() {
 
   // ── Admin dashboard ──────────────────────────────────────
   if (isAdmin) return <AdminDashboard user={user} />
+  if (isStaff) return <StaffDashboard user={user} />
+  if (isTrainer) return <TrainerDashboard user={user} isActingAsTrainer={isActingAsTrainer} />
 
 
 
