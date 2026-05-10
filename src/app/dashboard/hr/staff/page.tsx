@@ -357,7 +357,7 @@ export default function TrainersPage() {
                       <select className="input" value={createForm.gym_id} onChange={e => setCreateForm(f => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">Select gym...</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
                     </div>
                   )}
-                  {(createForm.role === 'manager' || createForm.role === 'staff') && <AlsoTrainerToggle value={createForm.is_also_trainer} onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))} />}
+                  {createForm.role === 'manager' && isBizOps && <AlsoTrainerToggle value={createForm.is_also_trainer} onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))} />}
                 </>
               )}
 
@@ -406,7 +406,7 @@ export default function TrainersPage() {
                       <select className="input" value={(editForm as any).gym_id} onChange={e => setEditForm((f: any) => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">— No gym assigned —</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
                     </div>
                   )}
-                  {(editForm.role === 'manager' || editForm.role === 'staff') && <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />}
+                  {editForm.role === 'manager' && isBizOps && <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />}
                 </>
               )}
 
