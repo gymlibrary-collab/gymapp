@@ -1,5 +1,5 @@
 // ============================================================
-// src/lib/db-server.ts
+// src/lib/supabase-server.ts
 // Server-side database clients (API routes, server components).
 //
 // PROVIDER ABSTRACTION:

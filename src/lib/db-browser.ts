@@ -1,5 +1,5 @@
 // ============================================================
-// src/lib/db-browser.ts
+// src/lib/supabase-browser.ts
 // Browser-side database client.
 //
 // PROVIDER ABSTRACTION:
