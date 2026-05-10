@@ -51,47 +51,11 @@ export default function MemberProfilePage() {
   const { isActingAsTrainer } = useViewMode()
 
 
-  // ── Auto-expire stale gym memberships ───────────────────────
-  const expireStaleGymMemberships = async (memberships: any[]) => {
-    const today = new Date().toISOString().split('T')[0]
-    let count = 0
-    let anyExpired = false
-    for (const m of memberships) {
-      if (m.status !== 'active' || m.sale_status !== 'confirmed') continue
-      if (m.end_date && m.end_date < today) {
-        await supabase.from('gym_memberships').update({ status: 'expired' }).eq('id', m.id)
-        count++; anyExpired = true
-      }
-    }
-    // If all memberships expired and member has no active membership, mark member inactive
-    if (anyExpired) {
-      const hasActive = memberships.some(m =>
-        m.status === 'active' && m.sale_status === 'confirmed' &&
-        m.end_date >= today
-      )
-      if (!hasActive) {
-        await supabase.from('members').update({ is_active: false }).eq('id', id)
-      }
-    }
-    return count
-  }
-
-  // ── Auto-expire stale packages ────────────────────────────
-  const expireStalePackages = async (packages: any[]) => {
-    const today = new Date().toISOString().split('T')[0]
-    let count = 0
-    for (const pkg of packages) {
-      if (pkg.status !== 'active') continue
-      if (pkg.sessions_used >= pkg.total_sessions) {
-        await supabase.from('packages').update({ status: 'completed' }).eq('id', pkg.id)
-        count++
-      } else if (pkg.end_date_calculated && pkg.end_date_calculated < today) {
-        await supabase.from('packages').update({ status: 'expired' }).eq('id', pkg.id)
-        count++
-      }
-    }
-    return count
-  }
+  // Note: membership expiry, member deactivation, and package completion/expiry
+  // are now handled by daily cron jobs:
+  //   /api/cron/expire-memberships   — expires memberships + deactivates members
+  //   /api/cron/expire-pt-packages   — completes/expires PT packages
+  // This page is now pure read.
 
   const load = async () => {
     logActivity('page_view', 'Member Profile', 'Viewed member profile')
@@ -108,16 +72,7 @@ export default function MemberProfilePage() {
       .select('*, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), confirmed_by_user:users!gym_memberships_confirmed_by_fkey(full_name)')
       .eq('member_id', id).order('created_at', { ascending: false })
 
-    // Auto-expire stale memberships on page load
-    const staleMems = await expireStaleGymMemberships(mems || [])
-    if (staleMems > 0) {
-      const { data: refreshedMems } = await supabase.from('gym_memberships')
-        .select('*, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name, role), confirmed_by_user:users!gym_memberships_confirmed_by_fkey(full_name)')
-        .eq('member_id', id).order('created_at', { ascending: false })
-      setMemberships(refreshedMems || [])
-    } else {
-      setMemberships(mems || [])
-    }
+    setMemberships(mems || [])
 
     // Load membership types for renewal form
     const { data: memTypes } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
@@ -128,17 +83,7 @@ export default function MemberProfilePage() {
       .select('*, trainer:users!packages_trainer_id_fkey(full_name), selling_trainer:users!packages_selling_trainer_id_fkey(full_name)')
       .eq('member_id', id).order('created_at', { ascending: false })
 
-    const staleCount = await expireStalePackages(pkgs || [])
-
-    // If any were expired, reload to get updated statuses
-    if (staleCount > 0) {
-      const { data: refreshed } = await supabase.from('packages')
-        .select('*, trainer:users!packages_trainer_id_fkey(full_name), selling_trainer:users!packages_selling_trainer_id_fkey(full_name)')
-        .eq('member_id', id).order('created_at', { ascending: false })
-      setPtPackages(refreshed || [])
-    } else {
-      setPtPackages(pkgs || [])
-    }
+    setPtPackages(pkgs || [])
 
     // Load sessions where this member attended — includes shared package sessions
     // Fetch by attending_member_id to capture secondary member sessions
