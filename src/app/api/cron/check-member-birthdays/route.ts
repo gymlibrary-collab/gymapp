@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Trainer rows — one per active trainer association
-    for (const trainerId of memberTrainerMap[member.id]) {
+    for (const trainerId of Array.from(memberTrainerMap[member.id])) {
       rows.push({
         member_id: member.id,
         trainer_id: trainerId,
