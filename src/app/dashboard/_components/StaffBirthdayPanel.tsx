@@ -10,6 +10,11 @@
 //   Manager view (isBizOps=false): only their gym's staff
 //   Biz-ops view (isBizOps=true): all staff across all gyms
 //
+// DATA SOURCE:
+//   Reads from staff_birthday_reminders table — pre-computed
+//   daily by /api/cron/check-staff-birthdays (0050 SGT).
+//   Replaces the previous live query + client-side date filter.
+//
 // USED BY: ManagerDashboard, BizOpsDashboard
 // ============================================================
 
@@ -17,7 +22,6 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Gift, ChevronRight, X } from 'lucide-react'
 
-// Hidden when empty. Slide-out panel on click.
 export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string | null, isBizOps?: boolean }) {
   const [birthdays, setBirthdays] = useState<any[]>([])
   const [open, setOpen] = useState(false)
@@ -25,50 +29,19 @@ export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string
 
   useEffect(() => {
     const load = async () => {
-      const today = new Date()
-      // Build a list of upcoming (month, day) pairs for the next 7 days
-      const upcoming: { month: number; day: number }[] = []
-      for (let i = 0; i <= 6; i++) {
-        const d = new Date(today)
-        d.setDate(today.getDate() + i)
-        upcoming.push({ month: d.getMonth() + 1, day: d.getDate() })
-      }
-
+      // Read from pre-computed table — no date calculation needed
       let query = supabase
-        .from('users')
-        .select('id, full_name, date_of_birth, role, manager_gym_id, trainer_gyms(gym_id, gyms(name)), gyms:manager_gym_id(name)')
-        .eq('is_archived', false)
-        .eq('is_active', true)
-        .not('date_of_birth', 'is', null)
-        .in('role', ['manager', 'trainer', 'staff'])
+        .from('staff_birthday_reminders')
+        .select('*')
+        .order('days_until_birthday', { ascending: true })
 
+      // Manager: filter to their gym only
       if (!isBizOps && gymId) {
-        // Manager: only own gym staff
-        query = query.eq('manager_gym_id', gymId)
+        query = query.eq('gym_id', gymId)
       }
 
       const { data } = await query
-
-      // Filter to birthdays in the next 7 days using month+day comparison
-      const results = (data || []).filter((u: any) => {
-        if (!u.date_of_birth) return false
-        const dob = new Date(u.date_of_birth)
-        return upcoming.some(({ month, day }) =>
-          dob.getMonth() + 1 === month && dob.getDate() === day
-        )
-      }).map((u: any) => {
-        // Calculate which upcoming date matches
-        const dob = new Date(u.date_of_birth)
-        const matchDay = upcoming.find(({ month, day }) =>
-          dob.getMonth() + 1 === month && dob.getDate() === day
-        )!
-        const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate())
-        const daysAway = Math.round((birthdayThisYear.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000)
-        const gymName = u.gyms?.name || u.trainer_gyms?.[0]?.gyms?.name || '—'
-        return { ...u, daysAway, gymName }
-      }).sort((a: any, b: any) => a.daysAway - b.daysAway)
-
-      setBirthdays(results)
+      setBirthdays(data || [])
     }
     load()
   }, [gymId, isBizOps])
@@ -111,7 +84,7 @@ export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string
             <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
               {birthdays.map((b: any) => {
                 const dob = new Date(b.date_of_birth)
-                const age = new Date().getFullYear() - dob.getFullYear()
+                const age = new Date().getFullYear() - dob.getUTCFullYear()
                 return (
                   <div key={b.id} className="p-4 flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0">
@@ -122,14 +95,14 @@ export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{b.full_name}</p>
                       <p className="text-xs text-gray-500">
-                        {isBizOps && <span className="mr-1">{b.gymName} ·</span>}
-                        Turns {age} · {dob.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}
+                        {isBizOps && <span className="mr-1">{b.gym_name} ·</span>}
+                        Turns {age} · {dob.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
                       </p>
                     </div>
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
-                      b.daysAway === 0 ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-600'
+                      b.days_until_birthday === 0 ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-600'
                     }`}>
-                      {b.daysAway === 0 ? 'Today! 🎂' : `In ${b.daysAway}d`}
+                      {b.days_until_birthday === 0 ? 'Today! 🎂' : `In ${b.days_until_birthday}d`}
                     </span>
                   </div>
                 )
