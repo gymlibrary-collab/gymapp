@@ -4,120 +4,112 @@
 // src/app/dashboard/_components/MemberBirthdayCard.tsx
 //
 // PURPOSE:
-//   Shows a banner for members with birthdays today.
-//   Dismissed per-user per-day via localStorage.
-//   Not shown to biz-ops (no gym assignment).
+//   Shows a slide-out panel of members with birthdays today.
+//   Displayed on manager, trainer and staff dashboards.
 //
-// USED BY: ManagerDashboard
+//   All roles see gym-wide rows (trainer_id IS NULL) —
+//   all members at their gym with birthday today.
+//
+//   For trainer's PT Sessions page, a separate banner shows
+//   only their active package members (see pt/sessions/page.tsx).
+//
+// DATA SOURCE:
+//   Reads from member_birthday_reminders table — pre-computed
+//   daily by /api/cron/check-member-birthdays (0001 SGT).
+//
+// USED BY: ManagerDashboard, TrainerDashboard, StaffDashboard
 // ============================================================
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
-import { X } from 'lucide-react'
+import { Gift, ChevronRight, X } from 'lucide-react'
 
-// Dismissed per-day via localStorage — won't reappear until tomorrow.
-// Not shown to Biz Ops (they have no gym assignment).
 interface MemberBirthdayCardProps {
-  gymId: string | null         // manager's gym
-  trainerGymIds: string[]      // trainer's gyms
-  role: string
-  userId: string
+  gymId?: string | null
 }
 
-
-export default function MemberBirthdayCard({ gymId, trainerGymIds, role, userId }: MemberBirthdayCardProps) {
-  const [members, setMembers] = useState<{ id: string; full_name: string; age: number }[]>([])
-  const [dismissed, setDismissed] = useState(false)
-  const [loading, setLoading] = useState(true)
+export default function MemberBirthdayCard({ gymId }: MemberBirthdayCardProps) {
+  const [members, setMembers] = useState<any[]>([])
+  const [open, setOpen] = useState(false)
   const supabase = createClient()
 
-  // localStorage key: unique per user per day
-  const storageKey = `member_birthday_dismissed_${userId}_${new Date().toISOString().split('T')[0]}`
-
   useEffect(() => {
-    // Check if already dismissed today
-    try {
-      if (localStorage.getItem(storageKey) === 'true') {
-        setDismissed(true)
-        setLoading(false)
-        return
-      }
-    } catch {}
-
+    if (!gymId) return
     const load = async () => {
-      const today = new Date()
-      const todayMonth = today.getMonth() + 1
-      const todayDay = today.getDate()
-      const todayYear = today.getFullYear()
-
-      // Build gym filter — manager uses gymId, trainer uses trainerGymIds
-      const gymIds: string[] = []
-      if (gymId) gymIds.push(gymId)
-      trainerGymIds.forEach(id => { if (!gymIds.includes(id)) gymIds.push(id) })
-      if (gymIds.length === 0) { setLoading(false); return }
-
-      // Query members at relevant gyms with a birthday today
-      // Use month/day extracted from date_of_birth via filter
       const { data } = await supabase
-        .from('members')
-        .select('id, full_name, date_of_birth, gym_id')
-        .in('gym_id', gymIds)
-        .eq('status', 'active')
-        .not('date_of_birth', 'is', null)
-
-      const todayBirthdays = (data || [])
-        .filter((m: any) => {
-          if (!m.date_of_birth) return false
-          const dob = new Date(m.date_of_birth)
-          return dob.getMonth() + 1 === todayMonth && dob.getDate() === todayDay
-        })
-        .map((m: any) => {
-          const dob = new Date(m.date_of_birth)
-          const age = todayYear - dob.getFullYear()
-          return { id: m.id, full_name: m.full_name, age }
-        })
-        .sort((a: any, b: any) => a.full_name.localeCompare(b.full_name))
-
-      setMembers(todayBirthdays)
-      setLoading(false)
+        .from('member_birthday_reminders')
+        .select('*')
+        .eq('gym_id', gymId)
+        .is('trainer_id', null)
+        .order('full_name', { ascending: true })
+      setMembers(data || [])
     }
     load()
-  }, [gymId, userId])
+  }, [gymId])
 
-  const handleDismiss = () => {
-    try { localStorage.setItem(storageKey, 'true') } catch {}
-    setDismissed(true)
-  }
-
-  if (loading || dismissed || members.length === 0) return null
+  if (members.length === 0) return null
 
   return (
-    <div className="bg-pink-50 border border-pink-200 rounded-xl p-4 space-y-2">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="text-xl flex-shrink-0" aria-label="birthday cake">🎂</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-pink-800">
-              {members.length === 1
-                ? `${members[0].full_name} turns ${members[0].age} today!`
-                : `${members.length} members have birthdays today`}
-            </p>
-            {members.length > 1 && (
-              <p className="text-xs text-pink-700 mt-1 leading-relaxed">
-                {members.map(m => `${m.full_name} (${m.age})`).join(' · ')}
-              </p>
-            )}
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left hover:bg-yellow-100 transition-colors"
+      >
+        <Gift className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-medium text-yellow-800">
+            {members.length} member{members.length > 1 ? 's' : ''} celebrating {members.length > 1 ? 'birthdays' : 'a birthday'} today 🎂
+          </p>
+          <p className="text-xs text-yellow-600 mt-0.5">
+            {members.slice(0, 2).map((m: any) => m.full_name.split(' ')[0]).join(', ')}
+            {members.length > 2 ? ` +${members.length - 2} more` : ''}
+          </p>
+        </div>
+        <ChevronRight className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+      </button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex justify-end" onClick={() => setOpen(false)}>
+          <div className="fixed inset-0 bg-black/20" />
+          <div
+            className="relative w-full max-w-sm bg-white h-full shadow-xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Gift className="w-5 h-5 text-yellow-500" />
+                <h2 className="font-semibold text-gray-900 text-sm">Member Birthdays Today</h2>
+              </div>
+              <button onClick={() => setOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+              {members.map((m: any) => {
+                const dob = new Date(m.date_of_birth)
+                return (
+                  <div key={m.id} className="p-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-yellow-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-medium text-yellow-700">
+                        {m.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{m.full_name}</p>
+                      <p className="text-xs text-gray-500">
+                        Turns {m.age} · {dob.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+                      </p>
+                    </div>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 flex-shrink-0">
+                      Today! 🎂
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
-        <button
-          onClick={handleDismiss}
-          className="flex-shrink-0 text-pink-400 hover:text-pink-600 transition-colors p-0.5"
-          aria-label="Dismiss birthday notification for today"
-          title="Dismiss — won't show again today"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
+      )}
+    </>
   )
 }

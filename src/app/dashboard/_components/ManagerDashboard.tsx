@@ -349,7 +349,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
 
       <StaffBirthdayPanel gymId={gymId} isBizOps={false} />
 
-      <MemberBirthdayCard gymId={gymId} trainerGymIds={[]} role={user.role} userId={user.id} />
+      <MemberBirthdayCard gymId={gymId} />
 
       <NotificationBanners
         newPayslip={newPayslip}

@@ -32,6 +32,7 @@ import Link from 'next/link'
 import { formatSGD, formatDateTime, getMonthName, cn } from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import StatsRow from './StatsRow'
+import MemberBirthdayCard from './MemberBirthdayCard'
 import SessionSchedule from './SessionSchedule'
 import QuickActions from './QuickActions'
 import {
@@ -223,6 +224,8 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
         pendingMemSales={pendingMemSales}
         isBizOps={false}
       />
+
+      <MemberBirthdayCard gymId={gymId} />
 
       <StatsRow
         stats={stats}

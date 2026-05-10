@@ -8,7 +8,7 @@ import { useViewMode } from '@/lib/view-mode-context'
 import { formatDateTime, formatSGD } from '@/lib/utils'
 import {
   Calendar, Clock, CheckCircle, XCircle, AlertCircle,
-  Plus, X, Save, RotateCcw, ChevronDown, ChevronUp
+  Plus, X, Save, RotateCcw, ChevronDown, ChevronUp, Gift
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -71,6 +71,21 @@ export default function PtSessionsPage() {
     const { data } = await q.limit(60)
     setSessions(data || [])
   }
+
+  const [birthdayMembers, setBirthdayMembers] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!user || user.role !== 'trainer') return
+    const fetchBirthdays = async () => {
+      const { data } = await supabase
+        .from('member_birthday_reminders')
+        .select('*')
+        .eq('trainer_id', user.id)
+        .order('full_name', { ascending: true })
+      setBirthdayMembers(data || [])
+    }
+    fetchBirthdays()
+  }, [user])
 
   useEffect(() => { loadSessions() }, [filter, isActingAsTrainer])
 
@@ -182,6 +197,21 @@ export default function PtSessionsPage() {
       </div>
 
 
+
+      {/* Birthday banner — trainer only, their active package members */}
+      {user?.role === 'trainer' && birthdayMembers.length > 0 && (
+        <div className="flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <Gift className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-yellow-800">
+              {birthdayMembers.length} of your member{birthdayMembers.length > 1 ? 's' : ''} {birthdayMembers.length > 1 ? 'are' : 'is'} celebrating a birthday today 🎂
+            </p>
+            <p className="text-xs text-yellow-600 mt-0.5">
+              {birthdayMembers.map((m: any) => `${m.full_name} (turns ${m.age})`).join(' · ')}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Status filter tabs — hidden for staff (they see upcoming only) */}
       {!isStaff && (
