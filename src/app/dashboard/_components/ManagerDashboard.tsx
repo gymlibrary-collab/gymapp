@@ -45,7 +45,13 @@ import ManagerAlertsSection from './ManagerAlertsSection'
 import PendingConfirmationsBanner from './PendingConfirmationsBanner'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 import MemberBirthdayCard from './MemberBirthdayCard'
-import { getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr, fetchPayslipNotifications } from '@/lib/dashboard'
+import {
+  getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
+  fetchPayslipNotifications, fetchPendingSessionConfirmations, fetchPendingMemberships,
+  fetchLowSessionPackages, fetchExpiringPackages, fetchExpiringMemberships,
+  fetchAtRiskMembers, fetchNotifications, dismissNotifications, fetchPendingLeave,
+  fetchUpcomingSessions,
+} from '@/lib/dashboard'
 
 interface ManagerDashboardProps {
   user: any
@@ -202,6 +208,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
     const load = async () => {
       if (!gymId) { setLoading(false); return }
 
+      try {
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
@@ -219,10 +226,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setTodaySessions(todayData || [])
 
       // ── Upcoming sessions ──────────────────────────────────
-      const { data: upData } = await supabase.from('sessions')
-        .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)')
-        .eq('gym_id', gymId).eq('status', 'scheduled').gt('scheduled_at', todayEnd).order('scheduled_at').limit(5)
-      setUpcomingSessions(upData || [])
+      setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
 
       // ── Gym schedule ───────────────────────────────────────
       const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
@@ -245,102 +249,49 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: 0, sessionCommission: 0, signupCommission: 0, membershipRevenue, membershipSalesCount: memSalesData?.length || 0, totalCommissionPayout })
 
       // ── Pending confirmations ──────────────────────────────
-      const { count: memPending } = await supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('sale_status', 'pending')
-      setPendingMemberships(memPending || 0)
-      const { count: sessPending } = await supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', false)
-      setPendingSessions(sessPending || 0)
+      setPendingMemberships(await fetchPendingMemberships(supabase, gymId))
+      setPendingSessions(await fetchPendingSessionConfirmations(supabase, gymId))
 
       // ── Package alerts ─────────────────────────────────────
-      const { data: lowPkgs } = await supabase.from('packages')
-        .select('*, member:members(full_name), trainer:users!packages_trainer_id_fkey(full_name)')
-        .eq('gym_id', gymId).eq('status', 'active').filter('total_sessions - sessions_used', 'lte', 3)
-        .order('sessions_used', { ascending: false }).limit(10)
-      setLowSessionPackages(lowPkgs || [])
-
-      const { data: expPkgs } = await supabase.from('packages')
-        .select('*, member:members(full_name), trainer:users!packages_trainer_id_fkey(full_name)')
-        .eq('gym_id', gymId).eq('status', 'active')
-        .lte('end_date_calculated', getDaysFromToday(7)).gte('end_date_calculated', getTodayStr())
-        .order('end_date_calculated').limit(10)
-      setExpiringPackages(expPkgs || [])
+      setLowSessionPackages(await fetchLowSessionPackages(supabase, { gymId, limit: 10 }))
+      setExpiringPackages(await fetchExpiringPackages(supabase, { gymId, withinDays: 7, limit: 10 }))
 
       // Membership expiry escalation is now handled by the daily cron
       // at /api/cron/expire-memberships (runs at 0001 SGT).
 
       // ── Expiring memberships ───────────────────────────────
-      const in30Days = getDaysFromToday(30)
-      const { data: expiringMems } = await supabase.from('gym_memberships')
-        .select('id, end_date, member_id, membership_type_name, membership_actioned, escalated_to_biz_ops, member:members(id, full_name)')
-        .eq('gym_id', gymId).eq('status', 'active').eq('sale_status', 'confirmed')
-        .lte('end_date', in30Days).gte('end_date', todayStr).order('end_date').limit(20)
+      const expiringMems = await fetchExpiringMemberships(supabase, gymId, { withinDays: 30, limit: 20 })
       const renewedIds = new Set(
-        (expiringMems || []).filter((m: any) => (expiringMems || []).some((m2: any) => m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date))).map((m: any) => m.member_id)
+        expiringMems.filter((m: any) => expiringMems.some((m2: any) => m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date))).map((m: any) => m.member_id)
       )
-      setExpiringMemberships((expiringMems || []).filter((m: any) => !renewedIds.has(m.member_id)).slice(0, 10))
+      setExpiringMemberships(expiringMems.filter((m: any) => !renewedIds.has(m.member_id)).slice(0, 10))
 
       // ── At-risk members ────────────────────────────────────
-      const thirtyDaysAgo = getDaysFromToday(-30)
-      const { data: expiredPkgs } = await supabase.from('packages')
-        .select('id, member_id, member:members(full_name, phone), end_date_calculated')
-        .eq('gym_id', gymId).eq('status', 'expired').gte('end_date_calculated', thirtyDaysAgo)
-      if (expiredPkgs && expiredPkgs.length > 0) {
-        const expiredMemberIds = Array.from(new Set(expiredPkgs.map((p: any) => p.member_id)))
-        const { data: activePkgs } = await supabase.from('packages').select('member_id').eq('gym_id', gymId).eq('status', 'active').in('member_id', expiredMemberIds)
-        const activeIds = new Set(activePkgs?.map((p: any) => p.member_id))
-        const atRisk = expiredPkgs.filter((p: any) => !activeIds.has(p.member_id))
-          .reduce((acc: any[], p: any) => { if (!acc.find((x: any) => x.member_id === p.member_id)) acc.push(p); return acc }, [])
-        if (atRisk.length > 0) {
-          const { data: atRiskSessions } = await supabase.from('sessions')
-            .select('package_id, renewal_status, non_renewal_reason, scheduled_at')
-            .in('package_id', atRisk.map((p: any) => p.id)).not('renewal_status', 'is', null)
-            .order('scheduled_at', { ascending: false })
-          setAtRiskMembers(atRisk.map((p: any) => {
-            const last = atRiskSessions?.find((s: any) => s.package_id === p.id)
-            return { ...p, renewal_status: last?.renewal_status, non_renewal_reason: last?.non_renewal_reason }
-          }))
-        }
-      }
+      setAtRiskMembers(await fetchAtRiskMembers(supabase, gymId))
 
       // ── Pending leave ──────────────────────────────────────
-      const { data: leaveOpsStaff } = await supabase.from('users').select('id').eq('manager_gym_id', gymId).eq('role', 'staff').neq('id', user.id)
-      const { data: leaveGymTrainers } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
-      const leaveRawIds = (leaveGymTrainers?.map((t: any) => t.trainer_id) || []).filter((id: string) => id !== user.id)
-      let leaveFtIds: string[] = []
-      if (leaveRawIds.length > 0) {
-        const { data: ftOnly } = await supabase.from('users').select('id').in('id', leaveRawIds).eq('role', 'trainer').eq('employment_type', 'full_time')
-        leaveFtIds = ftOnly?.map((t: any) => t.id) || []
-      }
-      const leaveStaffIds = [...(leaveOpsStaff?.map((s: any) => s.id) || []), ...leaveFtIds]
-      if (leaveStaffIds.length > 0) {
-        const { count: leavePending } = await supabase.from('leave_applications').select('id', { count: 'exact', head: true }).in('user_id', leaveStaffIds).eq('status', 'pending')
-        setPendingLeave(leavePending || 0)
-      }
+      setPendingLeave(await fetchPendingLeave(supabase, gymId))
 
       // ── Pending membership sales ───────────────────────────
       const { count: pendingCount } = await supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
       setPendingMemSales(pendingCount || 0)
 
       // ── Notifications ──────────────────────────────────────
-      const { data: memRejections } = await supabase.from('mem_rejection_notif')
-        .select('id, member_name, membership_type_name, rejection_reason, was_new_member, rejected_by_name, rejected_at')
-        .eq('seller_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
-      setMemRejectionNotifs(memRejections || [])
-
-      const { data: leaveNotifs } = await supabase.from('leave_decision_notif')
-        .select('id, leave_type, start_date, end_date, days_applied, decision, rejection_reason, decided_by_name')
-        .eq('user_id', user.id).is('seen_at', null).order('decided_at', { ascending: false })
-      setLeaveDecisionNotifs(leaveNotifs || [])
-
-      const { data: pkgRejections } = await supabase.from('pkg_rejection_notif')
-        .select('id, package_name, member_name, rejected_by_name, rejected_at')
-        .eq('trainer_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
-      setRejectionNotifs(pkgRejections || [])
+      const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
+        await fetchNotifications(supabase, user.id, user.role)
+      setMemRejectionNotifs(memRej)
+      setLeaveDecisionNotifs(leaveNotifs)
+      setRejectionNotifs(pkgRej)
 
       const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at)
       setNewPayslip(ps)
       setNewCommission(pc)
 
       setLoading(false)
+      } catch (err) {
+        console.error('[ManagerDashboard] Load error:', err)
+        setLoading(false)
+      }
     }
     load()
   }, [])
@@ -366,18 +317,15 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
     setNewPayslip(null); setNewCommission(null)
   }
   const dismissLeaveNotifs = async () => {
-    const now = new Date().toISOString()
-    for (const n of leaveDecisionNotifs) await supabase.from('leave_decision_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'leave', leaveDecisionNotifs.map((n: any) => n.id))
     setLeaveDecisionNotifs([])
   }
   const dismissMemRejections = async () => {
-    const now = new Date().toISOString()
-    for (const n of memRejectionNotifs) await supabase.from('mem_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'mem_rejection', memRejectionNotifs.map((n: any) => n.id))
     setMemRejectionNotifs([])
   }
   const dismissRejections = async () => {
-    const now = new Date().toISOString()
-    for (const n of rejectionNotifs) await supabase.from('pkg_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    await dismissNotifications(supabase, 'pkg_rejection', rejectionNotifs.map((n: any) => n.id))
     setRejectionNotifs([])
   }
 
