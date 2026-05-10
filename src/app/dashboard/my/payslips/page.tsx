@@ -18,7 +18,7 @@ export default function MyPayslipsPage() {
   const [activeTab, setActiveTab] = useState<'salary' | 'commission'>('salary')
   const supabase = createClient()
   const router = useRouter()
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
 
   const [selectedMonth, setSelectedMonth] = useState<string>('') // 'YYYY-MM' format
   const [gymsMap, setGymsMap] = useState<Record<string, any>>({}) // gymId -> gym object

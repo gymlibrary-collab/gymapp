@@ -19,7 +19,7 @@ const LEAVE_TYPES = [
 ]
 
 export default function MyLeavePage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
 
 
   const { logActivity } = useActivityLog()

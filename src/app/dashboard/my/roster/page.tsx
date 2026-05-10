@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function MyRosterPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
   const { logActivity } = useActivityLog()
   const [shifts, setShifts] = useState<any[]>([])
   const supabase = createClient()
@@ -37,7 +37,8 @@ export default function MyRosterPage() {
     load()
   }, [user])
 
-  if (loading || !user) return null
+  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (!user) return null
 
 
   const totalHours = shifts.reduce((s, r) => s + (r.hours_worked || 0), 0)
