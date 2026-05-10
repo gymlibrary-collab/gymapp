@@ -24,7 +24,7 @@
 //   Rendered by dashboard/page.tsx when user.role === 'staff'
 // ============================================================
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { Clock, ChevronRight } from 'lucide-react'
@@ -60,11 +60,12 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
   const [calendarOffset, setCalendarOffset] = useState(0)
   const [stats, setStats] = useState<any>({ members: 0, packages: 0, sessions: 0, commission: 0, sessionCommission: 0, signupCommission: 0, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
-  const [commissionStats] = useState<any>({ total: 0, session: 0, signup: 0, membership: 0 })
-  const [commissionOffset] = useState(0)
-  const [commissionPeriodLabel] = useState('')
-  const [commissionPeriodStart] = useState('')
-  const [commissionPeriodEnd] = useState('')
+  const [commissionStats, setCommissionStats] = useState<any>({ total: 0, session: 0, signup: 0, membership: 0 })
+  const [commissionLoading, setCommissionLoading] = useState(false)
+  const [commissionOffset, setCommissionOffset] = useState(0)
+  const [commissionPeriodLabel, setCommissionPeriodLabel] = useState('')
+  const [commissionPeriodStart, setCommissionPeriodStart] = useState('')
+  const [commissionPeriodEnd, setCommissionPeriodEnd] = useState('')
   const [pendingMemSales, setPendingMemSales] = useState(0)
   const [newPayslip, setNewPayslip] = useState<any>(null)
   const [newCommission, setNewCommission] = useState<any>(null)
@@ -73,6 +74,31 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   const [rejectionNotifs, setRejectionNotifs] = useState<any[]>([])
 
   const gymId = user.manager_gym_id
+
+  // ── Commission period loader ───────────────────────────────
+  const loadCommissionStats = useCallback(async (offset: number) => {
+    setCommissionLoading(true)
+    const now = new Date()
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+    const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
+    setCommissionPeriodLabel(`${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`)
+    setCommissionPeriodStart(start)
+    setCommissionPeriodEnd(end)
+
+    // Staff earn commission from membership sales only
+    const { data: memData } = await supabase.from('gym_memberships')
+      .select('commission_sgd')
+      .eq('sold_by_user_id', user.id)
+      .eq('sale_status', 'confirmed')
+      .gte('created_at', start)
+      .lte('created_at', end)
+    const membership = memData?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    setCommissionStats({ total: membership, session: 0, signup: 0, membership })
+    setCommissionLoading(false)
+  }, [user.id])
+
+  useEffect(() => { loadCommissionStats(commissionOffset) }, [commissionOffset, loadCommissionStats])
 
   useEffect(() => {
     const load = async () => {
@@ -201,9 +227,9 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       <StatsRow
         stats={stats}
         commissionStats={commissionStats}
-        commissionLoading={false}
+        commissionLoading={commissionLoading}
         commissionOffset={commissionOffset}
-        onCommissionOffsetChange={() => {}}
+        onCommissionOffsetChange={setCommissionOffset}
         commissionPeriodLabel={commissionPeriodLabel}
         commissionPeriodStart={commissionPeriodStart}
         commissionPeriodEnd={commissionPeriodEnd}
