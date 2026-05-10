@@ -27,7 +27,6 @@ import { createClient } from '@/lib/supabase-browser'
 import { Calendar, AlertCircle, AlertTriangle, Bell, X } from 'lucide-react'
 import Link from 'next/link'
 import { cn, formatSGD, formatDate, getMonthName } from '@/lib/utils'
-import { runEscalationCheck, loadEscalationThresholds, logEscalation } from '@/lib/escalation'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 
 interface BizOpsDashboardProps {
@@ -191,11 +190,6 @@ function BizOpsGymTabs() {
     const load = async () => {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
-      const bizOpsThresholds = await loadEscalationThresholds(supabase)
-      const { data: { user: bizOpsUserHoisted } } = await supabase.auth.getUser()
-      const { data: bizMeHoisted } = await supabase.from('users')
-        .select('full_name, role').eq('id', bizOpsUserHoisted?.id || '').single()
-
       const gymIds = (gymsData || []).map((g: any) => g.id)
       const todayStr = now.toISOString().split('T')[0]
       const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -240,10 +234,7 @@ function BizOpsGymTabs() {
         const gymSessions     = (allSessions || []).filter((s: any) => s.gym_id === gId)
         const gymPayouts      = (allPayouts || []).filter((p: any) => p.gym_id === gId)
 
-        const expiryCount = await runEscalationCheck(supabase, 'membership_expiry', bizOpsThresholds.membership_expiry, 'system', gId)
-        if (expiryCount > 0) {
-          await logEscalation((bizMeHoisted as any)?.full_name || 'Biz Ops', (bizMeHoisted as any)?.role || 'business_ops', bizOpsUserHoisted?.id || '', 'membership_expiry', expiryCount)
-        }
+        // membership_expiry escalation moved to /api/cron/expire-memberships
 
         enriched.push({
           ...g, todaySessions, pendingMemberships: pendingMems, pendingSessions: pendingSess,
