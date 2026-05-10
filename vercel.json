@@ -22,7 +22,7 @@
       "schedule": "3 17 * * *"
     },
     {
-      "path": "/api/cron/escalate-pt-package-sales",
+      "path": "/api/cron/escalate-pt-packages-sales",
       "schedule": "4 17 * * *"
     },
     {
