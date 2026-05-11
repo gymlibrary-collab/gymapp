@@ -27,7 +27,7 @@ export default function MyParticularsPage() {
   useEffect(() => {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
-      setForm({ phone: user!.phone || '', address: (user as any).address || '' })
+      setForm({ phone: user!.phone || '', address: (user as any).address || '', nickname: (user as any).nickname || user!.full_name.split(' ')[0] })
     }
     load()
   }, [])
