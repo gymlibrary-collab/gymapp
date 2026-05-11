@@ -698,13 +698,6 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
       )}
       {/* Leave entitlements */}
       <div>
-        <label className="label">Annual Leave Entitlement (days)</label>
-        <input className="input" type="number" min="0" step="1"
-          value={form.leave_entitlement_days}
-          onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
-          placeholder="e.g. 14" />
-      </div>
-      <div>
         <label className="label">Medical Leave Entitlement (days)</label>
         <input className="input" type="number" min="0" step="1"
           value={(form as any).medical_leave_entitlement_days || '14'}
