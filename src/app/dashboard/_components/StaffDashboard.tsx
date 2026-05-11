@@ -29,7 +29,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { Clock, ChevronRight, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName, cn } from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName, cn, getGreeting} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import StatsRow from './StatsRow'
 import MemberBirthdayCard from './MemberBirthdayCard'
@@ -37,19 +37,13 @@ import SessionSchedule from './SessionSchedule'
 import QuickActions from './QuickActions'
 import {
   getTodayStart, getTodayEnd, getMonthStart,
-  fetchPayslipNotifications, fetchNotifications, dismissNotifications, fetchUpcomingSessions,
+  fetchPayslipNotifications, dismissPayslipNotifications, fetchNotifications, dismissNotifications, fetchUpcomingSessions,
 } from '@/lib/dashboard'
 
 interface StaffDashboardProps {
   user: any
 }
 
-function getGreeting(firstName: string): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return `Good morning, ${firstName}`
-  if (hour < 18) return `Good afternoon, ${firstName}`
-  return `Good evening, ${firstName}`
-}
 
 export default function StaffDashboard({ user }: StaffDashboardProps) {
   const supabase = createClient()
@@ -187,7 +181,7 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   }, [])
 
   const dismissPayslipNotif = async () => {
-    await supabase.from('users').update({ payslip_notif_seen_at: new Date().toISOString(), commission_notif_seen_at: new Date().toISOString() }).eq('id', user.id)
+    await dismissPayslipNotifications(supabase, user.id)
     setNewPayslip(null); setNewCommission(null)
   }
   const dismissMemRejections = async () => {

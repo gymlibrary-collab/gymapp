@@ -136,3 +136,17 @@ export async function uploadToStorage(
   const { data } = supabase.storage.from(bucket).getPublicUrl(path)
   return data.publicUrl + '?t=' + Date.now()
 }
+
+// ── Greeting ──────────────────────────────────────────────────
+/**
+ * Returns a time-appropriate greeting for the given first name.
+ * Before 12:00 → Good morning
+ * 12:00–17:59 → Good afternoon
+ * 18:00+      → Good evening
+ */
+export function getGreeting(firstName: string): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return `Good morning, ${firstName}`
+  if (hour < 18) return `Good afternoon, ${firstName}`
+  return `Good evening, ${firstName}`
+}

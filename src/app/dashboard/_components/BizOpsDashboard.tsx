@@ -26,19 +26,13 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Calendar, AlertCircle, AlertTriangle, Bell, X, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { cn, formatSGD, formatDate, getMonthName } from '@/lib/utils'
+import { cn, formatSGD, formatDate, getMonthName, getGreeting} from '@/lib/utils'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 
 interface BizOpsDashboardProps {
   user: any
 }
 
-function getGreeting(firstName: string): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return `Good morning, ${firstName}`
-  if (hour < 18) return `Good afternoon, ${firstName}`
-  return `Good evening, ${firstName}`
-}
 
 // ── BizOpsDashboardAlerts ─────────────────────────────────────
 // Leave notifications + year-end admin reminders (CPF, holidays, entitlements)

@@ -32,16 +32,10 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Building2, Briefcase, UserCheck, Dumbbell, Calendar, Settings, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, getGreeting} from '@/lib/utils'
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function getGreeting(firstName: string): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return `Good morning, ${firstName}`
-  if (hour < 18) return `Good afternoon, ${firstName}`
-  return `Good evening, ${firstName}`
-}
 
 // ── Types ─────────────────────────────────────────────────────
 

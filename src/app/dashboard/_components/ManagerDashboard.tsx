@@ -35,7 +35,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Clock, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName } from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName, getGreeting} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import NonRenewalModal from './NonRenewalModal'
 import StatsRow from './StatsRow'
@@ -47,7 +47,7 @@ import StaffBirthdayPanel from './StaffBirthdayPanel'
 import MemberBirthdayCard from './MemberBirthdayCard'
 import {
   getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
-  fetchPayslipNotifications, fetchPendingSessionConfirmations, fetchPendingMemberships,
+  fetchPayslipNotifications, dismissPayslipNotifications, fetchPendingSessionConfirmations, fetchPendingMemberships,
   fetchLowSessionPackages, fetchExpiringPackages, fetchExpiringMemberships,
   fetchAtRiskMembers, fetchNotifications, dismissNotifications, fetchPendingLeave,
   fetchUpcomingSessions,
@@ -57,12 +57,6 @@ interface ManagerDashboardProps {
   user: any
 }
 
-function getGreeting(firstName: string): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return `Good morning, ${firstName}`
-  if (hour < 18) return `Good afternoon, ${firstName}`
-  return `Good evening, ${firstName}`
-}
 
 export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   const supabase = createClient()
@@ -319,7 +313,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
     setNonRenewalModal(null); setNonRenewalSaving(false)
   }
   const dismissPayslipNotif = async () => {
-    await supabase.from('users').update({ payslip_notif_seen_at: new Date().toISOString(), commission_notif_seen_at: new Date().toISOString() }).eq('id', user.id)
+    await dismissPayslipNotifications(supabase, user.id)
     setNewPayslip(null); setNewCommission(null)
   }
   const dismissLeaveNotifs = async () => {

@@ -674,3 +674,21 @@ export async function fetchPendingLeave(
     .or('escalated_to_biz_ops.is.null,escalated_to_biz_ops.eq.false')
   return count || 0
 }
+
+// ── Dismiss payslip/commission notification ───────────────────
+/**
+ * Marks payslip and commission notifications as seen for a user.
+ * Called when the user dismisses the payslip/commission banner.
+ */
+export async function dismissPayslipNotifications(
+  supabase: any,
+  userId: string
+): Promise<void> {
+  await supabase
+    .from('users')
+    .update({
+      payslip_notif_seen_at: new Date().toISOString(),
+      commission_notif_seen_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+}
