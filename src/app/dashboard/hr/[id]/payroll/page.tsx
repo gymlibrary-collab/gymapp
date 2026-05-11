@@ -72,7 +72,7 @@ export default function StaffPayrollDetailPage() {
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
     setStaff(staffData)
 
-    const { data: payrollData } = await supabase.from('staff_payroll').select('*').eq('user_id', id).single()
+    const { data: payrollData } = await supabase.from('staff_payroll').select('*').eq('user_id', id).maybeSingle()
     setPayroll(payrollData)
     if (payrollData) setSalaryForm({ current_salary: payrollData.current_salary?.toString() || '0', is_cpf_liable: payrollData.is_cpf_liable ? 'true' : 'false' })
 
@@ -184,7 +184,7 @@ export default function StaffPayrollDetailPage() {
 
     // Block overwriting approved/paid payslips
     const { data: existing } = await supabase.from('payslips')
-      .select('id, status').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear).single()
+      .select('id, status').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear).maybeSingle()
     if (existing && (existing.status === 'approved' || existing.status === 'paid')) {
       setError(`A ${existing.status} payslip already exists for this month and cannot be overwritten.`)
       setSaving(false); return

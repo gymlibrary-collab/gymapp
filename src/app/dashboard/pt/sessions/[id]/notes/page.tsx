@@ -130,7 +130,7 @@ export default function PtSessionNotesPage() {
 
     // Queue WhatsApp to manager
     const { data: gymManager } = await supabase.from('users')
-      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').single()
+      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').maybeSingle()
     const renewalNote = renewalStatus === 'not_renewing'
       ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
       : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''

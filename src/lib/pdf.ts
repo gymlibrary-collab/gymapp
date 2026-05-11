@@ -104,7 +104,7 @@ export async function resolvePayslipBranding(
 
   if (staffData.role === 'trainer' || staffData.role === 'staff') {
     const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name, logo_url)')
-      .eq('trainer_id', staffData.id).eq('is_primary', true).single()
+      .eq('trainer_id', staffData.id).eq('is_primary', true).maybeSingle()
     return { logoUrl: (tg as any)?.gyms?.logo_url || null, gymName: (tg as any)?.gyms?.name || companyName, companyName }
   }
 
