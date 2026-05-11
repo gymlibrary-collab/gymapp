@@ -58,10 +58,36 @@ export default function LeavePolicyPage() {
       .is('date_of_departure', null)
       .eq('is_archived', false)
 
+    // Load all approved annual leave applications for the current year
+    const currentYear = new Date().getFullYear()
+    const yearStart = `${currentYear}-01-01`
+    const yearEnd = `${currentYear}-12-31`
+    const { data: approvedLeave } = await supabase
+      .from('leave_applications')
+      .select('user_id, start_date, end_date')
+      .eq('status', 'approved')
+      .eq('leave_type', 'annual')
+      .gte('start_date', yearStart)
+      .lte('start_date', yearEnd)
+
+    // Build map: user_id → total approved annual leave days taken this year
+    const daysTakenMap: Record<string, number> = {}
+    for (const leave of approvedLeave || []) {
+      const start = new Date(leave.start_date)
+      const end = new Date(leave.end_date)
+      const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      daysTakenMap[leave.user_id] = (daysTakenMap[leave.user_id] || 0) + days
+    }
+
     let count = 0
     for (const s of staff || []) {
-      // Calculate unused annual leave — cap at global max
-      const unused = Math.max(0, (s.leave_entitlement_days || 0) - (s.leave_carry_forward_days || 0))
+      // Correct formula:
+      // total = annual entitlement + carry-forward from start of year
+      // unused = total - days actually taken this year
+      // carry-forward to next year = min(max(0, unused), global max cap)
+      const total = (s.leave_entitlement_days || 0) + (s.leave_carry_forward_days || 0)
+      const daysTaken = daysTakenMap[s.id] || 0
+      const unused = Math.max(0, total - daysTaken)
       const carryFwd = Math.min(unused, maxCarryFwd)
       await supabase.from('users').update({
         leave_entitlement_days: annualDays,
