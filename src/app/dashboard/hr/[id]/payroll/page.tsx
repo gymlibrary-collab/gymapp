@@ -20,7 +20,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function StaffPayrollDetailPage() {
 
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { id } = useParams()
   const router = useRouter()
   const { logActivity } = useActivityLog()
