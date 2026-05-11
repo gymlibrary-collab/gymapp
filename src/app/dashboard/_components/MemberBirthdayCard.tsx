@@ -46,26 +46,34 @@ export default function MemberBirthdayCard({ gymId }: MemberBirthdayCardProps) {
     load()
   }, [gymId])
 
-  if (members.length === 0) return null
-
   return (
     <>
-      {/* Stat tile — matches stats row style */}
+      {/* Stat tile — always visible, clickable only when there are birthdays */}
       <div
-        className="stat-card cursor-pointer hover:border-pink-300 hover:bg-pink-50 transition-colors"
-        onClick={() => setOpen(true)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && setOpen(true)}
+        className={members.length > 0
+          ? "stat-card cursor-pointer hover:border-pink-300 hover:bg-pink-50 transition-colors"
+          : "stat-card"}
+        onClick={() => members.length > 0 && setOpen(true)}
+        role={members.length > 0 ? "button" : undefined}
+        tabIndex={members.length > 0 ? 0 : undefined}
+        onKeyDown={e => members.length > 0 && e.key === 'Enter' && setOpen(true)}
       >
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs text-gray-500">Birthdays Today</p>
-          <Gift className="w-4 h-4 text-pink-500" />
+          <Gift className={`w-4 h-4 ${members.length > 0 ? 'text-pink-500' : 'text-gray-300'}`} />
         </div>
-        <p className="text-2xl font-bold text-pink-600">{members.length}</p>
-        <p className="text-xs text-pink-500 mt-1 truncate">
-          {members.slice(0, 2).map((m: any) => m.full_name.split(' ')[0]).join(', ')}
-          {members.length > 2 ? ` +${members.length - 2}` : ''}
+        <p className={`text-2xl font-bold ${members.length > 0 ? 'text-pink-600' : 'text-gray-400'}`}>
+          {members.length}
+        </p>
+        <p className="text-xs mt-1 truncate">
+          {members.length > 0 ? (
+            <span className="text-pink-500">
+              {members.slice(0, 2).map((m: any) => m.full_name.split(' ')[0]).join(', ')}
+              {members.length > 2 ? ` +${members.length - 2}` : ''}
+            </span>
+          ) : (
+            <span className="text-gray-400">No birthdays today</span>
+          )}
         </p>
       </div>
 
