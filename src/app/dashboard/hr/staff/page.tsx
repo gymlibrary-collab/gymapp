@@ -401,7 +401,7 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
               </div>
 
-              <PersonalFields form={editForm} setF={setEditForm} isBizOps={isBizOps} />
+              <PersonalFields form={editForm} setF={setEditForm} isBizOps={isBizOps} isEditing={true} />
               <EmploymentFields form={editForm} setF={setEditForm} isBizOps={isBizOps} />
 
               {/* Role and status changes are Biz Ops only — managers cannot change staff roles */}
@@ -638,7 +638,7 @@ function AlsoTrainerToggle({ value, onChange }: { value: boolean; onChange: (v: 
   )
 }
 
-function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizOps: boolean }) {
+function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any; setF: any; isBizOps: boolean; isEditing?: boolean }) {
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -665,22 +665,24 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
         <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
         <div><label className="label">Date of Departure</label><input className="input" type="date" value={form.date_of_departure} onChange={e => setF((f: any) => ({ ...f, date_of_departure: e.target.value }))} /></div>
       </div>
-      {isBizOps && (
+      {/* Probation End Date | Annual Leave Entitlement — side by side */}
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Annual Leave Entitlement (days) *</label>
-          <input className="input" type="number" required min="0" max="365"
-            value={form.leave_entitlement_days}
-            onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
-            placeholder="e.g. 14" />
-          <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
+          <label className="label">Probation End Date</label>
+          <input className="input" type="date" value={(form as any).probation_end_date}
+            onChange={e => setF((f: any) => ({ ...f, probation_end_date: e.target.value }))} />
+          <p className="text-xs text-gray-400 mt-1">Leave blank if no probation period.</p>
         </div>
-      )}
-      {/* Probation — visible to both biz-ops and manager */}
-      <div>
-        <label className="label">Probation End Date</label>
-        <input className="input" type="date" value={(form as any).probation_end_date}
-          onChange={e => setF((f: any) => ({ ...f, probation_end_date: e.target.value }))} />
-        <p className="text-xs text-gray-400 mt-1">Leave blank if staff has no probation period.</p>
+        {isBizOps && (
+          <div>
+            <label className="label">Annual Leave Entitlement (days) *</label>
+            <input className="input" type="number" required min="0" max="365"
+              value={form.leave_entitlement_days}
+              onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
+              placeholder="e.g. 14" />
+            <p className="text-xs text-gray-400 mt-1">Paid leave days per calendar year.</p>
+          </div>
+        )}
       </div>
       {(form as any).probation_end_date && (
         (form as any).probation_passed
@@ -695,7 +697,17 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
               <span className="text-sm text-gray-700">Probation passed</span>
             </label>
       )}
-      {/* Leave entitlements */}
+      {/* Leave carry-forward — edit only, not shown during onboarding */}
+      {isEditing && (
+        <div>
+          <label className="label">Leave Carry-Forward Days</label>
+          <input className="input" type="number" min="0" step="1"
+            value={(form as any).leave_carry_forward_days}
+            onChange={e => setF((f: any) => ({ ...f, leave_carry_forward_days: e.target.value }))}
+            placeholder="0" />
+          <p className="text-xs text-gray-400 mt-1">Days carried forward from previous year. Subject to global maximum cap.</p>
+        </div>
+      )}
       {/* Medical and hospitalisation leave fields — disabled until feature is ready
       <div>
         <label className="label">Medical Leave Entitlement (days)</label>
@@ -712,15 +724,6 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
           placeholder="60" />
       </div>
       */}
-      {/* Leave carry-forward */}
-      <div>
-        <label className="label">Leave Carry-Forward Days</label>
-        <input className="input" type="number" min="0" step="1"
-          value={(form as any).leave_carry_forward_days}
-          onChange={e => setF((f: any) => ({ ...f, leave_carry_forward_days: e.target.value }))}
-          placeholder="0" />
-        <p className="text-xs text-gray-400 mt-1">Days carried forward from previous year. Subject to global maximum cap.</p>
-      </div>
       {form.date_of_departure && (
         <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
       )}
