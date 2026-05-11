@@ -374,21 +374,26 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
         onClose={() => setNonRenewalModal(null)}
       />
 
-      <StatsRow
-        stats={stats}
-        commissionStats={commissionStats}
-        commissionLoading={commissionLoading}
-        commissionOffset={commissionOffset}
-        onCommissionOffsetChange={setCommissionOffset}
-        commissionPeriodLabel={commissionPeriodLabel}
-        commissionPeriodStart={commissionPeriodStart}
-        commissionPeriodEnd={commissionPeriodEnd}
-        isTrainer={false}
-        showDrillDown={true}
-        onDrillDown={() => { setCommissionDrillDown(true); setDrillDownGroupBy('staff'); loadDrillDown(commissionPeriodStart, commissionPeriodEnd, 'staff') }}
-      />
-
-      <MemberBirthdayCard gymId={gymId} />
+      <div className="grid grid-cols-3 md:grid-cols-4 gap-3 items-start">
+        <div className="col-span-3 md:col-span-3">
+          <StatsRow
+            stats={stats}
+            commissionStats={commissionStats}
+            commissionLoading={commissionLoading}
+            commissionOffset={commissionOffset}
+            onCommissionOffsetChange={setCommissionOffset}
+            commissionPeriodLabel={commissionPeriodLabel}
+            commissionPeriodStart={commissionPeriodStart}
+            commissionPeriodEnd={commissionPeriodEnd}
+            isTrainer={false}
+            showDrillDown={true}
+            onDrillDown={() => { setCommissionDrillDown(true); setDrillDownGroupBy('staff'); loadDrillDown(commissionPeriodStart, commissionPeriodEnd, 'staff') }}
+          />
+        </div>
+        <div className="col-span-3 md:col-span-1">
+          <MemberBirthdayCard gymId={gymId} />
+        </div>
+      </div>
 
       <CommissionDrillDownModal
         open={commissionDrillDown}

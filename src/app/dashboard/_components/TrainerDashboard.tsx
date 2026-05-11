@@ -243,20 +243,25 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
         isBizOps={false}
       />
 
-      <StatsRow
-        stats={stats}
-        commissionStats={commissionStats}
-        commissionLoading={commissionLoading}
-        commissionOffset={commissionOffset}
-        onCommissionOffsetChange={setCommissionOffset}
-        commissionPeriodLabel={commissionPeriodLabel}
-        commissionPeriodStart={commissionPeriodStart}
-        commissionPeriodEnd={commissionPeriodEnd}
-        isTrainer={true}
-        showDrillDown={false}
-      />
-
-      <MemberBirthdayCard gymId={trainerGymIds[0] || null} />
+      <div className="grid grid-cols-3 md:grid-cols-4 gap-3 items-start">
+        <div className="col-span-3 md:col-span-3">
+          <StatsRow
+            stats={stats}
+            commissionStats={commissionStats}
+            commissionLoading={commissionLoading}
+            commissionOffset={commissionOffset}
+            onCommissionOffsetChange={setCommissionOffset}
+            commissionPeriodLabel={commissionPeriodLabel}
+            commissionPeriodStart={commissionPeriodStart}
+            commissionPeriodEnd={commissionPeriodEnd}
+            isTrainer={true}
+            showDrillDown={false}
+          />
+        </div>
+        <div className="col-span-3 md:col-span-1">
+          <MemberBirthdayCard gymId={trainerGymIds[0] || null} />
+        </div>
+      </div>
 
       <SessionSchedule
         todaySessions={todaySessions}
