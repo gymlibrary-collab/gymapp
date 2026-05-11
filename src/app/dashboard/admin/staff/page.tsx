@@ -97,7 +97,7 @@ export default function AdminStaffPage() {
 
     if (editingUser) {
       // Update via trainers API (handles auth email update too)
-      const res = await fetch('/api/trainers', {
+      const res = await fetch('/api/staff', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,7 +118,7 @@ export default function AdminStaffPage() {
       logActivity('update', 'Business Ops Staff', 'Updated Business Ops staff account')
     showMsg('Account updated')
     } else {
-      const res = await fetch('/api/trainers', {
+      const res = await fetch('/api/staff', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, role: 'business_ops' }),
@@ -139,7 +139,7 @@ export default function AdminStaffPage() {
   const handleDelete = async (user: BizOpsUser) => {
     if (!confirm(`Archive ${user!.full_name}? Their account will be disabled.`)) return
     setSaving(true)
-    const res = await fetch('/api/trainers', {
+    const res = await fetch('/api/staff', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: user!.id }),

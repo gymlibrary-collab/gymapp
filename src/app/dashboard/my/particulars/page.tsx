@@ -43,7 +43,7 @@ export default function MyParticularsPage() {
     ])
     if (err) { setError(err); return }
     setSaving(true)
-    const res = await fetch('/api/trainers', {
+    const res = await fetch('/api/staff', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: user!.id, phone: form.phone, address: form.address || null }),

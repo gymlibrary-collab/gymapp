@@ -138,7 +138,7 @@ export default function TrainersPage() {
     ])
     if (err) { setError(err); return }
     setSaving(true)
-    const res = await fetch('/api/trainers', {
+    const res = await fetch('/api/staff', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(createForm),
     })
@@ -224,7 +224,7 @@ export default function TrainersPage() {
     if (!offboardingChecklist) return
     setCompletingOffboard(true)
     // Save departure date + mark offboarding complete
-    const res = await fetch('/api/trainers', {
+    const res = await fetch('/api/staff', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -258,7 +258,7 @@ export default function TrainersPage() {
     ])
     if (err) { setError(err); return }
     setSaving(true)
-    const res = await fetch('/api/trainers', {
+    const res = await fetch('/api/staff', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: editingUser.id, ...editForm }),
     })
@@ -271,7 +271,7 @@ export default function TrainersPage() {
   const handleArchive = async (member: any) => {
     if (!confirm(`Archive ${member.full_name}?`)) return
     setSaving(true)
-    const res = await fetch('/api/trainers', {
+    const res = await fetch('/api/staff', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: member.id }),
     })
