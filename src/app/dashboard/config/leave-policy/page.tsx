@@ -19,11 +19,6 @@ export default function LeavePolicyPage() {
 
   const [maxCarryForward, setMaxCarryForward] = useState('5')
   const [saving, setSaving] = useState(false)
-  const [bulkAnnual, setBulkAnnual] = useState('14')
-  const [bulkMedical, setBulkMedical] = useState('14')
-  const [bulkHosp, setBulkHosp] = useState('60')
-  const [bulkResetting, setBulkResetting] = useState(false)
-  const [bulkResult, setBulkResult] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -42,64 +37,6 @@ export default function LeavePolicyPage() {
     load()
   }, [])
 
-  const handleBulkReset = async () => {
-    if (!confirm(`This will reset leave entitlements for ALL active full-time staff. Run year-end reset?`)) return
-    setBulkResetting(true); setBulkResult('')
-    const annualDays = parseInt(bulkAnnual) || 14
-    const medicalDays = parseInt(bulkMedical) || 14
-    const hospDays = parseInt(bulkHosp) || 60
-    const maxCarryFwd = parseInt(maxCarryForward) || 0
-
-    // Load all active full-time staff
-    const { data: staff } = await supabase.from('users')
-      .select('id, leave_entitlement_days, leave_carry_forward_days')
-      .in('role', ['trainer', 'staff', 'manager'])
-      .eq('employment_type', 'full_time')
-      .is('date_of_departure', null)
-      .eq('is_archived', false)
-
-    // Load all approved annual leave applications for the current year
-    const currentYear = new Date().getFullYear()
-    const yearStart = `${currentYear}-01-01`
-    const yearEnd = `${currentYear}-12-31`
-    const { data: approvedLeave } = await supabase
-      .from('leave_applications')
-      .select('user_id, start_date, end_date')
-      .eq('status', 'approved')
-      .eq('leave_type', 'annual')
-      .gte('start_date', yearStart)
-      .lte('start_date', yearEnd)
-
-    // Build map: user_id → total approved annual leave days taken this year
-    const daysTakenMap: Record<string, number> = {}
-    for (const leave of approvedLeave || []) {
-      const start = new Date(leave.start_date)
-      const end = new Date(leave.end_date)
-      const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      daysTakenMap[leave.user_id] = (daysTakenMap[leave.user_id] || 0) + days
-    }
-
-    let count = 0
-    for (const s of staff || []) {
-      // Correct formula:
-      // total = annual entitlement + carry-forward from start of year
-      // unused = total - days actually taken this year
-      // carry-forward to next year = min(max(0, unused), global max cap)
-      const total = (s.leave_entitlement_days || 0) + (s.leave_carry_forward_days || 0)
-      const daysTaken = daysTakenMap[s.id] || 0
-      const unused = Math.max(0, total - daysTaken)
-      const carryFwd = Math.min(unused, maxCarryFwd)
-      await supabase.from('users').update({
-        leave_entitlement_days: annualDays,
-        leave_carry_forward_days: carryFwd,
-        medical_leave_entitlement_days: medicalDays,
-        hospitalisation_leave_entitlement_days: hospDays,
-      }).eq('id', s.id)
-      count++
-    }
-    setBulkResult(`Reset complete — ${count} staff updated`)
-    setBulkResetting(false)
-  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -158,7 +95,7 @@ export default function LeavePolicyPage() {
 
         <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700 space-y-1">
           <p className="font-medium">How carry-forward works:</p>
-          <p>1. At year end, Biz Ops sets each staff member's carry-forward days in <strong>HR → Staff</strong></p>
+          <p>1. At year end, Biz Ops runs the Year-End Reset in <strong>Leave Management</strong></p>
           <p>2. The amount entered per staff cannot exceed this maximum cap</p>
           <p>3. Staff see their total entitlement (annual + carry-forward) in My Leave</p>
           <p>4. Carry-forward days should be reset to 0 when updating entitlements for the new year</p>
@@ -173,40 +110,6 @@ export default function LeavePolicyPage() {
         </button>
       </div>
 
-      {/* Year-end bulk reset */}
-      <div className="card p-4 space-y-4">
-        <h2 className="font-semibold text-gray-900 text-sm">Year-End Leave Reset</h2>
-        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
-          <p className="font-medium">What this does:</p>
-          <p>1. Sets the new annual entitlement for ALL active full-time staff</p>
-          <p>2. Calculates carry-forward from unused leave (capped at global maximum)</p>
-          <p>3. Resets medical and hospitalisation to default entitlements</p>
-          <p className="text-amber-600 font-medium mt-1">⚠ This action cannot be undone. Run at the start of each new year.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">New Annual Entitlement (days)</label>
-            <input className="input" type="number" min="0" step="1"
-              value={bulkAnnual} onChange={e => setBulkAnnual(e.target.value)} placeholder="14" />
-          </div>
-          <div>
-            <label className="label">New Medical Entitlement (days)</label>
-            <input className="input" type="number" min="0" step="1"
-              value={bulkMedical} onChange={e => setBulkMedical(e.target.value)} placeholder="14" />
-          </div>
-          <div>
-            <label className="label">New Hospitalisation (days)</label>
-            <input className="input" type="number" min="0" step="1"
-              value={bulkHosp} onChange={e => setBulkHosp(e.target.value)} placeholder="60" />
-          </div>
-        </div>
-        {bulkResult && <p className="text-sm text-green-700 font-medium">✓ {bulkResult}</p>}
-        <button onClick={handleBulkReset} disabled={bulkResetting}
-          className="btn-primary flex items-center gap-2 disabled:opacity-50 bg-amber-600 hover:bg-amber-700">
-          <Save className="w-4 h-4" />
-          {bulkResetting ? 'Resetting...' : 'Run Year-End Reset'}
-        </button>
-      </div>
     </div>
   )
 }

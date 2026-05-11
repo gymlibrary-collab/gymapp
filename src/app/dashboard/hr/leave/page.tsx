@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate , getRoleLabel } from '@/lib/utils'
-import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users } from 'lucide-react'
+import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users, Save } from 'lucide-react'
 import { queueWhatsApp } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -23,6 +23,12 @@ export default function LeaveManagementPage() {
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
   const [filter, setFilter] = useState('pending')
+  const [bulkAnnual, setBulkAnnual] = useState('14')
+  const [bulkMedical, setBulkMedical] = useState('14')
+  const [bulkHosp, setBulkHosp] = useState('60')
+  const [maxCarryForward, setMaxCarryForward] = useState('5')
+  const [bulkResetting, setBulkResetting] = useState(false)
+  const [bulkResult, setBulkResult] = useState('')
   const { logActivity } = useActivityLog()
   const [rejectId, setRejectId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -38,6 +44,9 @@ export default function LeaveManagementPage() {
 
   const load = async () => {
     logActivity('page_view', 'Leave Management', 'Viewed leave management')
+    const { data: settings } = await supabase
+      .from('app_settings').select('max_leave_carry_forward_days').eq('id', 'global').maybeSingle()
+    if (settings) setMaxCarryForward((settings as any).max_leave_carry_forward_days?.toString() || '5')
 
     // Get staff IDs this user can approve for
     let staffIds: string[] = []
@@ -546,6 +555,34 @@ export default function LeaveManagementPage() {
               <button onClick={() => { setRejectId(null); setRejectReason('') }} className="btn-secondary">Cancel</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Year-End Leave Reset — biz-ops only */}
+      {user?.role === 'business_ops' && (
+        <div className="card p-4 space-y-4">
+          <h2 className="font-semibold text-gray-900 text-sm">Year-End Leave Reset</h2>
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
+            <p className="font-medium">What this does:</p>
+            <p>1. Sets the new annual entitlement for ALL active full-time staff</p>
+            <p>2. Calculates carry-forward from unused leave (capped at {maxCarryForward} days max)</p>
+            <p>3. Resets medical and hospitalisation to default entitlements</p>
+            <p className="text-amber-600 font-medium mt-1">⚠ This action cannot be undone. Run at the start of each new year.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">New Annual Entitlement (days)</label>
+              <input className="input" type="number" min="0" step="1" value={bulkAnnual} onChange={e => setBulkAnnual(e.target.value)} placeholder="14" /></div>
+            <div><label className="label">New Medical Entitlement (days)</label>
+              <input className="input" type="number" min="0" step="1" value={bulkMedical} onChange={e => setBulkMedical(e.target.value)} placeholder="14" /></div>
+            <div><label className="label">New Hospitalisation (days)</label>
+              <input className="input" type="number" min="0" step="1" value={bulkHosp} onChange={e => setBulkHosp(e.target.value)} placeholder="60" /></div>
+          </div>
+          {bulkResult && <p className="text-sm text-green-700 font-medium">✓ {bulkResult}</p>}
+          <button onClick={handleBulkReset} disabled={bulkResetting}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50 bg-amber-600 hover:bg-amber-700">
+            <Save className="w-4 h-4" />
+            {bulkResetting ? 'Resetting...' : 'Run Year-End Reset'}
+          </button>
         </div>
       )}
     </div>
