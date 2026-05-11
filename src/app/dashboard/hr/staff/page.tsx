@@ -675,29 +675,25 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
           <p className="text-xs text-gray-400 mt-1">Number of paid leave days per calendar year. Applies to full-time staff only.</p>
         </div>
       )}
-      {/* Probation — Biz Ops only */}
-      {isBizOps && (
-        <>
-          <div>
-            <label className="label">Probation End Date</label>
-            <input className="input" type="date" value={(form as any).probation_end_date}
-              onChange={e => setF((f: any) => ({ ...f, probation_end_date: e.target.value }))} />
-            <p className="text-xs text-gray-400 mt-1">Leave blank if staff has no probation period.</p>
-          </div>
-          {(form as any).probation_end_date && (
-            (form as any).probation_passed
-              ? <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-lg p-3">
-                  <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                  <span className="text-sm text-green-700">Probation confirmed passed — cannot be reversed</span>
-                </div>
-              : <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={false}
-                    onChange={e => { if (e.target.checked) setF((f: any) => ({ ...f, probation_passed: true })) }}
-                    className="rounded border-gray-300 text-red-600" />
-                  <span className="text-sm text-gray-700">Probation passed</span>
-                </label>
-          )}
-        </>
+      {/* Probation — visible to both biz-ops and manager */}
+      <div>
+        <label className="label">Probation End Date</label>
+        <input className="input" type="date" value={(form as any).probation_end_date}
+          onChange={e => setF((f: any) => ({ ...f, probation_end_date: e.target.value }))} />
+        <p className="text-xs text-gray-400 mt-1">Leave blank if staff has no probation period.</p>
+      </div>
+      {(form as any).probation_end_date && (
+        (form as any).probation_passed
+          ? <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-lg p-3">
+              <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span className="text-sm text-green-700">Probation confirmed passed — cannot be reversed</span>
+            </div>
+          : <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={false}
+                onChange={e => { if (e.target.checked) setF((f: any) => ({ ...f, probation_passed: true })) }}
+                className="rounded border-gray-300 text-red-600" />
+              <span className="text-sm text-gray-700">Probation passed</span>
+            </label>
       )}
       {/* Leave entitlements */}
       {/* Medical and hospitalisation leave fields — disabled until feature is ready
