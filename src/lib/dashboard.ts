@@ -605,12 +605,12 @@ export async function fetchPayslipNotifications(
   const { data: latestPayslip } = await supabase.from('payslips')
     .select('id, month, year, net_salary, approved_at')
     .eq('user_id', userId).in('status', ['approved', 'paid'])
-    .order('approved_at', { ascending: false }).limit(1).single()
+    .order('approved_at', { ascending: false }).limit(1).maybeSingle()
 
   const { data: latestCommission } = await supabase.from('commission_payouts')
     .select('id, period_start, period_end, total_commission_sgd, approved_at')
     .eq('user_id', userId).eq('status', 'approved')
-    .order('approved_at', { ascending: false }).limit(1).single()
+    .order('approved_at', { ascending: false }).limit(1).maybeSingle()
 
   const newPayslip = latestPayslip?.approved_at &&
     (!seenPayslip || new Date(latestPayslip.approved_at) > seenPayslip)
