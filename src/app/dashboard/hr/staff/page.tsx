@@ -144,6 +144,7 @@ export default function TrainersPage() {
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
+    logActivity('create', 'Staff Management', `Created ${createForm.role} account: ${createForm.full_name}`)
     await loadData(); setShowCreateForm(false); setCreateForm({ ...emptyForm })
     setSaving(false); showMsg('Account created')
   }
@@ -276,7 +277,7 @@ export default function TrainersPage() {
       body: JSON.stringify({ userId: member.id }),
     })
     if (!res.ok) { const r = await res.json(); setError(r.error || 'Failed') }
-    else showMsg(`${member.full_name} archived`)
+    else { logActivity('update', 'Staff Management', `Archived staff member: ${member.full_name}`); showMsg(`${member.full_name} archived`) }
     await loadData(); setSaving(false)
   }
 

@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { CheckCircle, XCircle, Clock, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -46,6 +47,7 @@ const JOB_ORDER = [
 
 export default function CronLogsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })
+  const { logActivity } = useActivityLog()
   const [logs, setLogs] = useState<any[]>([])
   const [dataLoading, setDataLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -55,6 +57,7 @@ export default function CronLogsPage() {
 
   const load = async () => {
     setDataLoading(true)
+    logActivity('page_view', 'Cron Logs', 'Viewed cron job logs')
     const { data } = await supabase
       .from('cron_logs')
       .select('*')
