@@ -27,7 +27,7 @@ interface BizOpsUser {
   created_at: string
 }
 
-const emptyForm = { full_name: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '', address: '' }
+const emptyForm = { full_name: '', nickname: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '', address: '' }
 
 export default function AdminStaffPage() {
 
@@ -71,6 +71,7 @@ export default function AdminStaffPage() {
     setEditingUser(user)
     setForm({
       full_name: user.full_name,
+      nickname: (user as any).nickname || user.full_name.split(' ')[0],
       email: user.email,
       phone: user.phone || '',
       date_of_joining: user.date_of_joining || '',
@@ -88,6 +89,7 @@ export default function AdminStaffPage() {
     e.preventDefault(); setError('')
     const err = validateAll([
       validatePhone(form.phone),
+      !form.nickname.trim() ? 'Nickname is required' : null,
       validateNric((form as any).nric),
       validateNationality((form as any).nationality),
       validateAddress((form as any).address),
@@ -206,11 +208,21 @@ export default function AdminStaffPage() {
                 placeholder="e.g. Jane Lim" />
             </div>
             <div>
-              <label className="label">Email *</label>
-              <input className="input" required type="email" value={form.email} onChange={set('email')}
-                placeholder="jane@company.com" />
-              {editingUser && <p className="text-xs text-gray-400 mt-1">Changing email updates their Google login</p>}
+              <label className="label">Nickname *</label>
+              <input className="input" required value={(form as any).nickname || ''} onChange={set('nickname')}
+                placeholder="e.g. Jane" />
             </div>
+          </div>
+
+          <div>
+            <label className="label">NRIC / FIN / Passport</label>
+            <input className="input" value={(form as any).nric} onChange={e => setForm((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" />
+          </div>
+
+          <div>
+            <label className="label">Residential Address</label>
+            <input className="input" value={(form as any).address} onChange={set('address')}
+              placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -220,38 +232,40 @@ export default function AdminStaffPage() {
                 placeholder="+65 9123 4567" />
             </div>
             <div>
-              <label className="label">Date of Joining</label>
-              <input className="input" type="date" value={form.date_of_joining}
-                onChange={set('date_of_joining')} />
+              <label className="label">Email *</label>
+              <input className="input" required type="email" value={form.email} onChange={set('email')}
+                placeholder="jane@company.com" />
+              {editingUser && <p className="text-xs text-gray-400 mt-1">Changing email updates their Google login</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">NRIC / FIN / Passport</label>
-              <input className="input" value={(form as any).nric} onChange={e => setForm((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" />
-            </div>
             <div>
               <label className="label">Nationality</label>
               <input className="input" value={(form as any).nationality} onChange={set('nationality')} placeholder="e.g. Singaporean" />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Date of Birth</label>
               <input className="input" type="date" value={(form as any).date_of_birth} onChange={set('date_of_birth')} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Annual Leave Entitlement (days)</label>
-              <input className="input" type="number" min="0" max="365" value={(form as any).leave_entitlement_days} onChange={set('leave_entitlement_days')} placeholder="e.g. 14" />
+              <label className="label">Date of Joining</label>
+              <input className="input" type="date" value={form.date_of_joining}
+                onChange={set('date_of_joining')} />
+            </div>
+            <div>
+              <label className="label">Date of Departure</label>
+              <input className="input" type="date" value={(form as any).date_of_departure || ''}
+                onChange={set('date_of_departure')} />
             </div>
           </div>
 
           <div>
-            <label className="label">Residential Address</label>
-            <input className="input" value={(form as any).address} onChange={set('address')}
-              placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
+            <label className="label">Annual Leave Entitlement (days)</label>
+            <input className="input" type="number" min="0" max="365" value={(form as any).leave_entitlement_days} onChange={set('leave_entitlement_days')} placeholder="e.g. 14" />
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">

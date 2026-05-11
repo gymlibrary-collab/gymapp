@@ -645,17 +645,21 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
         <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
         <div><label className="label">Nickname *</label><input className="input" required value={form.nickname || ''} onChange={e => setF((f: any) => ({ ...f, nickname: e.target.value }))} placeholder="e.g. Alex" /></div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric || ''} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" /></div>
-        <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
+      <div>
+        <label className="label">NRIC / FIN / Passport</label>
+        <input className="input" value={form.nric || ''} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" />
+      </div>
+      <div>
+        <label className="label">Residential Address</label>
+        <input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
-        <div><label className="label">Nationality</label><input className="input" value={form.nationality || ''} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
+        <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
+        <div><label className="label">Nationality</label><input className="input" value={form.nationality || ''} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
         <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth || ''} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
-        <div></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
@@ -724,7 +728,6 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
       {form.date_of_departure && (
         <div><label className="label">Departure Reason</label><input className="input" value={form.departure_reason} onChange={e => setF((f: any) => ({ ...f, departure_reason: e.target.value }))} placeholder="e.g. Resigned, Contract ended" /></div>
       )}
-      <div><label className="label">Residential Address</label><input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" /></div>
     </>
   )
 }
