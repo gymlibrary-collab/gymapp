@@ -25,7 +25,7 @@ const ALL_ROLES = [
 ]
 
 const emptyForm = {
-  full_name: '', email: '', phone: '', role: 'trainer',
+  full_name: '', nickname: '', email: '', phone: '', role: 'trainer',
   employment_type: 'full_time', hourly_rate: '',
   commission_signup_pct: '10', commission_session_pct: '15', membership_commission_sgd: '0',
   // gym_id: single-gym dropdown for full-timers (all roles)
@@ -152,7 +152,7 @@ export default function TrainersPage() {
   const openEdit = (member: any) => {
     setEditingUser(member)
     setEditForm({
-      full_name: member.full_name, email: member.email, phone: member.phone || '',
+      full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
       employment_type: member.employment_type || 'full_time',
       hourly_rate: member.hourly_rate?.toString() || '',
@@ -643,6 +643,9 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
     <>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
+        <div><label className="label">Nickname *</label><input className="input" required value={form.nickname || ''} onChange={e => setF((f: any) => ({ ...f, nickname: e.target.value }))} placeholder="e.g. Alex" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">

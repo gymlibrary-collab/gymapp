@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
   const { data: allStaff, error: staffErr } = await supabase
     .from('users')
     .select(`
-      id, full_name, role, date_of_birth, is_archived,
+      id, full_name, nickname, role, date_of_birth, is_archived,
       manager_gym_id,
       manager_gym:gyms!users_manager_gym_id_fkey(id, name),
       trainer_gyms(gym_id, gyms(id, name))
@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
     reminders.push({
       user_id: staff.id,
       full_name: staff.full_name,
+      nickname: staff.nickname || staff.full_name.split(' ')[0],
       role: staff.role,
       gym_id: gymId,
       gym_name: gymName,

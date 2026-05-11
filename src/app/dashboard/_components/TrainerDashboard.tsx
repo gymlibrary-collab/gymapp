@@ -33,7 +33,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { Clock, Package, AlertCircle, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName, formatDate, getGreeting} from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName, formatDate, getGreeting, getDisplayName} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import StatsRow from './StatsRow'
 import MemberBirthdayCard from './MemberBirthdayCard'
@@ -232,7 +232,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">{getGreeting(user.full_name.split(' ')[0])} 👋</h1>
+        <h1 className="text-xl font-bold text-gray-900">{getGreeting(getDisplayName(user))} 👋</h1>
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
 

@@ -59,7 +59,7 @@ export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string
             {birthdays.length} upcoming birthday{birthdays.length > 1 ? 's' : ''} in the next 7 days
           </p>
           <p className="text-xs text-pink-600 mt-0.5">
-            {birthdays.slice(0, 2).map((b: any) => b.full_name.split(' ')[0]).join(', ')}
+            {birthdays.slice(0, 2).map((b: any) => b.nickname || b.full_name.split(' ')[0]).join(', ')}
             {birthdays.length > 2 ? ` +${birthdays.length - 2} more` : ''}
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{b.full_name}</p>
+                      <p className="text-sm font-medium text-gray-900 truncate">{b.full_name}{b.nickname && b.nickname !== b.full_name.split(' ')[0] ? ` (${b.nickname})` : ''}</p>
                       <p className="text-xs text-gray-500">
                         {isBizOps && <span className="mr-1">{b.gym_name} ·</span>}
                         Turns {age} · {dob.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'UTC' })}

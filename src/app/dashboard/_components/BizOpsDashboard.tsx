@@ -26,7 +26,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Calendar, AlertCircle, AlertTriangle, Bell, X, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { cn, formatSGD, formatDate, getMonthName, getGreeting} from '@/lib/utils'
+import { cn, formatSGD, formatDate, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 
 interface BizOpsDashboardProps {
@@ -505,7 +505,7 @@ export default function BizOpsDashboard({ user }: BizOpsDashboardProps) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">{getGreeting(user.full_name.split(' ')[0])} 👋</h1>
+        <h1 className="text-xl font-bold text-gray-900">{getGreeting(getDisplayName(user))} 👋</h1>
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
       <StaffBirthdayPanel isBizOps={true} />

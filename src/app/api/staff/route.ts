@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { full_name, email, phone, role, commission_signup_pct, commission_session_pct,
+    const { full_name, nickname, email, phone, role, commission_signup_pct, commission_session_pct,
       gym_ids, manager_gym_id, is_also_trainer } = body
 
     if (currentUser.role === 'manager' && !['trainer', 'staff'].includes(role)) {
@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
     // Trainers must be full-time
     if (role === 'trainer' && body.employment_type === 'part_time') {
       return NextResponse.json({ error: 'Trainers must be full-time employees' }, { status: 400 })
+    }
+    if (!nickname?.trim()) {
+      return NextResponse.json({ error: 'Nickname is required' }, { status: 400 })
     }
 
     const adminClient = createAdminClient()
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
       ? null
       : (leave_entitlement_days != null && leave_entitlement_days !== '' ? parseInt(leave_entitlement_days) : null)
     const userPayload: any = {
-      id: authData.user.id, full_name, email,
+      id: authData.user.id, full_name, nickname: nickname.trim(), email,
       phone: phone || null, role: resolvedRole,
       employment_type: resolvedEmployment,
       hourly_rate: hourly_rate ? parseFloat(hourly_rate) : null,
@@ -99,7 +102,7 @@ export async function PATCH(request: Request) {
 
     const body = await request.json()
     const {
-      userId, full_name, email, phone, role, is_active,
+      userId, full_name, nickname, email, phone, role, is_active,
       date_of_birth, date_of_joining, date_of_departure, departure_reason,
       probation_end_date, probation_passed, leave_carry_forward_days,
       commission_signup_pct, commission_session_pct,
@@ -152,6 +155,7 @@ export async function PATCH(request: Request) {
 
     // Fields any user can update on their own record
     if (full_name !== undefined) updatePayload.full_name = full_name
+    if (nickname !== undefined) updatePayload.nickname = nickname.trim()
     if (email !== undefined)     updatePayload.email = email
     if (phone !== undefined)     updatePayload.phone = phone || null
     if (body.address !== undefined) updatePayload.address = body.address || null

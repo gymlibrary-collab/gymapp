@@ -32,7 +32,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Building2, Briefcase, UserCheck, Dumbbell, Calendar, Settings, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { cn, getGreeting} from '@/lib/utils'
+import { cn, getGreeting, getDisplayName} from '@/lib/utils'
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -129,7 +129,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Greeting */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">
-          {getGreeting(user.full_name.split(' ')[0])} 👋
+          {getGreeting(getDisplayName(user))} 👋
         </h1>
         <p className="text-sm text-gray-500">Admin · View only</p>
       </div>

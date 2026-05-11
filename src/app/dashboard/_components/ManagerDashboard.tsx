@@ -35,7 +35,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Clock, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName, getGreeting} from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import NonRenewalModal from './NonRenewalModal'
 import StatsRow from './StatsRow'
@@ -337,7 +337,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">{getGreeting(user.full_name.split(' ')[0])} 👋</h1>
+        <h1 className="text-xl font-bold text-gray-900">{getGreeting(getDisplayName(user))} 👋</h1>
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
 

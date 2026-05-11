@@ -124,6 +124,12 @@ export default function MyParticularsPage() {
 
       {/* Editable contact details */}
       <form onSubmit={handleSave} className="card p-4 space-y-4">
+        <div>
+          <label className="label">Nickname *</label>
+          <input className="input" required value={form.nickname}
+            onChange={set('nickname')} placeholder="e.g. Alex" />
+          <p className="text-xs text-gray-400 mt-1">Used in dashboard greeting and birthday notifications</p>
+        </div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Contact Information</p>
 
         <div>
