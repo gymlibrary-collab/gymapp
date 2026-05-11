@@ -16,7 +16,7 @@ export default function MyParticularsPage() {
 
 
   const { logActivity } = useActivityLog()
-  const [form, setForm] = useState({ phone: '', address: '' })
+  const [form, setForm] = useState({ phone: '', address: '', nickname: '' })
   const [saving, setSaving] = useState(false)
   const router = useRouter()
   const supabase = createClient()
