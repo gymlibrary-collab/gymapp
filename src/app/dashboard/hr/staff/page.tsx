@@ -697,8 +697,8 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
               <span className="text-sm text-gray-700">Probation passed</span>
             </label>
       )}
-      {/* Leave carry-forward — edit only, not shown during onboarding */}
-      {isEditing && (
+      {/* Leave carry-forward — edit only, biz-ops only */}
+      {isEditing && isBizOps && (
         <div>
           <label className="label">Leave Carry-Forward Days</label>
           <input className="input" type="number" min="0" step="1"
