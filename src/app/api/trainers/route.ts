@@ -1,7 +1,12 @@
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
+import { rateLimit } from '@/lib/rate-limit'
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
+  // Rate limit: 20 trainer creates per hour per IP
+  const { limited } = rateLimit(request, { limit: 20, windowMs: 60 * 60_000, keyPrefix: 'trainers' })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   try {
     const serverClient = await createSupabaseServerClient()
     const { data: { user } } = await serverClient.auth.getUser()

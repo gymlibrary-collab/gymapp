@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { rateLimit } from '@/lib/rate-limit'
 
 // Admin client — bypasses RLS for writing logs
 const adminClient = createAdminClient()
@@ -57,6 +58,10 @@ function getClientIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 120 activity logs per minute per IP
+  const { limited } = rateLimit(req, { limit: 120, windowMs: 60_000, keyPrefix: 'activity-log' })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
   try {
     // Verify the caller is an authenticated session — prevents anonymous log pollution
     const serverClient = await createSupabaseServerClient()
