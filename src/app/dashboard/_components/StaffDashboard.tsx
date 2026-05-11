@@ -225,8 +225,6 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
         isBizOps={false}
       />
 
-      <MemberBirthdayCard gymId={gymId} />
-
       <StatsRow
         stats={stats}
         commissionStats={commissionStats}
@@ -239,6 +237,8 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
         isTrainer={false}
         showDrillDown={false}
       />
+
+      <MemberBirthdayCard gymId={gymId} />
 
       <SessionSchedule
         todaySessions={todaySessions}

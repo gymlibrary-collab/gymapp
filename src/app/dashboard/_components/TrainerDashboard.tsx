@@ -243,8 +243,6 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
         isBizOps={false}
       />
 
-      <MemberBirthdayCard gymId={trainerGymIds[0] || null} />
-
       <StatsRow
         stats={stats}
         commissionStats={commissionStats}
@@ -257,6 +255,8 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
         isTrainer={true}
         showDrillDown={false}
       />
+
+      <MemberBirthdayCard gymId={trainerGymIds[0] || null} />
 
       <SessionSchedule
         todaySessions={todaySessions}

@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
   // Primary members: member_id IN birthdayMemberIds
   const { data: primaryPkgs } = await supabase
     .from('packages')
-    .select('member_id, trainer_id')
+    .select('member_id, trainer_id, trainer:users!packages_trainer_id_fkey(id, full_name)')
     .in('member_id', birthdayMemberIds)
     .eq('status', 'active')
     .not('trainer_id', 'is', null)
@@ -101,21 +101,21 @@ export async function GET(request: NextRequest) {
   // Secondary members: secondary_member_id IN birthdayMemberIds
   const { data: secondaryPkgs } = await supabase
     .from('packages')
-    .select('secondary_member_id, trainer_id')
+    .select('secondary_member_id, trainer_id, trainer:users!packages_trainer_id_fkey(id, full_name)')
     .in('secondary_member_id', birthdayMemberIds)
     .eq('status', 'active')
     .eq('is_shared', true)
     .not('trainer_id', 'is', null)
 
   // Build member → Set<trainer_id> map (deduplicates multiple packages same trainer)
-  const memberTrainerMap: Record<string, Set<string>> = {}
-  birthdayMemberIds.forEach((id: string) => { memberTrainerMap[id] = new Set() })
+  const memberTrainerMap: Record<string, Map<string, string>> = {}
+  birthdayMemberIds.forEach((id: string) => { memberTrainerMap[id] = new Map() })
 
   primaryPkgs?.forEach((p: any) => {
-    if (p.trainer_id) memberTrainerMap[p.member_id]?.add(p.trainer_id)
+    if (p.trainer_id) memberTrainerMap[p.member_id]?.set(p.trainer_id, (p.trainer as any)?.full_name || '')
   })
   secondaryPkgs?.forEach((p: any) => {
-    if (p.trainer_id) memberTrainerMap[p.secondary_member_id]?.add(p.trainer_id)
+    if (p.trainer_id) memberTrainerMap[p.secondary_member_id]?.set(p.trainer_id, (p.trainer as any)?.full_name || '')
   })
 
   // ── Step 3: Build rows ────────────────────────────────────
@@ -139,11 +139,12 @@ export async function GET(request: NextRequest) {
       date_of_birth: member.date_of_birth,
       age,
       birthday_date: todayStr,
+      trainer_names: Array.from(memberTrainerMap[member.id].values()).filter(Boolean).join(', ') || null,
       refreshed_at: nowUtc.toISOString(),
     })
 
     // Trainer rows — one per active trainer association
-    for (const trainerId of Array.from(memberTrainerMap[member.id])) {
+    for (const [trainerId, trainerName] of Array.from(memberTrainerMap[member.id].entries())) {
       rows.push({
         member_id: member.id,
         trainer_id: trainerId,
@@ -153,6 +154,7 @@ export async function GET(request: NextRequest) {
         date_of_birth: member.date_of_birth,
         age,
         birthday_date: todayStr,
+        trainer_names: trainerName || null,
         refreshed_at: nowUtc.toISOString(),
       })
     }

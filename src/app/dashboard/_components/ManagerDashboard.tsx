@@ -349,8 +349,6 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
 
       <StaffBirthdayPanel gymId={gymId} isBizOps={false} />
 
-      <MemberBirthdayCard gymId={gymId} />
-
       <NotificationBanners
         newPayslip={newPayslip}
         newCommission={newCommission}
@@ -389,6 +387,8 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
         showDrillDown={true}
         onDrillDown={() => { setCommissionDrillDown(true); setDrillDownGroupBy('staff'); loadDrillDown(commissionPeriodStart, commissionPeriodEnd, 'staff') }}
       />
+
+      <MemberBirthdayCard gymId={gymId} />
 
       <CommissionDrillDownModal
         open={commissionDrillDown}
