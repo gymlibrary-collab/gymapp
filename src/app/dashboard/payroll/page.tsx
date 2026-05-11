@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function PayrollPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
 
   const [staffList, setStaffList] = useState<any[]>([])
   const [search, setSearch] = useState('')

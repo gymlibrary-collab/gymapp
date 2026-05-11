@@ -16,7 +16,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 export default function CommissionPayoutsPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
 
 
   const { logActivity } = useActivityLog()

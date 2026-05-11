@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 export default function AnnualStatementPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const { error, showError, setError } = useToast()
   const supabase = createClient()

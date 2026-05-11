@@ -29,7 +29,7 @@ function getAgeAsOf(dob: string | null, refDate: Date): number | null {
 
 export default function CpfPage() {
 
-  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [brackets, setBrackets] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
