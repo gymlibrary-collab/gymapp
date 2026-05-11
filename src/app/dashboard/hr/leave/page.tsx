@@ -80,7 +80,7 @@ export default function LeaveManagementPage() {
     if (staffIds.length === 0) { return }
 
     let q = supabase.from('leave_applications')
-      .select('*, user:users!leave_applications_user_id_fkey(full_name, role, leave_entitlement_days, medical_leave_entitlement_days, hospitalisation_leave_entitlement_days)')
+      .select('*, user:users!leave_applications_user_id_fkey(full_name, role, leave_entitlement_days)')
       .in('user_id', staffIds)
       .order('created_at', { ascending: false })
     if (filter === 'pending') {

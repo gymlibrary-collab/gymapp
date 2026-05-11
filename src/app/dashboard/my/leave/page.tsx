@@ -13,8 +13,9 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const LEAVE_TYPES = [
   { value: 'annual', label: 'Annual Leave', entitlementKey: 'leave_entitlement_days' },
-  { value: 'medical', label: 'Medical Leave', entitlementKey: 'medical_leave_entitlement_days' },
-  { value: 'hospitalisation', label: 'Hospitalisation Leave', entitlementKey: 'hospitalisation_leave_entitlement_days' },
+  // Medical and Hospitalisation leave types disabled — not yet implemented
+  // { value: 'medical', label: 'Medical Leave', entitlementKey: 'medical_leave_entitlement_days' },
+  // { value: 'hospitalisation', label: 'Hospitalisation Leave', entitlementKey: 'hospitalisation_leave_entitlement_days' },
   { value: 'other', label: 'Other', entitlementKey: 'leave_entitlement_days' },
 ]
 
@@ -203,8 +204,9 @@ export default function MyLeavePage() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { type: 'annual', label: 'Annual Leave' },
-          { type: 'medical', label: 'Medical' },
-          { type: 'hospitalisation', label: 'Hospitalisation' },
+          // Medical and Hospitalisation balance cards disabled — not yet implemented
+          // { type: 'medical', label: 'Medical' },
+          // { type: 'hospitalisation', label: 'Hospitalisation' },
         ].map(({ type, label }) => {
           const lt = getEntitlement(type)
           return (
