@@ -10,7 +10,7 @@ import {
   BarChart3, DollarSign, Settings, LogOut, Menu, ChevronRight,
   FileText, Banknote, X, Building2, UserCheck, Clock,
   Calculator, Briefcase, CreditCard, CalendarDays, Receipt,
-  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList, Shield, Activity, AlertCircle
+  TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList, Shield, Activity, AlertCircle, Clock
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -22,6 +22,7 @@ const adminNav: NavItem[] = [
   { href: '/dashboard/hr/leave', label: 'Leave Approvals', icon: CalendarDays },
   { href: '/dashboard/admin/payslip-audit', label: 'Payslip Audit', icon: Shield },
   { href: '/dashboard/admin/activity-logs', label: 'Activity Logs', icon: Activity },
+  { href: '/dashboard/admin/cron-logs', label: 'Cron Logs', icon: Clock },
   { href: '/dashboard/admin/settings', label: 'App Settings', icon: Settings },
 ]
 
