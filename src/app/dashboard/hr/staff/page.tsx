@@ -697,6 +697,7 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
         </>
       )}
       {/* Leave entitlements */}
+      {/* Medical and hospitalisation leave fields — disabled until feature is ready
       <div>
         <label className="label">Medical Leave Entitlement (days)</label>
         <input className="input" type="number" min="0" step="1"
@@ -711,6 +712,7 @@ function PersonalFields({ form, setF, isBizOps }: { form: any; setF: any; isBizO
           onChange={e => setF((f: any) => ({ ...f, hospitalisation_leave_entitlement_days: e.target.value }))}
           placeholder="60" />
       </div>
+      */}
       {/* Leave carry-forward */}
       <div>
         <label className="label">Leave Carry-Forward Days</label>
