@@ -144,9 +144,14 @@ export async function uploadToStorage(
  * 12:00–17:59 → Good afternoon
  * 18:00+      → Good evening
  */
-export function getGreeting(firstName: string): string {
+export function getGreeting(nickname: string): string {
   const hour = new Date().getHours()
-  if (hour < 12) return `Good morning, ${firstName}`
-  if (hour < 18) return `Good afternoon, ${firstName}`
-  return `Good evening, ${firstName}`
+  if (hour < 12) return `Good morning, ${nickname}`
+  if (hour < 18) return `Good afternoon, ${nickname}`
+  return `Good evening, ${nickname}`
+}
+
+/** Returns nickname if set, otherwise falls back to first word of full_name */
+export function getDisplayName(user: { nickname?: string; full_name: string }): string {
+  return user.nickname?.trim() || user.full_name.split(' ')[0]
 }
