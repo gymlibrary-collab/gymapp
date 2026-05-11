@@ -47,6 +47,18 @@ export default function MemberProfilePage() {
   const [showRenewalForm, setShowRenewalForm] = useState(false)
   const [renewalForm, setRenewalForm] = useState({ membership_type_id: '', start_date: new Date().toISOString().split('T')[0] })
   const [renewalSaving, setRenewalSaving] = useState(false)
+  const [cancellationRequest, setCancellationRequest] = useState<any>(null)
+  const [showCancelForm, setShowCancelForm] = useState(false)
+  const [cancelForm, setCancelForm] = useState({
+    cancellation_end_date: new Date().toISOString().split('T')[0],
+    reason: '',
+    reason_other: '',
+    confirm_text: '',
+  })
+  const [cancelSaving, setCancelSaving] = useState(false)
+  const [showApproveModal, setShowApproveModal] = useState(false)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
   const supabase = createClient()
   const { isActingAsTrainer } = useViewMode()
 
@@ -73,6 +85,20 @@ export default function MemberProfilePage() {
       .eq('member_id', id).order('created_at', { ascending: false })
 
     setMemberships(mems || [])
+
+    // Load pending cancellation request for active membership
+    const activeMem = (mems || []).find((m: any) => m.status === 'active' && m.sale_status === 'confirmed')
+    if (activeMem) {
+      const { data: cancelReq } = await supabase
+        .from('membership_cancellation_requests')
+        .select('*')
+        .eq('gym_membership_id', activeMem.id)
+        .eq('status', 'pending')
+        .single()
+      setCancellationRequest(cancelReq || null)
+    } else {
+      setCancellationRequest(null)
+    }
 
     // Load membership types for renewal form
     const { data: memTypes } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
@@ -159,6 +185,128 @@ export default function MemberProfilePage() {
   }
 
   // ── Record non-renewal ───────────────────────────────────
+  const handleCancellationRequest = async () => {
+    if (!cancelForm.reason || cancelForm.confirm_text !== 'confirmed!') return
+    if (cancelForm.reason === 'Other' && !cancelForm.reason_other.trim()) return
+    setCancelSaving(true)
+
+    const activeMem = memberships.find((m: any) => m.status === 'active' && m.sale_status === 'confirmed')
+    if (!activeMem) { setCancelSaving(false); return }
+
+    const isManager = currentUser?.role === 'manager'
+
+    if (isManager) {
+      // Manager cancels directly — no approval needed
+      const { error } = await supabase.from('gym_memberships').update({
+        cancellation_end_date: cancelForm.cancellation_end_date,
+        cancellation_reason: cancelForm.reason,
+        cancellation_reason_other: cancelForm.reason === 'Other' ? cancelForm.reason_other.trim() : null,
+        cancelled_by_user_id: currentUser.id,
+        cancelled_at: new Date().toISOString(),
+      }).eq('id', activeMem.id)
+
+      if (!error) {
+        // Insert biz-ops notification
+        await supabase.from('cancellation_approved_notif').insert({
+          request_id: null,
+          gym_id: activeMem.gym_id,
+          member_name: member.full_name,
+          membership_type: activeMem.membership_type_name,
+          cancellation_date: cancelForm.cancellation_end_date,
+          approved_by_name: currentUser.full_name,
+        })
+        logActivity('update', 'Member Profile', `Manager cancelled membership for ${member.full_name}`)
+        setShowCancelForm(false)
+        setCancelForm({ cancellation_end_date: new Date().toISOString().split('T')[0], reason: '', reason_other: '', confirm_text: '' })
+        await load()
+      }
+    } else {
+      // Staff/trainer submits a request for manager approval
+      const { error } = await supabase.from('membership_cancellation_requests').insert({
+        gym_membership_id: activeMem.id,
+        member_id: member.id,
+        gym_id: activeMem.gym_id,
+        requested_by_user_id: currentUser.id,
+        requested_by_name: currentUser.full_name,
+        cancellation_end_date: cancelForm.cancellation_end_date,
+        reason: cancelForm.reason,
+        reason_other: cancelForm.reason === 'Other' ? cancelForm.reason_other.trim() : null,
+      })
+
+      if (!error) {
+        logActivity('create', 'Member Profile', `Requested membership cancellation for ${member.full_name}`)
+        setShowCancelForm(false)
+        setCancelForm({ cancellation_end_date: new Date().toISOString().split('T')[0], reason: '', reason_other: '', confirm_text: '' })
+        await load()
+      }
+    }
+    setCancelSaving(false)
+  }
+
+  const handleApproveCancel = async () => {
+    if (!cancellationRequest) return
+    setCancelSaving(true)
+    const activeMem = memberships.find((m: any) => m.status === 'active' && m.sale_status === 'confirmed')
+    if (!activeMem) { setCancelSaving(false); return }
+
+    await supabase.from('membership_cancellation_requests').update({
+      status: 'approved',
+      reviewed_by_user_id: currentUser.id,
+      reviewed_by_name: currentUser.full_name,
+      reviewed_at: new Date().toISOString(),
+    }).eq('id', cancellationRequest.id)
+
+    await supabase.from('gym_memberships').update({
+      cancellation_end_date: cancellationRequest.cancellation_end_date,
+      cancellation_reason: cancellationRequest.reason,
+      cancellation_reason_other: cancellationRequest.reason_other,
+      cancelled_by_user_id: currentUser.id,
+      cancelled_at: new Date().toISOString(),
+    }).eq('id', activeMem.id)
+
+    await supabase.from('cancellation_approved_notif').insert({
+      request_id: cancellationRequest.id,
+      gym_id: activeMem.gym_id,
+      member_name: member.full_name,
+      membership_type: activeMem.membership_type_name,
+      cancellation_date: cancellationRequest.cancellation_end_date,
+      approved_by_name: currentUser.full_name,
+    })
+
+    logActivity('update', 'Member Profile', `Approved membership cancellation for ${member.full_name}`)
+    setShowApproveModal(false)
+    setCancelSaving(false)
+    await load()
+  }
+
+  const handleRejectCancel = async () => {
+    if (!cancellationRequest || !rejectReason.trim()) return
+    setCancelSaving(true)
+
+    await supabase.from('membership_cancellation_requests').update({
+      status: 'rejected',
+      reviewed_by_user_id: currentUser.id,
+      reviewed_by_name: currentUser.full_name,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: rejectReason.trim(),
+    }).eq('id', cancellationRequest.id)
+
+    await supabase.from('cancellation_rejection_notif').insert({
+      request_id: cancellationRequest.id,
+      notified_user_id: cancellationRequest.requested_by_user_id,
+      member_name: member.full_name,
+      membership_type: memberships.find((m: any) => m.id === cancellationRequest.gym_membership_id)?.membership_type_name,
+      rejection_reason: rejectReason.trim(),
+      rejected_by_name: currentUser.full_name,
+    })
+
+    logActivity('update', 'Member Profile', `Rejected membership cancellation for ${member.full_name}`)
+    setShowRejectModal(false)
+    setRejectReason('')
+    setCancelSaving(false)
+    await load()
+  }
+
   const handleNonRenewal = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nonRenewalReason) return
@@ -393,6 +541,14 @@ export default function MemberProfilePage() {
               <Plus className="w-3.5 h-3.5" /> Renew Membership
             </button>
           )}
+          {(user?.role === 'manager' || user?.role === 'staff' || user?.role === 'trainer') &&
+            memberships.find((m: any) => m.status === 'active' && m.sale_status === 'confirmed') &&
+            !cancellationRequest && (
+            <button onClick={() => setShowCancelForm(!showCancelForm)}
+              className="text-xs py-1.5 px-3 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 transition-colors flex items-center gap-1">
+              <XCircle className="w-3.5 h-3.5" /> Cancel Membership
+            </button>
+          )}
         </div>
         </div>
 
@@ -431,7 +587,130 @@ export default function MemberProfilePage() {
           </form>
         )}
 
-        {/* Renewal form */}
+        {/* Pending cancellation banner */}
+      {cancellationRequest && (
+        <div className="p-4 bg-red-50 border-b border-red-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-red-700 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> Cancellation Pending Manager Approval
+              </p>
+              <p className="text-xs text-red-600 mt-0.5">
+                Requested by {cancellationRequest.requested_by_name} · 
+                Early end date: {formatDate(cancellationRequest.cancellation_end_date)} · 
+                Reason: {cancellationRequest.reason}
+                {cancellationRequest.reason_other && ` — ${cancellationRequest.reason_other}`}
+              </p>
+            </div>
+            {user?.role === 'manager' && (
+              <div className="flex gap-2">
+                <button onClick={() => setShowApproveModal(true)}
+                  className="btn-primary text-xs py-1.5">Approve</button>
+                <button onClick={() => setShowRejectModal(true)}
+                  className="btn-secondary text-xs py-1.5 text-red-600 border-red-300">Reject</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Cancel membership form */}
+      {showCancelForm && (
+        <div className="p-4 bg-red-50 border-b border-red-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-red-700">
+              {user?.role === 'manager' ? 'Cancel Membership' : 'Request Membership Cancellation'}
+            </p>
+            <button onClick={() => setShowCancelForm(false)}><X className="w-4 h-4 text-gray-400" /></button>
+          </div>
+          <div>
+            <label className="label">Early End Date *</label>
+            <input type="date" className="input"
+              min={new Date().toISOString().split('T')[0]}
+              value={cancelForm.cancellation_end_date}
+              onChange={e => setCancelForm(f => ({ ...f, cancellation_end_date: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Cancellation Reason *</label>
+            <select className="input" value={cancelForm.reason}
+              onChange={e => setCancelForm(f => ({ ...f, reason: e.target.value, reason_other: '' }))}>
+              <option value="">Select a reason</option>
+              {['Relocation', 'Medical / Health reasons', 'Financial constraints',
+                'Dissatisfied with service', 'Schedule conflict', 'Completed fitness goals', 'Other'].map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+          {cancelForm.reason === 'Other' && (
+            <div>
+              <label className="label">Please specify *</label>
+              <input className="input" value={cancelForm.reason_other}
+                onChange={e => setCancelForm(f => ({ ...f, reason_other: e.target.value }))}
+                placeholder="Describe the reason..." />
+            </div>
+          )}
+          <div>
+            <label className="label">
+              Type <span className="font-mono font-bold text-red-600">confirmed!</span> to proceed *
+            </label>
+            <input className="input" value={cancelForm.confirm_text}
+              onChange={e => setCancelForm(f => ({ ...f, confirm_text: e.target.value }))}
+              placeholder="confirmed!" />
+          </div>
+          <button
+            onClick={handleCancellationRequest}
+            disabled={cancelSaving || !cancelForm.reason || cancelForm.confirm_text !== 'confirmed!' ||
+              (cancelForm.reason === 'Other' && !cancelForm.reason_other.trim())}
+            className="btn-primary w-full bg-red-600 hover:bg-red-700 disabled:opacity-40">
+            {cancelSaving ? 'Submitting...' : user?.role === 'manager' ? 'Confirm Cancellation' : 'Submit Request'}
+          </button>
+        </div>
+      )}
+
+      {/* Manager approve modal */}
+      {showApproveModal && cancellationRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900">Approve Cancellation</h3>
+            <p className="text-sm text-gray-600">
+              Approve early cancellation for <strong>{member.full_name}</strong>?
+              Membership will end on <strong>{formatDate(cancellationRequest.cancellation_end_date)}</strong>.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={handleApproveCancel} disabled={cancelSaving}
+                className="btn-primary flex-1 bg-red-600 hover:bg-red-700">
+                {cancelSaving ? 'Approving...' : 'Yes, Approve'}
+              </button>
+              <button onClick={() => setShowApproveModal(false)} className="btn-secondary flex-1">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manager reject modal */}
+      {showRejectModal && cancellationRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="font-semibold text-gray-900">Reject Cancellation Request</h3>
+            <div>
+              <label className="label">Reason for rejection *</label>
+              <textarea className="input min-h-[80px] resize-none" value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                placeholder="Explain why the cancellation is rejected..." />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleRejectCancel} disabled={cancelSaving || !rejectReason.trim()}
+                className="btn-primary flex-1">
+                {cancelSaving ? 'Rejecting...' : 'Reject Request'}
+              </button>
+              <button onClick={() => { setShowRejectModal(false); setRejectReason('') }}
+                className="btn-secondary flex-1">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Renewal form */}
         {showRenewalForm && (
           <form onSubmit={handleRenewMembership} className="p-4 border-b border-gray-100 bg-blue-50 space-y-3">
             <p className="text-sm font-semibold text-gray-900">Log Membership Renewal</p>

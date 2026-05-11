@@ -33,7 +33,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
-import { Clock } from 'lucide-react'
+import { Clock, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { formatSGD, formatDateTime, getMonthName } from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
@@ -96,6 +96,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   const [nonRenewalOther, setNonRenewalOther] = useState('')
   const [nonRenewalSaving, setNonRenewalSaving] = useState(false)
   const [pendingMemSales, setPendingMemSales] = useState(0)
+  const [pendingCancellations, setPendingCancellations] = useState(0)
   const [newPayslip, setNewPayslip] = useState<any>(null)
   const [newCommission, setNewCommission] = useState<any>(null)
   const [memRejectionNotifs, setMemRejectionNotifs] = useState<any[]>([])
@@ -276,6 +277,11 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       const { count: pendingCount } = await supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
       setPendingMemSales(pendingCount || 0)
 
+      // ── Pending cancellation requests ──────────────────────
+      const { count: cancelCount } = await supabase.from('membership_cancellation_requests')
+        .select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'pending')
+      setPendingCancellations(cancelCount || 0)
+
       // ── Notifications ──────────────────────────────────────
       const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
         await fetchNotifications(supabase, user.id, user.role)
@@ -346,6 +352,18 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
         pendingSessions={pendingSessions}
         pendingLeave={pendingLeave}
       />
+
+      {pendingCancellations > 0 && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">
+              {pendingCancellations} membership cancellation request{pendingCancellations > 1 ? 's' : ''} awaiting your approval
+            </p>
+          </div>
+          <a href="/dashboard/members" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</a>
+        </div>
+      )}
 
       <StaffBirthdayPanel gymId={gymId} isBizOps={false} />
 

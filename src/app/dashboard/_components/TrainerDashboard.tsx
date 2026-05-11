@@ -83,6 +83,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
   const [memRejectionNotifs, setMemRejectionNotifs] = useState<any[]>([])
   const [leaveDecisionNotifs, setLeaveDecisionNotifs] = useState<any[]>([])
   const [rejectionNotifs, setRejectionNotifs] = useState<any[]>([])
+  const [cancelRejectionNotifs, setCancelRejectionNotifs] = useState<any[]>([])
 
   // ── Commission period calculator ───────────────────────────
   const getCommissionPeriod = (offset: number) => {
@@ -185,6 +186,12 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       setLeaveDecisionNotifs(leaveNotifs)
       setRejectionNotifs(pkgRej)
 
+      // ── Cancellation rejection notifications ──────────────
+      const { data: cancelRejections } = await supabase.from('cancellation_rejection_notif')
+        .select('id, member_name, membership_type, rejection_reason, rejected_by_name, rejected_at')
+        .eq('notified_user_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
+      setCancelRejectionNotifs(cancelRejections || [])
+
       const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(
         supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at
       )
@@ -208,6 +215,12 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
     await dismissNotifications(supabase, 'leave', leaveDecisionNotifs.map((n: any) => n.id))
     setLeaveDecisionNotifs([])
   }
+  const dismissCancelRejections = async () => {
+    const now = new Date().toISOString()
+    for (const n of cancelRejectionNotifs) await supabase.from('cancellation_rejection_notif').update({ seen_at: now }).eq('id', n.id)
+    setCancelRejectionNotifs([])
+  }
+
   const dismissRejections = async () => {
     await dismissNotifications(supabase, 'pkg_rejection', rejectionNotifs.map((n: any) => n.id))
     setRejectionNotifs([])
@@ -259,7 +272,22 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
           />
         </div>
         <div className="col-span-3 md:col-span-1">
-          <MemberBirthdayCard gymId={trainerGymIds[0] || null} />
+          {cancelRejectionNotifs.length > 0 && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">
+              {cancelRejectionNotifs.length} membership cancellation request{cancelRejectionNotifs.length > 1 ? 's' : ''} rejected by manager
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              {cancelRejectionNotifs.map((n: any) => n.member_name).join(', ')}
+            </p>
+          </div>
+          <button onClick={dismissCancelRejections} className="text-xs text-red-600 hover:underline flex-shrink-0">Dismiss</button>
+        </div>
+      )}
+
+      <MemberBirthdayCard gymId={trainerGymIds[0] || null} />
         </div>
       </div>
 

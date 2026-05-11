@@ -24,7 +24,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
-import { Calendar, AlertCircle, AlertTriangle, Bell, X } from 'lucide-react'
+import { Calendar, AlertCircle, AlertTriangle, Bell, X, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { cn, formatSGD, formatDate, getMonthName } from '@/lib/utils'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
@@ -48,6 +48,7 @@ function BizOpsDashboardAlerts() {
   const [holidaysSetUp, setHolidaysSetUp] = useState(true)
   const [cpfRatesSetUp, setCpfRatesSetUp] = useState(true)
   const [leaveEntitlementReminder, setLeaveEntitlementReminder] = useState(false)
+  const [cancelApprovedNotifs, setCancelApprovedNotifs] = useState<any[]>([])
   const supabase = createClient()
 
   useEffect(() => {
@@ -73,6 +74,14 @@ function BizOpsDashboardAlerts() {
 
       // Year-end reminders (December only)
       const now = new Date()
+      // Approved cancellation notifications
+      const { data: cancelNotifs } = await supabase
+        .from('cancellation_approved_notif')
+        .select('id, member_name, gym_id, cancellation_date, approved_by_name')
+        .is('seen_at', null)
+        .order('approved_at', { ascending: false })
+      setCancelApprovedNotifs(cancelNotifs || [])
+
       if (now.getMonth() === 11) {
         const nextYear = now.getFullYear() + 1
         const { count } = await supabase.from('public_holidays')
@@ -89,7 +98,7 @@ function BizOpsDashboardAlerts() {
     load()
   }, [])
 
-  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder) return null
+  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder && cancelApprovedNotifs.length === 0) return null
 
   return (
     <div className="space-y-3">
@@ -155,6 +164,25 @@ function BizOpsDashboardAlerts() {
             </p>
           </div>
           <Link href="/dashboard/hr/staff" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
+        </div>
+      )}
+      {cancelApprovedNotifs.length > 0 && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+          <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">
+              {cancelApprovedNotifs.length} mid-term membership cancellation{cancelApprovedNotifs.length > 1 ? 's' : ''} approved
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              {cancelApprovedNotifs.slice(0, 2).map((n: any) => n.member_name).join(', ')}
+              {cancelApprovedNotifs.length > 2 ? ` +${cancelApprovedNotifs.length - 2} more` : ''}
+            </p>
+          </div>
+          <button onClick={async () => {
+            const now = new Date().toISOString()
+            for (const n of cancelApprovedNotifs) await supabase.from('cancellation_approved_notif').update({ seen_at: now }).eq('id', n.id)
+            setCancelApprovedNotifs([])
+          }} className="text-xs text-red-600 hover:underline flex-shrink-0">Dismiss</button>
         </div>
       )}
     </div>
