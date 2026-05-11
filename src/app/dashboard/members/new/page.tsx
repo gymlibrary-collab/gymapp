@@ -23,6 +23,8 @@ export default function RegisterMemberPage() {
   const [commissionPct, setCommissionPct] = useState(5)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [error, setError] = useState('')
+  const [duplicateWarning, setDuplicateWarning] = useState<any>(null)
+  const [confirmedDuplicate, setConfirmedDuplicate] = useState(false)
   const [createdMemberId, setCreatedMemberId] = useState<string | null>(null)
 
   const [memberForm, setMemberForm] = useState({
@@ -118,8 +120,20 @@ export default function RegisterMemberPage() {
     // Check membership number uniqueness if provided
     if (memberForm.membership_number) {
       const { data: existing } = await supabase.from('members')
-        .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).single()
+        .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).maybeSingle()
       if (existing) { setError('This membership number is already registered at this gym'); return }
+    }
+
+    // Check for duplicate phone number
+    if (!confirmedDuplicate && memberForm.phone) {
+      const { data: dupPhone } = await supabase.from('members')
+        .select('id, full_name, membership_number, gym:gyms(name)')
+        .eq('phone', memberForm.phone)
+        .maybeSingle()
+      if (dupPhone) {
+        setDuplicateWarning(dupPhone)
+        return
+      }
     }
 
     const { data, error: insertErr } = await supabase.from('members').insert({
@@ -195,6 +209,42 @@ export default function RegisterMemberPage() {
       <StatusBanner error={error} />
 
       {step === 'member' && (
+        <>
+        {duplicateWarning && (
+          <div className="card p-4 bg-amber-50 border-amber-200 space-y-3">
+            <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" /> Possible duplicate member
+            </p>
+            <p className="text-sm text-amber-700">
+              A member with phone <strong>{memberForm.phone}</strong> already exists:
+            </p>
+            <div className="bg-white rounded-lg p-3 border border-amber-200">
+              <p className="text-sm font-medium text-gray-900">{duplicateWarning.full_name}</p>
+              {duplicateWarning.membership_number && (
+                <p className="text-xs text-gray-500">Membership #{duplicateWarning.membership_number}</p>
+              )}
+              {duplicateWarning.gym?.name && (
+                <p className="text-xs text-gray-500">{duplicateWarning.gym.name}</p>
+              )}
+            </div>
+            <p className="text-xs text-amber-600">
+              If this is a different person, confirm below to proceed with registration.
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => {
+                setConfirmedDuplicate(true)
+                setDuplicateWarning(null)
+              }} className="btn-primary text-sm">
+                Confirm — different person, proceed
+              </button>
+              <button type="button" onClick={() => setDuplicateWarning(null)}
+                className="btn-secondary text-sm">
+                Go back and correct
+              </button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleCreateMember} className="card p-4 space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <User className="w-4 h-4 text-red-600" />
@@ -250,6 +300,7 @@ export default function RegisterMemberPage() {
 
           <button type="submit" disabled={loading} className="btn-primary w-full">{loading ? 'Saving...' : 'Save & Continue to Membership →'}</button>
         </form>
+        </>
       )}
 
       {step === 'membership' && (

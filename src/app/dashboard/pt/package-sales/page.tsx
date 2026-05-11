@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
-import { Package, CheckCircle, Clock, User, DollarSign } from 'lucide-react'
+import { Package, CheckCircle, Clock, User, DollarSign, UserCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -25,6 +25,10 @@ export default function PackageSalesPage() {
   const [tab, setTab] = useState<'pending' | 'confirmed'>('pending')
   const [confirming, setConfirming] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
+  const [reassigning, setReassigning] = useState<any>(null)
+  const [newTrainerId, setNewTrainerId] = useState('')
+  const [trainers, setTrainers] = useState<any[]>([])
+  const [reassignSaving, setReassignSaving] = useState(false)
 
 
   const loadData = async () => {
@@ -73,6 +77,27 @@ export default function PackageSalesPage() {
   }
 
   useEffect(() => { if (!user) return; loadData() }, [user])
+
+  const loadTrainers = async () => {
+    if (!user) return
+    const { data } = await supabase.from('users')
+      .select('id, full_name').eq('role', 'trainer').eq('is_archived', false)
+    setTrainers(data || [])
+  }
+
+  const handleReassign = async () => {
+    if (!reassigning || !newTrainerId) return
+    setReassignSaving(true)
+    const { error } = await supabase.from('packages')
+      .update({ trainer_id: newTrainerId })
+      .eq('id', reassigning.id)
+    if (error) { setError('Failed to reassign trainer'); setReassignSaving(false); return }
+    logActivity('update', 'PT Package Sales', `Reassigned package ${reassigning.package_name} to new trainer`)
+    showMsg('Trainer reassigned successfully')
+    setReassigning(null); setNewTrainerId(''); await loadData(); setReassignSaving(false)
+  }
+
+  const canReassign = user?.role === 'manager' || user?.role === 'business_ops'
 
 
   const handleConfirm = async (pkg: any) => {
@@ -258,6 +283,12 @@ export default function PackageSalesPage() {
                     className="btn-secondary text-xs py-1.5 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50">
                     {rejecting === pkg.id ? '...' : 'Reject'}
                   </button>
+                  {canReassign && (
+                    <button onClick={() => { setReassigning(pkg); setNewTrainerId(''); loadTrainers() }}
+                      className="btn-secondary text-xs py-1.5 flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5" /> Reassign
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -295,10 +326,54 @@ export default function PackageSalesPage() {
                     </span>
                   </div>
                 </div>
-                <span className="text-xs text-green-600 font-medium flex-shrink-0">✓ Confirmed</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-green-600 font-medium">✓ Confirmed</span>
+                  {canReassign && (
+                    <button onClick={() => { setReassigning(pkg); setNewTrainerId(''); loadTrainers() }}
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                      <UserCheck className="w-3 h-3" /> Reassign
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {/* Reassign trainer modal */}
+      {reassigning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setReassigning(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900">Reassign Trainer</h3>
+              <button onClick={() => setReassigning(null)}><X className="w-4 h-4 text-gray-400" /></button>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 mb-3">
+                Package: <strong>{reassigning.package_name}</strong><br />
+                Member: <strong>{reassigning.member?.full_name}</strong><br />
+                Current trainer: <strong>{reassigning.trainer?.full_name || '—'}</strong>
+              </p>
+              <label className="label">New Trainer *</label>
+              <select className="input" value={newTrainerId}
+                onChange={e => setNewTrainerId(e.target.value)}>
+                <option value="">Select a trainer</option>
+                {trainers.filter((t: any) => t.id !== reassigning.trainer_id).map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleReassign}
+                disabled={reassignSaving || !newTrainerId}
+                className="btn-primary flex-1 disabled:opacity-40">
+                {reassignSaving ? 'Saving...' : 'Confirm Reassignment'}
+              </button>
+              <button onClick={() => setReassigning(null)} className="btn-secondary flex-1">Cancel</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

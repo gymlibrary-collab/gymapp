@@ -272,6 +272,28 @@ export default function TrainersPage() {
   const handleArchive = async (member: any) => {
     if (!confirm(`Archive ${member.full_name}?`)) return
     setSaving(true)
+
+    // Block if trainer has active or pending PT packages
+    if (member.role === 'trainer') {
+      const { count: pkgCount } = await supabase.from('packages')
+        .select('id', { count: 'exact', head: true })
+        .eq('trainer_id', member.id)
+        .in('status', ['active'])
+        .eq('manager_confirmed', true)
+      const { count: pendingCount } = await supabase.from('packages')
+        .select('id', { count: 'exact', head: true })
+        .eq('trainer_id', member.id)
+        .eq('manager_confirmed', false)
+        .neq('status', 'cancelled')
+
+      const totalPkgs = (pkgCount || 0) + (pendingCount || 0)
+      if (totalPkgs > 0) {
+        setError(`Cannot archive ${member.full_name} — ${totalPkgs} active or pending PT package(s) must be reassigned first. Go to PT Package Sales to reassign.`)
+        setSaving(false)
+        return
+      }
+    }
+
     const res = await fetch('/api/staff', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: member.id }),
