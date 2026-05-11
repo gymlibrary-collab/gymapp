@@ -31,7 +31,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { Clock, Package, AlertCircle } from 'lucide-react'
+import { Clock, Package, AlertCircle, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { formatSGD, formatDateTime, getMonthName, formatDate } from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
