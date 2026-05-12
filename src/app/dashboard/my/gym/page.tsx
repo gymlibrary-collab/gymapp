@@ -23,11 +23,10 @@ export default function MyGymPage() {
   const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => {
+    if (!user || !user.manager_gym_id) return
     const load = async () => {
       logActivity('page_view', 'My Gym', 'Viewed gym details')
-
-      if (!user!.manager_gym_id) return
-      const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user!.manager_gym_id).maybeSingle()
+      const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user.manager_gym_id).maybeSingle()
       setGym(gymData)
       setLogoPreview(gymData?.logo_url ? gymData.logo_url + '?t=' + Date.now() : null)
     }
@@ -60,7 +59,7 @@ export default function MyGymPage() {
     showMsg('Logo updated')
   }
 
-  if (loading) return (
+  if (loading || !user) return (
     <div className="flex items-center justify-center h-48">
       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
     </div>
