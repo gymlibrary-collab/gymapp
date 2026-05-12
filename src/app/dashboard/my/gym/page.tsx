@@ -26,12 +26,13 @@ export default function MyGymPage() {
     const load = async () => {
       logActivity('page_view', 'My Gym', 'Viewed gym details')
 
-      const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user!.manager_gym_id).single()
+      if (!user!.manager_gym_id) return
+      const { data: gymData } = await supabase.from('gyms').select('*').eq('id', user!.manager_gym_id).maybeSingle()
       setGym(gymData)
       setLogoPreview(gymData?.logo_url ? gymData.logo_url + '?t=' + Date.now() : null)
     }
     load()
-  }, [])
+  }, [user])
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
