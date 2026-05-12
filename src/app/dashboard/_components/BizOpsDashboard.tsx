@@ -41,7 +41,6 @@ function BizOpsDashboardAlerts() {
   const [escalatedLeave, setEscalatedLeave] = useState(0)
   const [holidaysSetUp, setHolidaysSetUp] = useState(true)
   const [cpfRatesSetUp, setCpfRatesSetUp] = useState(true)
-  const [leaveEntitlementReminder, setLeaveEntitlementReminder] = useState(false)
   const [leaveResetReminder, setLeaveResetReminder] = useState(false)
   const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
   const [cancelApprovedNotifs, setCancelApprovedNotifs] = useState<any[]>([])
@@ -88,13 +87,12 @@ function BizOpsDashboardAlerts() {
           .select('id', { count: 'exact', head: true })
           .eq('effective_from', `${nextYear}-01-01`)
         setCpfRatesSetUp((cpfCount || 0) >= 5)
-        setLeaveEntitlementReminder(true)
       }
 
       // Year-end leave reset reminder: 25 Dec to 2 Jan
       const month = now.getMonth()
       const day = now.getDate()
-      const isInWindow = (month === 11 && day >= 25) || (month === 0 && day <= 2)
+      const isInWindow = (month === 11 && day >= 28) || (month === 0 && day === 1)
       if (isInWindow) {
         const { data: appSettings } = await supabase
           .from('app_settings')
@@ -104,10 +102,16 @@ function BizOpsDashboardAlerts() {
         setLeaveResetYear(resetYear)
         const resetAlreadyRun = resetYear === now.getFullYear()
         if (!resetAlreadyRun) {
-          // Check if reminder was already dismissed in this window
           const seenAt = appSettings?.leave_reset_reminder_seen_at
-          const windowStart = new Date(now.getFullYear(), 11, 25) // 25 Dec
-          if (!seenAt || new Date(seenAt) < windowStart) {
+          const isJan1 = month === 0 && day === 1
+          if (isJan1) {
+            // On 1 Jan: only show if not yet permanently dismissed this year
+            const windowStart = new Date(now.getFullYear(), 0, 1) // 1 Jan
+            if (!seenAt || new Date(seenAt) < windowStart) {
+              setLeaveResetReminder(true)
+            }
+          } else {
+            // 28-31 Dec: always show (session-only dismiss)
             setLeaveResetReminder(true)
           }
         }
@@ -116,7 +120,7 @@ function BizOpsDashboardAlerts() {
     load()
   }, [])
 
-  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder && cancelApprovedNotifs.length === 0 && !leaveResetReminder) return null
+  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && cancelApprovedNotifs.length === 0 && !leaveResetReminder) return null
 
   return (
     <div className="space-y-3">
@@ -170,38 +174,36 @@ function BizOpsDashboardAlerts() {
           <Link href="/dashboard/config/public-holidays" className="btn-primary text-xs py-1.5 flex-shrink-0">Set Up</Link>
         </div>
       )}
-      {leaveEntitlementReminder && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800">
-              Reminder — review staff leave entitlements for {new Date().getFullYear() + 1}
-            </p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              Update each staff member's annual leave days before the new year begins.
-            </p>
+
+      {leaveResetReminder && (() => {
+        const today = new Date()
+        const isJan1 = today.getMonth() === 0 && today.getDate() === 1
+        return (
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800">
+                Reminder — Run the year-end leave reset on 1 January
+              </p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                {isJan1
+                  ? 'Today is 1 Jan — go to Leave Management to run the year-end reset now.'
+                  : 'The year-end leave reset will be available from 1 Jan. Go to Leave Management to run it.'}
+              </p>
+            </div>
+            {isJan1 ? (
+              <button onClick={async () => {
+                await supabase.from('app_settings')
+                  .update({ leave_reset_reminder_seen_at: new Date().toISOString() }).eq('id', 'global')
+                setLeaveResetReminder(false)
+              }} className="text-xs text-amber-600 hover:underline flex-shrink-0">Dismiss</button>
+            ) : (
+              <button onClick={() => setLeaveResetReminder(false)}
+                className="text-xs text-amber-600 hover:underline flex-shrink-0">Dismiss</button>
+            )}
           </div>
-          <Link href="/dashboard/hr/staff" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
-        </div>
-      )}
-      {leaveResetReminder && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800">
-              Reminder — Run the year-end leave reset in January
-            </p>
-            <p className="text-xs text-amber-600 mt-0.5">
-              The year-end leave reset is available from 1 Jan. Go to Leave Management to run it.
-            </p>
-          </div>
-          <button onClick={async () => {
-            await supabase.from('app_settings')
-              .update({ leave_reset_reminder_seen_at: new Date().toISOString() }).eq('id', 'global')
-            setLeaveResetReminder(false)
-          }} className="text-xs text-amber-600 hover:underline flex-shrink-0">Dismiss</button>
-        </div>
-      )}
+        )
+      })()}
 
       {cancelApprovedNotifs.length > 0 && (
         <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
