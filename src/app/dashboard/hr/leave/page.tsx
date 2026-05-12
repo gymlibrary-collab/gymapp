@@ -288,6 +288,8 @@ export default function LeaveManagementPage() {
   const statusBadge = (s: string) => s === 'approved' ? 'badge-active' : s === 'pending' ? 'badge-pending' : 'badge-danger'
 
 
+  const isJanuary = new Date().getMonth() === 0
+
   return (
     <div className="space-y-5 max-w-2xl">
       <div>
@@ -617,4 +619,3 @@ export default function LeaveManagementPage() {
     </div>
   )
 }
- 
