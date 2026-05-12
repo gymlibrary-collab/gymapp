@@ -42,6 +42,8 @@ function BizOpsDashboardAlerts() {
   const [holidaysSetUp, setHolidaysSetUp] = useState(true)
   const [cpfRatesSetUp, setCpfRatesSetUp] = useState(true)
   const [leaveEntitlementReminder, setLeaveEntitlementReminder] = useState(false)
+  const [leaveResetReminder, setLeaveResetReminder] = useState(false)
+  const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
   const [cancelApprovedNotifs, setCancelApprovedNotifs] = useState<any[]>([])
   const supabase = createClient()
 
@@ -88,11 +90,33 @@ function BizOpsDashboardAlerts() {
         setCpfRatesSetUp((cpfCount || 0) >= 5)
         setLeaveEntitlementReminder(true)
       }
+
+      // Year-end leave reset reminder: 25 Dec to 2 Jan
+      const month = now.getMonth()
+      const day = now.getDate()
+      const isInWindow = (month === 11 && day >= 25) || (month === 0 && day <= 2)
+      if (isInWindow) {
+        const { data: appSettings } = await supabase
+          .from('app_settings')
+          .select('leave_reset_year, leave_reset_reminder_seen_at')
+          .eq('id', 'global').maybeSingle()
+        const resetYear = appSettings?.leave_reset_year || 2026
+        setLeaveResetYear(resetYear)
+        const resetAlreadyRun = resetYear === now.getFullYear()
+        if (!resetAlreadyRun) {
+          // Check if reminder was already dismissed in this window
+          const seenAt = appSettings?.leave_reset_reminder_seen_at
+          const windowStart = new Date(now.getFullYear(), 11, 25) // 25 Dec
+          if (!seenAt || new Date(seenAt) < windowStart) {
+            setLeaveResetReminder(true)
+          }
+        }
+      }
     }
     load()
   }, [])
 
-  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder && cancelApprovedNotifs.length === 0) return null
+  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && !leaveEntitlementReminder && cancelApprovedNotifs.length === 0 && !leaveResetReminder) return null
 
   return (
     <div className="space-y-3">
@@ -160,6 +184,25 @@ function BizOpsDashboardAlerts() {
           <Link href="/dashboard/hr/staff" className="btn-primary text-xs py-1.5 flex-shrink-0">Review</Link>
         </div>
       )}
+      {leaveResetReminder && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">
+              Reminder — Run the year-end leave reset in January
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              The year-end leave reset is available from 1 Jan. Go to Leave Management to run it.
+            </p>
+          </div>
+          <button onClick={async () => {
+            await supabase.from('app_settings')
+              .update({ leave_reset_reminder_seen_at: new Date().toISOString() }).eq('id', 'global')
+            setLeaveResetReminder(false)
+          }} className="text-xs text-amber-600 hover:underline flex-shrink-0">Dismiss</button>
+        </div>
+      )}
+
       {cancelApprovedNotifs.length > 0 && (
         <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
           <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />

@@ -30,6 +30,7 @@ export default function MyLeavePage() {
   const [holidays, setHolidays] = useState<string[]>([])
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
   const [form, setForm] = useState({
     leave_type: 'annual', start_date: '', end_date: '', reason: '',
     is_half_day: false, half_day_period: 'morning' as 'morning' | 'afternoon',
@@ -53,7 +54,11 @@ export default function MyLeavePage() {
         .order('created_at', { ascending: false })
       setApplications(apps || [])
 
-      const currentYear = new Date().getFullYear()
+      const { data: appSettings } = await supabase
+      .from('app_settings').select('leave_reset_year').eq('id', 'global').maybeSingle()
+    if (appSettings?.leave_reset_year) setLeaveResetYear(appSettings.leave_reset_year)
+
+    const currentYear = new Date().getFullYear()
       const countDaysInYear = (app: any, year: number) => {
         const yearEnd = `${year}-12-31`
         const yearStart = `${year}-01-01`
@@ -125,6 +130,17 @@ export default function MyLeavePage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const days = calcDays(form.start_date, form.end_date, form.is_half_day)
     if (days === 0) { setError('Invalid date range'); setSaving(false); return }
+
+    const startYear = new Date(form.start_date).getFullYear()
+    const endYear = new Date(form.end_date).getFullYear()
+    if (endYear > startYear) {
+      setError('Leave applications cannot cross into the new year. Please apply up to 31 Dec only. If you intend to continue leave in the new year, note your intended return date in the Reason field and submit a separate application after the year-end reset.')
+      setSaving(false); return
+    }
+    if (startYear > leaveResetYear) {
+      setError('New year leave applications are not available yet. Please wait for Business Operations to run the year-end leave reset.')
+      setSaving(false); return
+    }
 
     const lt = getEntitlement(form.leave_type)
     if (lt.notSet && form.leave_type === 'annual') {
@@ -246,7 +262,11 @@ export default function MyLeavePage() {
                 <label className="label">End Date</label>
                 <input className="input" type="date" required value={form.end_date}
                   min={form.start_date}
+                  max={form.start_date ? `${new Date(form.start_date).getFullYear()}-12-31` : undefined}
                   onChange={e => setForm(f => ({ ...f, end_date: e.target.value, is_half_day: false }))} />
+                {form.start_date && form.end_date && new Date(form.end_date).getFullYear() > new Date(form.start_date).getFullYear() && (
+                  <p className="text-xs text-amber-600 mt-1">⚠ Leave cannot cross into the new year. Apply up to 31 Dec and note your intended return date in the Reason field.</p>
+                )}
               </div>
             </div>
 

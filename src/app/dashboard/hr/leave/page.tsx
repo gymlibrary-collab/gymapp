@@ -23,6 +23,9 @@ export default function LeaveManagementPage() {
   const [applications, setApplications] = useState<any[]>([])
   const [staffBalances, setStaffBalances] = useState<any[]>([])
   const [filter, setFilter] = useState('pending')
+  const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
+  const [resetAlreadyRun, setResetAlreadyRun] = useState(false)
+  const [pendingBlockingStaff, setPendingBlockingStaff] = useState<any[]>([])
   const [bulkAnnual, setBulkAnnual] = useState('14')
   const [bulkMedical, setBulkMedical] = useState('14')
   const [bulkHosp, setBulkHosp] = useState('60')
@@ -45,8 +48,13 @@ export default function LeaveManagementPage() {
   const load = async () => {
     logActivity('page_view', 'Leave Management', 'Viewed leave management')
     const { data: settings } = await supabase
-      .from('app_settings').select('max_leave_carry_forward_days').eq('id', 'global').maybeSingle()
-    if (settings) setMaxCarryForward((settings as any).max_leave_carry_forward_days?.toString() || '5')
+      .from('app_settings').select('max_leave_carry_forward_days, leave_reset_year').eq('id', 'global').maybeSingle()
+    if (settings) {
+      setMaxCarryForward((settings as any).max_leave_carry_forward_days?.toString() || '5')
+      const resetYear = (settings as any).leave_reset_year || 2026
+      setLeaveResetYear(resetYear)
+      setResetAlreadyRun(resetYear === new Date().getFullYear())
+    }
 
     // Get staff IDs this user can approve for
     let staffIds: string[] = []
@@ -561,27 +569,48 @@ export default function LeaveManagementPage() {
       {/* Year-End Leave Reset — biz-ops only */}
       {user?.role === 'business_ops' && (
         <div className="card p-4 space-y-4">
-          <h2 className="font-semibold text-gray-900 text-sm">Year-End Leave Reset</h2>
+          <h2 className="font-semibold text-gray-900 text-sm">
+            Year-End Leave Reset
+            {!isJanuary && <span className="ml-2 text-xs font-normal text-gray-400">(Available in January only)</span>}
+            {resetAlreadyRun && <span className="ml-2 text-xs font-normal text-green-600">✓ Completed for {leaveResetYear}</span>}
+          </h2>
           <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
             <p className="font-medium">What this does:</p>
             <p>1. Sets the new annual entitlement for ALL active full-time staff</p>
-            <p>2. Calculates carry-forward from unused leave (capped at {maxCarryForward} days max)</p>
+            <p>2. Calculates carry-forward from unused leave in {new Date().getFullYear() - 1} (capped at {maxCarryForward} days max)</p>
             <p>3. Resets medical and hospitalisation to default entitlements</p>
-            <p className="text-amber-600 font-medium mt-1">⚠ This action cannot be undone. Run at the start of each new year.</p>
+            <p className="text-amber-600 font-medium mt-1">⚠ This action cannot be undone. Run in January only.</p>
           </div>
+
+          {/* Pending leave blocking warning */}
+          {pendingBlockingStaff.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+              <p className="text-sm font-medium text-red-700">⚠ Cannot run reset — {pendingBlockingStaff.length} staff have pending leave from {new Date().getFullYear() - 1} that must be resolved first:</p>
+              <ul className="text-xs text-red-600 space-y-1">
+                {pendingBlockingStaff.map((l: any) => (
+                  <li key={l.id}>• {(l.user as any)?.full_name} — {l.start_date} to {l.end_date}</li>
+                ))}
+              </ul>
+              <button onClick={() => setPendingBlockingStaff([])} className="text-xs text-red-600 underline">Dismiss</button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">New Annual Entitlement (days)</label>
-              <input className="input" type="number" min="0" step="1" value={bulkAnnual} onChange={e => setBulkAnnual(e.target.value)} placeholder="14" /></div>
+              <input className="input" type="number" min="0" step="1" value={bulkAnnual} onChange={e => setBulkAnnual(e.target.value)} placeholder="14" disabled={!isJanuary || resetAlreadyRun} /></div>
             <div><label className="label">New Medical Entitlement (days)</label>
-              <input className="input" type="number" min="0" step="1" value={bulkMedical} onChange={e => setBulkMedical(e.target.value)} placeholder="14" /></div>
+              <input className="input" type="number" min="0" step="1" value={bulkMedical} onChange={e => setBulkMedical(e.target.value)} placeholder="14" disabled={!isJanuary || resetAlreadyRun} /></div>
             <div><label className="label">New Hospitalisation (days)</label>
-              <input className="input" type="number" min="0" step="1" value={bulkHosp} onChange={e => setBulkHosp(e.target.value)} placeholder="60" /></div>
+              <input className="input" type="number" min="0" step="1" value={bulkHosp} onChange={e => setBulkHosp(e.target.value)} placeholder="60" disabled={!isJanuary || resetAlreadyRun} /></div>
           </div>
           {bulkResult && <p className="text-sm text-green-700 font-medium">✓ {bulkResult}</p>}
-          <button onClick={handleBulkReset} disabled={bulkResetting}
-            className="btn-primary flex items-center gap-2 disabled:opacity-50 bg-amber-600 hover:bg-amber-700">
+          <button
+            onClick={handleBulkReset}
+            disabled={bulkResetting || !isJanuary || resetAlreadyRun}
+            title={!isJanuary ? 'Available from 1 January' : resetAlreadyRun ? `Reset already run for ${leaveResetYear}` : ''}
+            className="btn-primary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed bg-amber-600 hover:bg-amber-700">
             <Save className="w-4 h-4" />
-            {bulkResetting ? 'Resetting...' : 'Run Year-End Reset'}
+            {bulkResetting ? 'Resetting...' : resetAlreadyRun ? `Reset done for ${leaveResetYear}` : !isJanuary ? 'Available from 1 January' : 'Run Year-End Reset'}
           </button>
         </div>
       )}
