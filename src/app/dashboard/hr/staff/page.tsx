@@ -121,7 +121,7 @@ export default function TrainersPage() {
 
   const { success, error, showMsg, showError, setError } = useToast()
 
-  useEffect(() => { if (!user) return; loadData() }, [user])
+  useEffect(() => { if (!user) return; loadData().finally(() => setDataLoading(false)) }, [user])
 
   if (loading || !user || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 

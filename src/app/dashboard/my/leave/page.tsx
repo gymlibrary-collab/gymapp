@@ -87,7 +87,7 @@ export default function MyLeavePage() {
         .select('holiday_date').in('year', [currentYear, currentYear + 1])
       setHolidays(ph?.map((h: any) => h.holiday_date) || [])
     }
-    load()
+    load().finally(() => setDataLoading(false))
   }, [user])
 
   if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
@@ -181,7 +181,6 @@ export default function MyLeavePage() {
     const { data: apps } = await supabase.from('leave_applications')
       .select('*').eq('user_id', user!.id).order('created_at', { ascending: false })
     setApplications(apps || [])
-    setDataLoading(false)
   }
 
   const handleCancel = async (id: string) => {

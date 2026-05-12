@@ -37,10 +37,9 @@ export default function AnnualStatementPage() {
           ? gymsData.find(g => g.id === user.manager_gym_id)?.id || gymsData[0].id
           : gymsData[0].id
         setSelectedGym(defaultGym)
-    setDataLoading(false)
       }
     }
-    load()
+    load().finally(() => setDataLoading(false))
   }, [user])
 
   // Load qualifying staff whenever gym or year changes

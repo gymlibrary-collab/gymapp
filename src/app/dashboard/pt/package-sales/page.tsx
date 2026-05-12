@@ -78,7 +78,7 @@ export default function PackageSalesPage() {
 
   }
 
-  useEffect(() => { if (!user) return; loadData() }, [user])
+  useEffect(() => { if (!user) return; loadData().finally(() => setDataLoading(false)) }, [user])
 
   const loadTrainers = async () => {
     if (!user) return
