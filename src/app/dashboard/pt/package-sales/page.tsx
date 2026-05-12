@@ -22,6 +22,7 @@ export default function PackageSalesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [pending, setPending] = useState<any[]>([])
   const [confirmed, setConfirmed] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const [tab, setTab] = useState<'pending' | 'confirmed'>('pending')
   const [confirming, setConfirming] = useState<string | null>(null)
   const [rejecting, setRejecting] = useState<string | null>(null)
@@ -73,6 +74,7 @@ export default function PackageSalesPage() {
     if (!isBizOps) confirmedQ = confirmedQ.eq('gym_id', gymId)
     const { data: confirmedData } = await confirmedQ
     setConfirmed(confirmedData || [])
+    setDataLoading(false)
 
   }
 

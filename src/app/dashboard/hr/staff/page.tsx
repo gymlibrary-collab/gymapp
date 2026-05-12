@@ -45,6 +45,7 @@ export default function TrainersPage() {
   const { logActivity } = useActivityLog()
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [staff, setStaff] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const [archived, setArchived] = useState<any[]>([])
   const [gyms, setGyms] = useState<any[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
@@ -115,14 +116,14 @@ export default function TrainersPage() {
 
     const { data: gymData } = await supabase.from('gyms').select('*').eq('is_active', true)
     setGyms(gymData || [])
+    setDataLoading(false)
   }
 
   const { success, error, showMsg, showError, setError } = useToast()
 
   useEffect(() => { if (!user) return; loadData() }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
-  if (!user) return null
+  if (loading || !user || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
 
 
   // (sub-components defined at module level below)

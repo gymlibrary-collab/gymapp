@@ -17,6 +17,7 @@ export default function AnnualStatementPage() {
   const supabase = createClient()
 
   const [gyms, setGyms] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const [selectedGym, setSelectedGym] = useState('')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear() - 1)
   const [staffResults, setStaffResults] = useState<any[]>([])
@@ -36,6 +37,7 @@ export default function AnnualStatementPage() {
           ? gymsData.find(g => g.id === user.manager_gym_id)?.id || gymsData[0].id
           : gymsData[0].id
         setSelectedGym(defaultGym)
+    setDataLoading(false)
       }
     }
     load()
@@ -171,7 +173,7 @@ export default function AnnualStatementPage() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
   const availableYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 - i)

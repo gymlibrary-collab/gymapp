@@ -16,7 +16,8 @@ export default function MembershipSalesPage() {
 
 
   const [allGymSales, setAllGymSales] = useState<any[]>([]) // manager: all gym sales for confirmation
-  const [mySales, setMySales] = useState<any[]>([])          // personal sales history
+  const [mySales, setMySales] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)          // personal sales history
   const [tab, setTab] = useState<'confirm' | 'my'>('confirm')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
@@ -76,13 +77,14 @@ export default function MembershipSalesPage() {
         .eq('sold_by_user_id', user!.id)
         .order('created_at', { ascending: false })
       setMySales(ownSales || [])
+    setDataLoading(false)
     }
 
   }
 
   useEffect(() => { if (!user) return; load() }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
 

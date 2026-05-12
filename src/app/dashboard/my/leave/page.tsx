@@ -31,6 +31,7 @@ export default function MyLeavePage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
+  const [dataLoading, setDataLoading] = useState(true)
   const [form, setForm] = useState({
     leave_type: 'annual', start_date: '', end_date: '', reason: '',
     is_half_day: false, half_day_period: 'morning' as 'morning' | 'afternoon',
@@ -89,7 +90,7 @@ export default function MyLeavePage() {
     load()
   }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
   const calcDays = (start: string, end: string, isHalfDay: boolean) => {
@@ -180,6 +181,7 @@ export default function MyLeavePage() {
     const { data: apps } = await supabase.from('leave_applications')
       .select('*').eq('user_id', user!.id).order('created_at', { ascending: false })
     setApplications(apps || [])
+    setDataLoading(false)
   }
 
   const handleCancel = async (id: string) => {

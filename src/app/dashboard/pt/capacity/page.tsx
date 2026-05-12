@@ -17,6 +17,7 @@ export default function TrainerCapacityPage() {
 
   const { logActivity } = useActivityLog()
   const [trainers, setTrainers] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const { success, showMsg } = useToast()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ max_sessions_per_week: 0, monthly_session_target: 0 })
@@ -92,11 +93,12 @@ export default function TrainerCapacityPage() {
     }
 
     setTrainers(enriched)
+    setDataLoading(false)
   }
 
   useEffect(() => { if (!user) return; load() }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
 

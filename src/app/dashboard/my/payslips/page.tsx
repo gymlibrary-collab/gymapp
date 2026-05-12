@@ -13,6 +13,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 export default function MyPayslipsPage() {
 
   const [payslips, setPayslips] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const [commissionPayouts, setCommissionPayouts] = useState<any[]>([])
   const { logActivity } = useActivityLog()
   const [activeTab, setActiveTab] = useState<'salary' | 'commission'>('salary')
@@ -62,11 +63,12 @@ export default function MyPayslipsPage() {
         .order('period_end', { ascending: false })
         .limit(13)
       setCommissionPayouts(payouts || [])
+    setDataLoading(false)
     }
     load()
   }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
   const downloadPayslip = async (slip: any) => {

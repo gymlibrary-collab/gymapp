@@ -25,6 +25,7 @@ export default function RegisterMemberPage() {
   const [error, setError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null)
   const [confirmedDuplicate, setConfirmedDuplicate] = useState(false)
+  const [dataLoading, setDataLoading] = useState(true)
   const [createdMemberId, setCreatedMemberId] = useState<string | null>(null)
 
   const [memberForm, setMemberForm] = useState({
@@ -51,6 +52,7 @@ export default function RegisterMemberPage() {
 
       const { data: typesData } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
       setMembershipTypes(typesData || [])
+      setDataLoading(false)
 
       // Use per-staff membership commission rate, not global config
       setCommissionPct((user as any)?.membership_commission_sgd || 0)
@@ -104,7 +106,7 @@ export default function RegisterMemberPage() {
     load()
   }, [user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
   const handleCreateMember = async (e: React.FormEvent) => {

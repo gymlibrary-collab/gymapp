@@ -19,6 +19,7 @@ export default function NewPtSessionPage() {
   const supabase = createClient()
 
   const [members, setMembers] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const [packages, setPackages] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -61,7 +62,7 @@ export default function NewPtSessionPage() {
         if (memberPkgs?.length === 1) setForm(f => ({ ...f, package_id: memberPkgs[0].id }))
       }
     }
-    load()
+    load().finally(() => setDataLoading(false))
   }, [user])
 
   // When member changes, filter packages to that member
@@ -90,7 +91,7 @@ export default function NewPtSessionPage() {
     checkOverlap()
   }, [form.scheduled_at_date, form.scheduled_at_time, form.duration_minutes, user])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
 
 
