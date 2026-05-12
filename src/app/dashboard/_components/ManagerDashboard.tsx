@@ -214,23 +214,16 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       //   /api/cron/escalate-membership-sales      (0103 SGT)
       //   /api/cron/escalate-expiring-memberships  (0102 SGT)
 
+      // ══════════════════════════════════════════════════════
+      // PHASE 1 — Critical data: shown immediately
+      // Today's sessions, stats, pending counts, notifications
+      // ══════════════════════════════════════════════════════
+
       // ── Today's sessions ──────────────────────────────────
       const { data: todayData } = await supabase.from('sessions')
         .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
         .eq('gym_id', gymId).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
       setTodaySessions(todayData || [])
-
-      // ── Upcoming sessions ──────────────────────────────────
-      setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
-
-      // ── Gym schedule ───────────────────────────────────────
-      const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
-      const { data: schedData } = await supabase.from('sessions')
-        .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
-        .in('status', ['scheduled', 'completed']).eq('gym_id', gymId)
-        .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
-        .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
-      setGymScheduleSessions(schedData || [])
 
       // ── Stats ──────────────────────────────────────────────
       const { count: memberCount } = await supabase.from('members').select('id', { count: 'exact', head: true }).eq('gym_id', gymId)
@@ -247,31 +240,9 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setPendingMemberships(await fetchPendingMemberships(supabase, gymId))
       setPendingSessions(await fetchPendingSessionConfirmations(supabase, gymId))
 
-      // ── Package alerts ─────────────────────────────────────
-      setLowSessionPackages(await fetchLowSessionPackages(supabase, { gymId, limit: 10 }))
-      setExpiringPackages(await fetchExpiringPackages(supabase, { gymId, withinDays: 7, limit: 10 }))
-
-      // Membership expiry escalation is now handled by the daily cron
-      // at /api/cron/expire-memberships (runs at 0001 SGT).
-
-      // ── Expiring memberships ───────────────────────────────
-      const expiringMems = await fetchExpiringMemberships(supabase, gymId, { withinDays: 30, limit: 20 })
-      const renewedIds = new Set(
-        expiringMems.filter((m: any) => expiringMems.some((m2: any) => m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date))).map((m: any) => m.member_id)
-      )
-      setExpiringMemberships(expiringMems.filter((m: any) => !renewedIds.has(m.member_id)).slice(0, 10))
-
-      // ── At-risk members ────────────────────────────────────
-      setAtRiskMembers(await fetchAtRiskMembers(supabase, gymId))
-
-      // ── Pending leave ──────────────────────────────────────
-      setPendingLeave(await fetchPendingLeave(supabase, gymId, user.id))
-
-      // ── Pending membership sales ───────────────────────────
+      // ── Pending counts (banners) ───────────────────────────
       const { count: pendingCount } = await supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
       setPendingMemSales(pendingCount || 0)
-
-      // ── Pending cancellation requests ──────────────────────
       const { count: cancelCount } = await supabase.from('membership_cancellation_requests')
         .select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'pending')
       setPendingCancellations(cancelCount || 0)
@@ -287,7 +258,42 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setNewPayslip(ps)
       setNewCommission(pc)
 
+      // ── Show dashboard now — Phase 1 complete ──────────────
       setLoading(false)
+
+      // ══════════════════════════════════════════════════════
+      // PHASE 2 — Non-critical data: loads after dashboard shown
+      // Schedule, package alerts, expiring memberships, leave
+      // ══════════════════════════════════════════════════════
+
+      // ── Upcoming sessions ──────────────────────────────────
+      setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
+
+      // ── Gym schedule ───────────────────────────────────────
+      const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: schedData } = await supabase.from('sessions')
+        .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
+        .in('status', ['scheduled', 'completed']).eq('gym_id', gymId)
+        .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
+        .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
+      setGymScheduleSessions(schedData || [])
+
+      // ── Package alerts ─────────────────────────────────────
+      setLowSessionPackages(await fetchLowSessionPackages(supabase, { gymId, limit: 10 }))
+      setExpiringPackages(await fetchExpiringPackages(supabase, { gymId, withinDays: 7, limit: 10 }))
+
+      // ── Expiring memberships ───────────────────────────────
+      const expiringMems = await fetchExpiringMemberships(supabase, gymId, { withinDays: 30, limit: 20 })
+      const renewedIds = new Set(
+        expiringMems.filter((m: any) => expiringMems.some((m2: any) => m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date))).map((m: any) => m.member_id)
+      )
+      setExpiringMemberships(expiringMems.filter((m: any) => !renewedIds.has(m.member_id)).slice(0, 10))
+
+      // ── At-risk members ────────────────────────────────────
+      setAtRiskMembers(await fetchAtRiskMembers(supabase, gymId))
+
+      // ── Pending leave ──────────────────────────────────────
+      setPendingLeave(await fetchPendingLeave(supabase, gymId, user.id))
       } catch (err) {
         console.error('[ManagerDashboard] Load error:', err)
         setLoading(false)
