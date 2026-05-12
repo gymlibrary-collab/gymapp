@@ -21,6 +21,7 @@ export default function CommissionPayoutsPage() {
 
   const { logActivity } = useActivityLog()
   const [payouts, setPayouts] = useState<any[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const [staff, setStaff] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -68,7 +69,7 @@ export default function CommissionPayoutsPage() {
     }
   }
 
-  useEffect(() => { if (!user) return; loadData() }, [user])
+  useEffect(() => { if (!user) return; loadData().finally(() => setDataLoading(false)) }, [user])
 
   if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
