@@ -288,6 +288,51 @@ export default function LeaveManagementPage() {
   const statusBadge = (s: string) => s === 'approved' ? 'badge-active' : s === 'pending' ? 'badge-pending' : 'badge-danger'
 
 
+  const handleBulkReset = async () => {
+    const closingYear = new Date().getFullYear() - 1
+    const { data: blocking } = await supabase
+      .from('leave_applications')
+      .select('id, start_date, end_date, user:users!leave_applications_user_id_fkey(full_name)')
+      .eq('status', 'pending')
+      .gte('start_date', `${closingYear}-01-01`)
+      .lte('start_date', `${closingYear}-12-31`)
+    if (blocking && blocking.length > 0) { setPendingBlockingStaff(blocking); return }
+    if (!confirm(`Reset leave entitlements for ALL active full-time staff for year ${closingYear}? This cannot be undone.`)) return
+    setBulkResetting(true); setBulkResult('')
+    const annualDays = parseInt(bulkAnnual) || 14
+    const medicalDays = parseInt(bulkMedical) || 14
+    const hospDays = parseInt(bulkHosp) || 60
+    const maxCarryFwd = parseInt(maxCarryForward) || 0
+    const { data: staff } = await supabase.from('users')
+      .select('id, leave_entitlement_days, leave_carry_forward_days')
+      .in('role', ['trainer', 'staff', 'manager']).eq('employment_type', 'full_time')
+      .is('date_of_departure', null).eq('is_archived', false)
+    const { data: approvedLeave } = await supabase.from('leave_applications')
+      .select('user_id, start_date, end_date').eq('status', 'approved').eq('leave_type', 'annual')
+      .gte('start_date', `${closingYear}-01-01`).lte('start_date', `${closingYear}-12-31`)
+    const daysTakenMap: Record<string, number> = {}
+    for (const leave of approvedLeave || []) {
+      const days = Math.round((new Date(leave.end_date).getTime() - new Date(leave.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+      daysTakenMap[leave.user_id] = (daysTakenMap[leave.user_id] || 0) + days
+    }
+    let count = 0
+    for (const s of staff || []) {
+      const total = (s.leave_entitlement_days || 0) + (s.leave_carry_forward_days || 0)
+      const carryFwd = Math.min(Math.max(0, total - (daysTakenMap[s.id] || 0)), maxCarryFwd)
+      await supabase.from('users').update({
+        leave_entitlement_days: annualDays, leave_carry_forward_days: carryFwd,
+        medical_leave_entitlement_days: medicalDays, hospitalisation_leave_entitlement_days: hospDays,
+      }).eq('id', s.id)
+      count++
+    }
+    const newResetYear = new Date().getFullYear()
+    await supabase.from('app_settings').update({ leave_reset_year: newResetYear }).eq('id', 'global')
+    setResetAlreadyRun(true); setLeaveResetYear(newResetYear)
+    logActivity('update', 'Leave Management', `Year-end leave reset for ${closingYear} — ${count} staff updated`)
+    setBulkResult(`Reset complete for ${closingYear} — ${count} staff updated`)
+    setBulkResetting(false)
+  }
+
   const isJanuary = new Date().getMonth() === 0
 
   return (
