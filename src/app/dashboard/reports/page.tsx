@@ -158,16 +158,20 @@ export default function ReportsPage() {
       return { id:t.id, name:t.full_name, nickname:t.nickname||t.full_name.split(' ')[0], members:mIds.size, packages:myPkgs.length, sessionsCompleted:mySess.length, sessionsScheduled:mySched.length, commissionEarned:signupComm+sessComm, commissionPaid:signupPaid+sessPaid }
     })
 
-    // Payroll
-    let sIds: string[] = []
-    if (gymId) {
-      const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',gymId)
-      const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',gymId)
-      sIds = Array.from(new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)]))
+    // Payroll — Biz Ops only
+    let payslips: any[] = []
+    if (isBizOps) {
+      let sIds: string[] = []
+      if (gymId) {
+        const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',gymId)
+        const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',gymId)
+        sIds = Array.from(new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)]))
+      }
+      let payQ = supabase.from('payslips').select('gross_salary,employee_cpf_amount,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid'])
+      if (sIds.length > 0) payQ = payQ.in('user_id',sIds)
+      const { data: pays } = await payQ
+      payslips = pays || []
     }
-    let payQ = supabase.from('payslips').select('gross_salary,employee_cpf_amount,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid'])
-    if (sIds.length > 0) payQ = payQ.in('user_id',sIds)
-    const { data: payslips } = await payQ
 
     const memRevenue    = (memSales||[]).reduce((s:number,m:any)=>s+(m.price_sgd||0),0)
     const memCommission = (memSales||[]).reduce((s:number,m:any)=>s+(m.commission_sgd||0),0)
@@ -349,14 +353,16 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="card p-4 space-y-4">
-        <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Banknote className="w-4 h-4 text-red-600"/>Payroll Costs</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="stat-card"><p className="text-xs text-gray-500">Gross Salary</p><p className="text-xl font-bold">{formatSGD(stats.salaryCost)}</p></div>
-          <div className="stat-card"><p className="text-xs text-gray-500">Employer CPF</p><p className="text-xl font-bold">{formatSGD(stats.employerCPF)}</p></div>
-          <div className="stat-card col-span-2 bg-red-50 border-red-100"><p className="text-xs text-red-600">Total Payroll Cost (excl. commission)</p><p className="text-xl font-bold text-red-700">{formatSGD(stats.totalPayrollCost)}</p></div>
+      {isBizOps && (
+        <div className="card p-4 space-y-4">
+          <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Banknote className="w-4 h-4 text-red-600"/>Payroll Costs</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="stat-card"><p className="text-xs text-gray-500">Gross Salary</p><p className="text-xl font-bold">{formatSGD(stats.salaryCost)}</p></div>
+            <div className="stat-card"><p className="text-xs text-gray-500">Employer CPF</p><p className="text-xl font-bold">{formatSGD(stats.employerCPF)}</p></div>
+            <div className="stat-card col-span-2 bg-red-50 border-red-100"><p className="text-xs text-red-600">Total Payroll Cost (excl. commission)</p><p className="text-xl font-bold text-red-700">{formatSGD(stats.totalPayrollCost)}</p></div>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="card p-4 bg-gray-50">
         <div className="flex items-center justify-between">
