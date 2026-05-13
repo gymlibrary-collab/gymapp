@@ -78,7 +78,8 @@ export default function LeaveManagementPage() {
         ftTrainerIds = ftOnly?.map((t: any) => t.id) || []
       }
       const opsIds = opsStaff?.map((s: any) => s.id) || []
-      staffIds = Array.from(new Set([...opsIds, ...ftTrainerIds]))
+      // Include manager's own leave for holistic view — shown read-only
+      staffIds = Array.from(new Set([...opsIds, ...ftTrainerIds, user!.id]))
     } else if (user!.role === 'business_ops') {
       // Biz Ops approves:
       //   1. Manager leave (always)
@@ -602,17 +603,23 @@ export default function LeaveManagementPage() {
                   {app.withdrawal_reason && <p className="text-xs text-blue-600 mt-0.5">Withdrawal reason: {app.withdrawal_reason}</p>}
                   {app.status === 'withdrawal_requested' && <p className="text-xs text-green-600 mt-0.5">✓ {app.days_applied} days restored to staff balance</p>}
                 </div>
-                {app.status === 'pending' && (
+                {app.status === 'pending' && app.user_id !== user?.id && (
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => handleApprove(app.id)} className="btn-primary text-xs py-1.5 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Approve</button>
                     <button onClick={() => setRejectId(app.id)} className="btn-danger text-xs py-1.5 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> Reject</button>
                   </div>
                 )}
-                {app.status === 'withdrawal_requested' && (
+                {app.status === 'pending' && app.user_id === user?.id && (
+                  <span className="text-xs text-gray-400 flex-shrink-0">Pending Biz Ops approval</span>
+                )}
+                {app.status === 'withdrawal_requested' && app.user_id !== user?.id && (
                   <button onClick={() => handleAcknowledgeWithdrawal(app)}
                     className="btn-secondary text-xs py-1.5 flex items-center gap-1 flex-shrink-0">
                     <CheckCircle className="w-3.5 h-3.5" /> Acknowledge
                   </button>
+                )}
+                {app.status === 'withdrawal_requested' && app.user_id === user?.id && (
+                  <span className="text-xs text-gray-400 flex-shrink-0">Withdrawal pending Biz Ops</span>
                 )}
               </div>
             </div>

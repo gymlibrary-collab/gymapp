@@ -98,14 +98,16 @@ export default function TrainersPage() {
       activeQ = activeQ.in('role', ['trainer', 'staff'])
       archQ   = archQ.in('role', ['trainer', 'staff'])
 
+      // Part-time ops staff are a shared pool — all managers can see them
+      // Full-time staff scoped to this gym via trainer_gyms or manager_gym_id
       if (trainerIds.length > 0) {
-        // Match trainers in this gym OR full-time ops staff assigned to this gym
-        activeQ = activeQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId}`)
-        archQ   = archQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId}`)
+        // Match: trainers in this gym OR full-time ops staff here OR part-time ops staff (pool)
+        activeQ = activeQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
+        archQ   = archQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
       } else {
-        // No trainers in gym — show only full-time ops staff assigned here
-        activeQ = activeQ.eq('manager_gym_id', gymId)
-        archQ   = archQ.eq('manager_gym_id', gymId)
+        // No trainers — show full-time ops staff here + all part-time ops staff pool
+        activeQ = activeQ.or(`manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
+        archQ   = archQ.or(`manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
       }
     }
 

@@ -36,6 +36,8 @@ export default function RosterPage() {
     const d = new Date(); d.setDate(d.getDate() - (d.getDay() || 7) + 1)
     return d.toISOString().split('T')[0]
   })
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
+  const [monthOffset, setMonthOffset] = useState(0)
 
   // Bulk entry state
   const [showBulkForm, setShowBulkForm] = useState(false)
@@ -61,13 +63,13 @@ export default function RosterPage() {
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = user!.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {
-      const { data: firstGym } = await supabase.from('gyms').select('id').eq('is_active', true).order('name').limit(1).single()
+      const { data: firstGym } = await supabase.from('gyms').select('id').eq('is_active', true).order('name').limit(1).maybeSingle()
       gId = firstGym?.id || null
     }
     setGymId(gId)
 
     if (gId) {
-      const { data: gym } = await supabase.from('gyms').select('name').eq('id', gId).single()
+      const { data: gym } = await supabase.from('gyms').select('name').eq('id', gId).maybeSingle()
       setGymName(gym?.name || '')
 
       // Load presets for this gym
@@ -84,18 +86,28 @@ export default function RosterPage() {
       setPartTimers(pt || [])
     }
 
-    // Load roster for week
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
+    // Load roster — week or month range
+    let rangeStart: string, rangeEnd: string
+    if (viewMode === 'month') {
+      const now = new Date()
+      const d = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+      rangeStart = d.toISOString().split('T')[0]
+      const last = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+      rangeEnd = last.toISOString().split('T')[0]
+    } else {
+      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
+      rangeStart = weekStart; rangeEnd = weekEnd.toISOString().split('T')[0]
+    }
     let rQ = supabase.from('duty_roster')
       .select('*, user:users(full_name, phone, hourly_rate)')
-      .gte('shift_date', weekStart).lte('shift_date', weekEnd.toISOString().split('T')[0])
+      .gte('shift_date', rangeStart).lte('shift_date', rangeEnd)
       .order('shift_date').order('shift_start')
     if (gId) rQ = rQ.eq('gym_id', gId)
     const { data: rData } = await rQ
     setRoster(rData || [])
   }
 
-  useEffect(() => { loadData() }, [weekStart])
+  useEffect(() => { loadData() }, [weekStart, viewMode, monthOffset])
 
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -232,7 +244,17 @@ export default function RosterPage() {
           <h1 className="text-xl font-bold text-gray-900">Duty Roster</h1>
           <p className="text-sm text-gray-500">{gymName} · Part-time staff</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+            <button onClick={() => setViewMode('week')}
+              className={cn('px-3 py-1.5 font-medium transition-colors', viewMode === 'week' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50')}>
+              Week
+            </button>
+            <button onClick={() => setViewMode('month')}
+              className={cn('px-3 py-1.5 font-medium transition-colors', viewMode === 'month' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50')}>
+              Month
+            </button>
+          </div>
           {!isBizOps && <button onClick={() => setShowPresetForm(!showPresetForm)} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5">
             <Settings className="w-3.5 h-3.5" /> Manage Shifts
           </button>}
@@ -271,15 +293,32 @@ export default function RosterPage() {
         </div>
       )}
 
-      {/* Week navigator */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => shiftWeek(-1)} className="btn-secondary p-2"><ChevronLeft className="w-4 h-4" /></button>
-        <div className="flex-1 text-center">
-          <p className="text-sm font-medium text-gray-900">{formatDate(weekStart)} — {formatDate(weekDays[6])}</p>
-          <p className="text-xs text-gray-400">{roster.length} shifts · {totalHours.toFixed(1)}h · {formatSGD(totalPay)}</p>
+      {/* Navigator */}
+      {viewMode === 'week' ? (
+        <div className="flex items-center gap-3">
+          <button onClick={() => shiftWeek(-1)} className="btn-secondary p-2"><ChevronLeft className="w-4 h-4" /></button>
+          <div className="flex-1 text-center">
+            <p className="text-sm font-medium text-gray-900">{formatDate(weekStart)} — {formatDate(weekDays[6])}</p>
+            <p className="text-xs text-gray-400">{roster.length} shifts · {totalHours.toFixed(1)}h · {formatSGD(totalPay)}</p>
+          </div>
+          <button onClick={() => shiftWeek(1)} className="btn-secondary p-2"><ChevronRight className="w-4 h-4" /></button>
         </div>
-        <button onClick={() => shiftWeek(1)} className="btn-secondary p-2"><ChevronRight className="w-4 h-4" /></button>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3">
+          <button onClick={() => setMonthOffset(o => Math.max(o - 1, -1))} disabled={monthOffset <= -1}
+            className="btn-secondary p-2 disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
+          <div className="flex-1 text-center">
+            <p className="text-sm font-medium text-gray-900">{(() => {
+              const now = new Date()
+              const d = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+              return d.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
+            })()}</p>
+            <p className="text-xs text-gray-400">{roster.length} shifts · {totalHours.toFixed(1)}h · {formatSGD(totalPay)}</p>
+          </div>
+          <button onClick={() => setMonthOffset(o => Math.min(o + 1, 1))} disabled={monthOffset >= 1}
+            className="btn-secondary p-2 disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* Bulk entry form */}
       {showBulkForm && !isBizOps && (
@@ -401,8 +440,50 @@ export default function RosterPage() {
         </form>
       )}
 
+      {/* Monthly view — staff grouped with shift pills */}
+      {viewMode === 'month' && (
+        <div className="space-y-3">
+          {partTimers.map(pt => {
+            const ptShifts = roster.filter((r: any) => r.user_id === pt.id)
+            if (ptShifts.length === 0) return (
+              <div key={pt.id} className="card p-4 flex items-center justify-between opacity-50">
+                <p className="text-sm font-medium text-gray-700">{pt.full_name}</p>
+                <p className="text-xs text-gray-400">No shifts this month</p>
+              </div>
+            )
+            const totalHrs = ptShifts.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0)
+            const totalPay2 = ptShifts.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0)
+            return (
+              <div key={pt.id} className="card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium text-gray-900 text-sm">{pt.full_name}</p>
+                  <div className="flex gap-3 text-xs text-gray-500">
+                    <span>{ptShifts.length} shifts · {totalHrs.toFixed(1)}h</span>
+                    <span className="font-medium text-gray-700">{formatSGD(totalPay2)}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {ptShifts.map((r: any) => (
+                    <div key={r.id} className={cn('text-xs px-2 py-1 rounded-lg border', r.is_locked ? 'bg-gray-100 border-gray-200 text-gray-500' : 'bg-blue-50 border-blue-100 text-blue-700')}>
+                      <span className="font-medium">{new Date(r.shift_date).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}</span>
+                      <span className="text-gray-400 ml-1">{r.shift_start?.slice(0,5)}–{r.shift_end?.slice(0,5)}</span>
+                      {r.is_locked && <span className="ml-1">🔒</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+          {partTimers.length === 0 && (
+            <div className="card p-8 text-center">
+              <p className="text-sm text-gray-500">No part-time staff found.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Weekly roster */}
-      {weekDays.map(date => {
+      {viewMode === 'week' && weekDays.map(date => {
         const dayShifts = roster.filter(r => r.shift_date === date)
         const dayLabel = new Date(date).toLocaleDateString('en-SG', { weekday: 'short', day: 'numeric', month: 'short' })
         const hasMultiple = dayShifts.length > 1
