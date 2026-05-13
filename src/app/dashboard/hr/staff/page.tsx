@@ -103,7 +103,7 @@ export default function TrainersPage() {
       const { data: ptRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
       const ptIds = (ptRows || []).map((r: any) => r.trainer_id).filter((id: string) => !trainerIds.includes(id))
 
-      const allGymIds = [...new Set([...trainerIds, ...ptIds])]
+      const allGymIds = Array.from(new Set([...trainerIds, ...ptIds]))
       if (allGymIds.length > 0) {
         activeQ = activeQ.or(`id.in.(${allGymIds.join(',')}),manager_gym_id.eq.${gymId}`)
         archQ   = archQ.or(`id.in.(${allGymIds.join(',')}),manager_gym_id.eq.${gymId}`)
