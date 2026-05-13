@@ -328,10 +328,13 @@ export default function TrainersPage() {
   }
 
   const getGymLabel = (m: any) => {
-    if (m.role === 'trainer') return m.trainer_gyms?.[0]?.gyms?.name || 'Unassigned'
-    if (m.role === 'manager' || m.role === 'staff') return m.manager_gym?.name || 'Unassigned'
-    if (m.role === 'admin') return 'Gym Library'
-    return 'All Gyms'
+    // All roles read from trainer_gyms — single source of truth for gym assignment.
+    // Managers also have manager_gym_id but trainer_gyms is always populated.
+    // Exception: admin and business_ops have no gym assignment.
+    if (m.role === 'admin') return 'HQ'
+    if (m.role === 'business_ops') return 'All Gyms'
+    const gymNames = (m.trainer_gyms || []).map((tg: any) => tg.gyms?.name).filter(Boolean)
+    return gymNames.length > 0 ? gymNames.join(', ') : 'Unassigned'
   }
 
   const isSelf = (m: any) => m.id === user?.id
