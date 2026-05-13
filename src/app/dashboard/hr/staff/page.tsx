@@ -98,16 +98,18 @@ export default function TrainersPage() {
       activeQ = activeQ.in('role', ['trainer', 'staff'])
       archQ   = archQ.in('role', ['trainer', 'staff'])
 
-      // Part-time ops staff are a shared pool — all managers can see them
-      // Full-time staff scoped to this gym via trainer_gyms or manager_gym_id
-      if (trainerIds.length > 0) {
-        // Match: trainers in this gym OR full-time ops staff here OR part-time ops staff (pool)
-        activeQ = activeQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
-        archQ   = archQ.or(`id.in.(${trainerIds.join(',')}),manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
+      // Part-time ops staff scoped to those assigned to this gym via trainer_gyms
+      // (Part-timers with this gym in their gym_ids list — stored in trainer_gyms table)
+      const { data: ptRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
+      const ptIds = (ptRows || []).map((r: any) => r.trainer_id).filter((id: string) => !trainerIds.includes(id))
+
+      const allGymIds = [...new Set([...trainerIds, ...ptIds])]
+      if (allGymIds.length > 0) {
+        activeQ = activeQ.or(`id.in.(${allGymIds.join(',')}),manager_gym_id.eq.${gymId}`)
+        archQ   = archQ.or(`id.in.(${allGymIds.join(',')}),manager_gym_id.eq.${gymId}`)
       } else {
-        // No trainers — show full-time ops staff here + all part-time ops staff pool
-        activeQ = activeQ.or(`manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
-        archQ   = archQ.or(`manager_gym_id.eq.${gymId},employment_type.eq.part_time`)
+        activeQ = activeQ.eq('manager_gym_id', gymId)
+        archQ   = archQ.eq('manager_gym_id', gymId)
       }
     }
 
@@ -681,10 +683,12 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
           <div>
             <label className="label">Annual Leave Entitlement (days) *</label>
             <input className="input" type="number" required min="0" max="365"
-              value={form.leave_entitlement_days}
+              value={form.employment_type === 'part_time' ? '0' : form.leave_entitlement_days}
+              disabled={form.employment_type === 'part_time'}
               onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
-              placeholder="e.g. 14" />
-            <p className="text-xs text-gray-400 mt-1">Paid leave days per calendar year.</p>
+              placeholder="e.g. 14"
+              className={cn('input', form.employment_type === 'part_time' && 'bg-gray-100 text-gray-400 cursor-not-allowed')} />
+            <p className="text-xs text-gray-400 mt-1">{form.employment_type === 'part_time' ? 'Part-time staff have no annual leave entitlement.' : 'Paid leave days per calendar year.'}</p>
           </div>
         )}
       </div>
