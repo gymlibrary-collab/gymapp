@@ -682,7 +682,7 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
         {isBizOps && (
           <div>
             <label className="label">Annual Leave Entitlement (days) *</label>
-            <input className="input" type="number" required min="0" max="365"
+            <input type="number" required min="0" max="365"
               value={form.employment_type === 'part_time' ? '0' : form.leave_entitlement_days}
               disabled={form.employment_type === 'part_time'}
               onChange={e => setF((f: any) => ({ ...f, leave_entitlement_days: e.target.value }))}
