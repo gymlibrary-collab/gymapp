@@ -30,6 +30,13 @@ export async function POST(request: NextRequest) {
     if (role === 'trainer' && body.employment_type === 'part_time') {
       return NextResponse.json({ error: 'Trainers must be full-time employees' }, { status: 400 })
     }
+    // Part-time ops staff must be assigned to at least one gym
+    if (role === 'staff' && body.employment_type === 'part_time') {
+      const assignedGyms = gym_ids || []
+      if (assignedGyms.length === 0) {
+        return NextResponse.json({ error: 'Part-time staff must be assigned to at least one gym' }, { status: 400 })
+      }
+    }
     if (!nickname?.trim()) {
       return NextResponse.json({ error: 'Nickname is required' }, { status: 400 })
     }
