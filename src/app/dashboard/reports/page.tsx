@@ -74,8 +74,8 @@ export default function ReportsPage() {
       const cards: GymCard[] = []
       for (const g of allGyms || []) {
         const { data: mem } = await supabase.from('gym_memberships').select('price_sgd,commission_sgd').eq('gym_id',g.id).eq('sale_status','confirmed').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
-        const { data: pt }  = await supabase.from('packages').select('total_price_sgd,signup_commission_sgd').eq('gym_id',g.id).eq('manager_confirmed',true).gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
-        const { data: sess }= await supabase.from('sessions').select('session_commission_sgd').eq('gym_id',g.id).eq('status','completed').eq('manager_confirmed',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
+        const { data: pt }  = await supabase.from('packages').select('total_price_sgd,signup_commission_sgd').eq('gym_id',g.id).eq('manager_confirmed',true).neq('status','cancelled').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
+        const { data: sess }= await supabase.from('sessions').select('session_commission_sgd').eq('gym_id',g.id).eq('status','completed').eq('manager_confirmed',true).eq('is_notes_complete',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
         const { count: activeCnt } = await supabase.from('gym_memberships').select('id',{count:'exact',head:true}).eq('gym_id',g.id).eq('status','active').eq('sale_status','confirmed')
         const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',g.id)
         const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',g.id)
@@ -123,17 +123,21 @@ export default function ReportsPage() {
     const totalActive = new Set([...Array.from(activeMemberIds),...Array.from(activePkgIds)]).size
 
     // PT packages
-    let ptQ = supabase.from('packages').select('id,trainer_id,member_id,secondary_member_id,total_price_sgd,signup_commission_sgd,signup_commission_paid').eq('manager_confirmed',true).gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
+    let ptQ = supabase.from('packages').select('id,trainer_id,member_id,secondary_member_id,total_price_sgd,signup_commission_sgd,signup_commission_paid').eq('manager_confirmed',true).neq('status','cancelled').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
     if (gymId) ptQ = ptQ.eq('gym_id',gymId)
     const { data: ptSales } = await ptQ
 
     // Sessions completed
-    let sessQ = supabase.from('sessions').select('trainer_id,session_commission_sgd,commission_paid').eq('status','completed').eq('manager_confirmed',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
+    let sessQ = supabase.from('sessions').select('trainer_id,session_commission_sgd,commission_paid').eq('status','completed').eq('manager_confirmed',true).eq('is_notes_complete',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
     if (gymId) sessQ = sessQ.eq('gym_id',gymId)
     const { data: ptSessions } = await sessQ
 
     // Sessions scheduled
-    let schedQ = supabase.from('sessions').select('trainer_id').eq('status','scheduled').gte('scheduled_at',new Date().toISOString())
+    // Sessions scheduled — current month + next month
+    const nextMonth = month === 12 ? 1 : month + 1
+    const nextMonthYear = month === 12 ? year + 1 : year
+    const nextMonthEnd = new Date(nextMonthYear, nextMonth, 0).toISOString().split('T')[0]
+    let schedQ = supabase.from('sessions').select('trainer_id').eq('status','scheduled').gte('scheduled_at',new Date().toISOString()).lte('scheduled_at',nextMonthEnd+'T23:59:59')
     if (gymId) schedQ = schedQ.eq('gym_id',gymId)
     const { data: scheduled } = await schedQ
 
@@ -145,12 +149,18 @@ export default function ReportsPage() {
       if (tIds.length > 0) trainerQ = trainerQ.in('id',tIds)
     }
     const { data: trainers } = await trainerQ
+    // Active packages per trainer (all time — for member count)
+    let activePkgQ = supabase.from('packages').select('trainer_id,member_id,secondary_member_id').eq('status','active').eq('manager_confirmed',true)
+    if (gymId) activePkgQ = activePkgQ.eq('gym_id',gymId)
+    const { data: activePkgsForTrainer } = await activePkgQ
+
     const trainerRows: TrainerRow[] = (trainers||[]).map((t:any) => {
       const myPkgs  = (ptSales||[]).filter((p:any)=>p.trainer_id===t.id)
       const mySess  = (ptSessions||[]).filter((s:any)=>s.trainer_id===t.id)
       const mySched = (scheduled||[]).filter((s:any)=>s.trainer_id===t.id)
+      // Members = all active package members (not just this month)
       const mIds = new Set<string>()
-      myPkgs.forEach((p:any)=>{ if(p.member_id) mIds.add(p.member_id); if(p.secondary_member_id) mIds.add(p.secondary_member_id) })
+      ;(activePkgsForTrainer||[]).filter((p:any)=>p.trainer_id===t.id).forEach((p:any)=>{ if(p.member_id) mIds.add(p.member_id); if(p.secondary_member_id) mIds.add(p.secondary_member_id) })
       const signupComm = myPkgs.reduce((s:number,p:any)=>s+(p.signup_commission_sgd||0),0)
       const sessComm   = mySess.reduce((s:number,s2:any)=>s+(s2.session_commission_sgd||0),0)
       const signupPaid = myPkgs.filter((p:any)=>p.signup_commission_paid).reduce((s:number,p:any)=>s+(p.signup_commission_sgd||0),0)
@@ -313,7 +323,7 @@ export default function ReportsPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="stat-card"><p className="text-xs text-gray-500">Packages Sold</p><p className="text-2xl font-bold">{stats.ptCount}</p></div>
           <div className="stat-card"><p className="text-xs text-gray-500">Sessions Completed</p><p className="text-2xl font-bold">{stats.sessionCount}</p></div>
-          <div className="stat-card"><p className="text-xs text-gray-500">Sessions Scheduled</p><p className="text-xl font-bold text-blue-700">{stats.sessionScheduled}</p></div>
+          <div className="stat-card"><p className="text-xs text-gray-500">Sessions Scheduled (now → end next month)</p><p className="text-xl font-bold text-blue-700">{stats.sessionScheduled}</p></div>
           <div className="stat-card"><p className="text-xs text-gray-500">PT Revenue</p><p className="text-xl font-bold">{formatSGD(stats.ptRevenue)}</p></div>
           <div className="stat-card col-span-2"><p className="text-xs text-gray-500">PT Commissions (sign-up + session)</p><p className="text-xl font-bold text-green-700">{formatSGD(stats.ptSignupComm+stats.ptSessionComm)}</p></div>
         </div>
