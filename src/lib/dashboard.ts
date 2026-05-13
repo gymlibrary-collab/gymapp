@@ -692,3 +692,31 @@ export async function dismissPayslipNotifications(
     })
     .eq('id', userId)
 }
+
+// ============================================================
+// getGymStaffIds
+//
+// PURPOSE:
+//   Returns a deduplicated array of user IDs for all staff
+//   associated with a gym — trainers via trainer_gyms and
+//   ops staff (full-time) via manager_gym_id.
+//
+//   Used by: reports, leave management, roster, capacity,
+//            payroll queries that need gym-scoped staff.
+//
+// USAGE:
+//   const staffIds = await getGymStaffIds(supabase, gymId)
+//   if (staffIds.length > 0) query = query.in('user_id', staffIds)
+// ============================================================
+export async function getGymStaffIds(
+  supabase: any,
+  gymId: string
+): Promise<string[]> {
+  const [{ data: tgRows }, { data: staffRows }] = await Promise.all([
+    supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId),
+    supabase.from('users').select('id').eq('manager_gym_id', gymId).eq('is_archived', false),
+  ])
+  const trainerIds = (tgRows || []).map((r: any) => r.trainer_id)
+  const staffIds   = (staffRows || []).map((r: any) => r.id)
+  return Array.from(new Set([...trainerIds, ...staffIds]))
+}
