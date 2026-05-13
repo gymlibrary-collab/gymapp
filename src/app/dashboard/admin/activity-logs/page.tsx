@@ -10,6 +10,7 @@ import { Activity, Download, RefreshCw, Search, ChevronLeft, ChevronRight, Alert
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { cn } from '@/lib/utils'
+import { PageSpinner } from '@/components/PageSpinner'
 
 const ACTION_TYPES = ['all', 'login', 'logout', 'page_view', 'create', 'update', 'delete', 'confirm', 'reject', 'approve', 'export', 'other']
 
