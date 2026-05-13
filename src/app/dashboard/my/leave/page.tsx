@@ -398,7 +398,9 @@ export default function MyLeavePage() {
                 )}
                 {a.status === 'approved' && new Date(a.start_date) >= new Date(new Date().toISOString().split('T')[0]) && (
                   <button onClick={() => { setWithdrawId(a.id); setWithdrawReason('') }}
-                    className="text-xs text-red-500 hover:underline flex-shrink-0">Request Withdrawal</button>
+                    className="btn-secondary text-xs py-1 px-2 flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50">
+                    Request Withdrawal
+                  </button>
                 )}
                 {a.status === 'withdrawal_requested' && (
                   <span className="text-xs text-blue-600 font-medium flex-shrink-0">Awaiting acknowledgement</span>
@@ -409,28 +411,25 @@ export default function MyLeavePage() {
         )}
       </div>
       {withdrawId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setWithdrawId(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4"
-            onClick={e => e.stopPropagation()}>
-            <h3 className="font-semibold text-gray-900">Request Leave Withdrawal</h3>
-            <p className="text-sm text-gray-600">
-              Your leave balance will be restored immediately. Your manager will be notified to acknowledge.
-            </p>
-            <div>
-              <label className="label">Reason for withdrawal *</label>
-              <textarea className="input" rows={3} value={withdrawReason}
-                onChange={e => setWithdrawReason(e.target.value)}
-                placeholder="e.g. Plans changed, no longer required" />
-            </div>
-            <div className="flex gap-3">
-              <button onClick={handleWithdraw}
-                disabled={withdrawSaving || !withdrawReason.trim()}
-                className="btn-primary flex-1 disabled:opacity-40">
-                {withdrawSaving ? 'Submitting...' : 'Submit Withdrawal'}
-              </button>
-              <button onClick={() => setWithdrawId(null)} className="btn-secondary flex-1">Cancel</button>
-            </div>
+        <div className="card p-4 space-y-3 border-red-100 bg-red-50">
+          <h3 className="font-semibold text-gray-900 text-sm">Request Leave Withdrawal</h3>
+          <p className="text-xs text-gray-600">
+            Your leave balance will be restored immediately. Your manager will be notified to acknowledge.
+          </p>
+          <div>
+            <label className="label">Reason for withdrawal *</label>
+            <textarea className="input" rows={3} value={withdrawReason}
+              onChange={e => setWithdrawReason(e.target.value)}
+              placeholder="e.g. Plans changed, no longer required" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleWithdraw}
+              disabled={withdrawSaving || !withdrawReason.trim()}
+              className="btn-primary flex-1 disabled:opacity-40">
+              {withdrawSaving ? 'Submitting...' : 'Submit Withdrawal'}
+            </button>
+            <button onClick={() => { setWithdrawId(null); setWithdrawReason('') }}
+              className="btn-secondary flex-1">Cancel</button>
           </div>
         </div>
       )}
