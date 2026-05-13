@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate } from '@/lib/utils'
+import { formatDate, todaySGT} from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -403,7 +403,7 @@ export default function MyLeavePage() {
                       Withdraw
                     </button>
                   )}
-                  {a.status === 'approved' && new Date(a.start_date) >= new Date(new Date().toISOString().split('T')[0]) && (
+                  {a.status === 'approved' && new Date(a.start_date) >= new Date(todaySGT()) && (
                     <button onClick={() => { setWithdrawId(a.id); setWithdrawReason('') }}
                       className="btn-secondary text-xs py-1 px-2 flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50">
                       Request Withdrawal

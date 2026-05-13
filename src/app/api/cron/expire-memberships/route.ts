@@ -3,7 +3,7 @@ import { runCron } from '@/lib/cron'
 
 export async function GET(request: NextRequest) {
   return runCron(request, 'expire-memberships', 'daily', async (supabase) => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split('T')[0] // SGT
 
     // 1. Cancel mid-term cancellations
     const { data: cancelled, error: cancelErr } = await supabase

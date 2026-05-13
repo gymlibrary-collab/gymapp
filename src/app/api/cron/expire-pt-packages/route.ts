@@ -5,7 +5,7 @@ import { runCron } from '@/lib/cron'
 export async function GET(request: NextRequest) {
   return runCron(request, 'expire-pt-packages', 'daily', async (supabase) => {
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split('T')[0] // SGT
     const { data: expired } = await supabase.from('packages')
       .update({ status: 'expired' }).eq('status', 'active').eq('manager_confirmed', true)
       .lt('end_date', today).select('id, member_id, gym_id')

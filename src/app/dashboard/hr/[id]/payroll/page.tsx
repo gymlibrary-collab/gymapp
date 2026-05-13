@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD, getMonthName, getRoleLabel } from '@/lib/utils'
+import { formatDate, formatSGD, getMonthName, getRoleLabel, todaySGT} from '@/lib/utils'
 import { addLogoHeader, PDF_TABLE_STYLE, resolvePayslipBranding, renderPayslipPdf } from '@/lib/pdf'
 import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import {
@@ -125,7 +125,7 @@ export default function StaffPayrollDetailPage() {
     await supabase.from('staff_payroll').upsert({ user_id: id, current_salary: newSalary, is_cpf_liable: isCpf, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
 
     if (salaryHistory.length === 0 && newSalary > 0) {
-      await supabase.from('salary_history').insert({ user_id: id, salary_amount: newSalary, effective_from: staff?.date_of_joining || new Date().toISOString().split('T')[0], change_type: 'initial', change_amount: newSalary, notes: 'Initial salary set', created_by: authUser?.id })
+      await supabase.from('salary_history').insert({ user_id: id, salary_amount: newSalary, effective_from: staff?.date_of_joining || todaySGT(), change_type: 'initial', change_amount: newSalary, notes: 'Initial salary set', created_by: authUser?.id })
     }
 
     logActivity('update', 'Staff Payroll', 'Updated staff payroll profile')

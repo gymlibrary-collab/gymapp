@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatDate, formatSGD } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT} from '@/lib/utils'
 import {
   ArrowLeft, Phone, Heart, CreditCard, Package, Calendar,
   Plus, CheckCircle, XCircle, Clock, Edit2, Save, X,
@@ -39,19 +39,19 @@ export default function MemberProfilePage() {
   const [editForm, setEditForm] = useState<any>({})
   const [pkgForm, setPkgForm] = useState({
     template_id: '', total_price_sgd: '', notes: '',
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: todaySGT(),
     validity_days: '180',
     secondary_member_id: '',
   })
   const [allMembers, setAllMembers] = useState<any[]>([])
   const [membershipTypes, setMembershipTypes] = useState<any[]>([])
   const [showRenewalForm, setShowRenewalForm] = useState(false)
-  const [renewalForm, setRenewalForm] = useState({ membership_type_id: '', start_date: new Date().toISOString().split('T')[0] })
+  const [renewalForm, setRenewalForm] = useState({ membership_type_id: '', start_date: todaySGT() })
   const [renewalSaving, setRenewalSaving] = useState(false)
   const [cancellationRequest, setCancellationRequest] = useState<any>(null)
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [cancelForm, setCancelForm] = useState({
-    cancellation_end_date: new Date().toISOString().split('T')[0],
+    cancellation_end_date: todaySGT(),
     reason: '',
     reason_other: '',
     confirm_text: '',
@@ -226,7 +226,7 @@ export default function MemberProfilePage() {
         })
         logActivity('update', 'Member Profile', `Manager cancelled membership for ${member.full_name}`)
         setShowCancelForm(false)
-        setCancelForm({ cancellation_end_date: new Date().toISOString().split('T')[0], reason: '', reason_other: '', confirm_text: '' })
+        setCancelForm({ cancellation_end_date: todaySGT(), reason: '', reason_other: '', confirm_text: '' })
         await load()
       }
     } else {
@@ -245,7 +245,7 @@ export default function MemberProfilePage() {
       if (!error) {
         logActivity('create', 'Member Profile', `Requested membership cancellation for ${member.full_name}`)
         setShowCancelForm(false)
-        setCancelForm({ cancellation_end_date: new Date().toISOString().split('T')[0], reason: '', reason_other: '', confirm_text: '' })
+        setCancelForm({ cancellation_end_date: todaySGT(), reason: '', reason_other: '', confirm_text: '' })
         await load()
       }
     }
@@ -368,7 +368,7 @@ export default function MemberProfilePage() {
     if (err) { alert('Failed to renew: ' + err.message); setRenewalSaving(false); return }
     logActivity('create', 'Member Profile', 'Logged membership renewal')
     setShowRenewalForm(false)
-    setRenewalForm({ membership_type_id: '', start_date: new Date().toISOString().split('T')[0] })
+    setRenewalForm({ membership_type_id: '', start_date: todaySGT() })
     setRenewalSaving(false)
     await load()
   }
@@ -387,7 +387,7 @@ export default function MemberProfilePage() {
     // (there should only be one, but handle any that slipped through)
     const openPackages = ptPackages.filter(p => p.status === 'active')
     if (openPackages.length > 0) {
-      const today = new Date().toISOString().split('T')[0]
+      const today = todaySGT()
       for (const pkg of openPackages) {
       await supabase.from('packages').update({
         status: pkg.sessions_used >= pkg.total_sessions ? 'completed' : 'expired',
@@ -423,7 +423,7 @@ export default function MemberProfilePage() {
     await load()
     setSaving(false)
     setShowPkgForm(false)
-    setPkgForm({ template_id: '', total_price_sgd: '', notes: '', start_date: new Date().toISOString().split('T')[0], validity_days: '180', secondary_member_id: '' })
+    setPkgForm({ template_id: '', total_price_sgd: '', notes: '', start_date: todaySGT(), validity_days: '180', secondary_member_id: '' })
   }
 
   // ── Derived state ─────────────────────────────────────────
@@ -633,7 +633,7 @@ export default function MemberProfilePage() {
           <div>
             <label className="label">Early End Date *</label>
             <input type="date" className="input"
-              min={new Date().toISOString().split('T')[0]}
+              min={todaySGT()}
               value={cancelForm.cancellation_end_date}
               onChange={e => setCancelForm(f => ({ ...f, cancellation_end_date: e.target.value }))} />
           </div>

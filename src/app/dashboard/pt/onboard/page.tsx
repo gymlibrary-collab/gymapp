@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, formatDate } from '@/lib/utils'
+import { formatSGD, formatDate, todaySGT} from '@/lib/utils'
 import { Package, User, Calendar, ChevronRight, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { useToast } from '@/hooks/useToast'
@@ -28,7 +28,7 @@ export default function PtOnboardPage() {
   const [form, setForm] = useState({
     member_id: '',
     template_id: '',
-    start_date: new Date().toISOString().split('T')[0],
+    start_date: todaySGT(),
     secondary_member_id: '',
   })
   const [trainerMembers, setTrainerMembers] = useState<any[]>([]) // members with active package by this trainer
@@ -40,7 +40,7 @@ export default function PtOnboardPage() {
 
     const { data: me } = await supabase.from('users')
       .select('*, gyms:manager_gym_id(name)')
-      .eq('id', authUser.id).single()
+      .eq('id', authUser.id).maybeSingle()
     if (!me || !['trainer', 'manager', 'staff'].includes(me.role)) {
       router.replace('/dashboard'); return
     }
@@ -150,7 +150,7 @@ export default function PtOnboardPage() {
     showMsg('PT package created — pending manager confirmation')
     logActivity('create', 'PT Onboarding', 'Created PT package — pending manager confirmation')
     setSaving(false)
-    setForm({ member_id: '', template_id: '', start_date: new Date().toISOString().split('T')[0], secondary_member_id: '' })
+    setForm({ member_id: '', template_id: '', start_date: todaySGT(), secondary_member_id: '' })
   }
 
   if (loading) return (

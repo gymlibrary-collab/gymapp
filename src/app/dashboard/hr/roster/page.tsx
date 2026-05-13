@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getGymStaffIds } from '@/lib/dashboard'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT} from '@/lib/utils'
 import { validateHourlyRate } from '@/lib/validators'
 import {
   Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
@@ -383,7 +383,7 @@ export default function RosterPage() {
                 const dayLabel = new Date(date).toLocaleDateString('en-SG', { weekday: 'short' })
                 const dayNum = new Date(date).getDate()
                 const isSelected = bulkForm.dates.includes(date)
-                const isPast = date < new Date().toISOString().split('T')[0]
+                const isPast = date < todaySGT()
                 return (
                   <button key={date} type="button" onClick={() => !isPast && toggleDate(date)}
                     className={cn('flex flex-col items-center py-2.5 rounded-lg border transition-colors text-xs',

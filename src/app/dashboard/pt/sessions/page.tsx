@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatDateTime, formatSGD } from '@/lib/utils'
+import { formatDateTime, formatSGD, todaySGT} from '@/lib/utils'
 import {
   Calendar, Clock, CheckCircle, XCircle, AlertCircle,
   Plus, X, Save, RotateCcw, ChevronDown, ChevronUp
@@ -216,7 +216,7 @@ export default function PtSessionsPage() {
             <h3 className="font-bold text-gray-900">Reschedule Session</h3>
             <p className="text-sm text-gray-500">Currently: {formatDateTime(actionSession.scheduled_at)}</p>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">New Date *</label><input className="input" type="date" value={rescheduleDate} min={new Date().toISOString().split('T')[0]} onChange={e => setRescheduleDate(e.target.value)} /></div>
+              <div><label className="label">New Date *</label><input className="input" type="date" value={rescheduleDate} min={todaySGT()} onChange={e => setRescheduleDate(e.target.value)} /></div>
               <div><label className="label">New Time *</label><input className="input" type="time" value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)} /></div>
             </div>
             <div className="flex gap-2">

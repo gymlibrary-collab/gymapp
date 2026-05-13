@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, todaySGT} from '@/lib/utils'
 import { ArrowLeft, FileText, Lock, CheckCircle, AlertCircle, Save, Clock, RefreshCw, XCircle } from 'lucide-react'
 import { queueWhatsApp } from '@/lib/whatsapp'
 import Link from 'next/link'
@@ -52,7 +52,7 @@ export default function PtSessionNotesPage() {
     logActivity('page_view', 'Session Notes', 'Viewed session notes')
       const { data } = await supabase.from('sessions')
         .select('*, member:members!sessions_member_id_fkey(full_name, phone), attending_member:members!sessions_attending_member_id_fkey(full_name), package:packages(package_name, status, end_date_calculated, sessions_used, total_sessions, is_shared, secondary_member_id), trainer:users!sessions_trainer_id_fkey(full_name, phone), gym:gyms(name)')
-        .eq('id', id).single()
+        .eq('id', id).maybeSingle()
       setSession(data)
       setNotes(data?.performance_notes || '')
       if (data?.renewal_status) setRenewalStatus(data.renewal_status)
@@ -83,7 +83,7 @@ export default function PtSessionNotesPage() {
     const pkg = session?.package
     if (!pkg) return false
     if (pkg.status === 'expired' || pkg.status === 'completed' || pkg.status === 'cancelled') return true
-    if (pkg.end_date_calculated && pkg.end_date_calculated < new Date().toISOString().split('T')[0]) return true
+    if (pkg.end_date_calculated && pkg.end_date_calculated < todaySGT()) return true
     return false
   }
 
@@ -131,7 +131,7 @@ export default function PtSessionNotesPage() {
 
     // Queue WhatsApp to manager
     const { data: gymManager } = await supabase.from('users')
-      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').single()
+      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').maybeSingle()
     const renewalNote = renewalStatus === 'not_renewing'
       ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
       : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''

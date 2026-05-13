@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT} from '@/lib/utils'
 import {
   Plus, Edit2, Archive, X, Save, CheckCircle,
   AlertCircle, Package, Calendar, Hash, DollarSign
@@ -71,7 +71,7 @@ export default function PackagesPage() {
 
   const openCreate = () => {
     setEditingPkg(null)
-    setForm({ ...emptyForm, effective_from: new Date().toISOString().split('T')[0] })
+    setForm({ ...emptyForm, effective_from: todaySGT() })
     setShowForm(true)
     setError('')
   }

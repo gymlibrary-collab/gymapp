@@ -1,3 +1,4 @@
+import { todaySGT } from '@/lib/utils'
 // ============================================================
 // src/lib/dashboard.ts — Shared dashboard query functions
 //
@@ -74,7 +75,7 @@ export function getDaysFromToday(days: number): string {
 
 /** Returns today's date as YYYY-MM-DD string */
 export function getTodayStr(): string {
-  return new Date().toISOString().split('T')[0]
+  return todaySGT()
 }
 
 // ── Session queries ───────────────────────────────────────────

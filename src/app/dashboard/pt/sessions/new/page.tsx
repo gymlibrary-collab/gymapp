@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, cn } from '@/lib/utils'
+import { formatDate, cn, todaySGT} from '@/lib/utils'
 import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
 import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -257,7 +257,7 @@ export default function NewPtSessionPage() {
           <div>
             <label className="label">Date *</label>
             <input className="input" type="date" required value={form.scheduled_at_date}
-              min={new Date().toISOString().split('T')[0]}
+              min={todaySGT()}
               onChange={e => setForm(f => ({ ...f, scheduled_at_date: e.target.value }))} />
           </div>
           <div>

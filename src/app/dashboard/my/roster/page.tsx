@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT} from '@/lib/utils'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -24,7 +24,7 @@ export default function MyRosterPage() {
     const load = async () => {
       logActivity('page_view', 'My Roster', 'Viewed own duty roster')
 
-      const today = new Date().toISOString().split('T')[0]
+      const today = todaySGT()
       const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
       const { data } = await supabase.from('duty_roster')
@@ -103,7 +103,7 @@ export default function MyRosterPage() {
                 </div>
                 <div className="divide-y divide-gray-100">
                   {weekShifts.map(shift => {
-                    const isToday = shift.shift_date === new Date().toISOString().split('T')[0]
+                    const isToday = shift.shift_date === todaySGT()
                     const isTomorrow = shift.shift_date === new Date(Date.now() + 86400000).toISOString().split('T')[0]
                     return (
                       <div key={shift.id} className={cn('p-4 flex items-center gap-3', isToday && 'bg-red-50', shift.is_locked && 'opacity-80')}>

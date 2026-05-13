@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass, getMonthName } from '@/lib/utils'
+import { formatDate, formatDateTime, formatSGD, getRoleLabel, roleBadgeClass, getMonthName, todaySGT} from '@/lib/utils'
 import { validatePhone, validateNric, validateNationality, validateHourlyRate, validateAddress, validateAll } from '@/lib/validators'
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
@@ -205,7 +205,7 @@ export default function TrainersPage() {
     checks.commissions = commissions || []
 
     // Future roster shifts
-    const today = new Date().toISOString().split('T')[0]
+    const today = todaySGT()
     const { data: roster } = await supabase.from('duty_roster')
       .select('id, shift_date, gym_id').eq('user_id', userId).gte('shift_date', today)
     checks.roster = roster || []
