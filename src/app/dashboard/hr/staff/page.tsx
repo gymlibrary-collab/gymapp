@@ -388,7 +388,7 @@ export default function TrainersPage() {
                   {/* Part-time ops staff (role=staff): multi-gym checkboxes */}
                   {createForm.employment_type === 'part_time' && createForm.role === 'staff' ? (
                     <div>
-                      <label className="label">Assign to Gym(s)</label>
+                      <label className="label">Assign to Gym(s) *</label>
                       <p className="text-xs text-gray-400 mb-1.5">Part-time ops staff can be rostered at multiple gyms and paid separately from each.</p>
                       <div className="space-y-1.5">{gyms.map(g => <label key={g.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={createForm.gym_ids.includes(g.id)} onChange={() => toggleGym(g.id, 'create')} className="rounded border-gray-300 text-red-600" /><span className="text-sm text-gray-700">{g.name}</span></label>)}</div>
                     </div>
@@ -437,7 +437,7 @@ export default function TrainersPage() {
                   {/* Part-time ops staff (role=staff): multi-gym checkboxes */}
                   {(editForm as any).employment_type === 'part_time' && editForm.role === 'staff' ? (
                     <div>
-                      <label className="label">Gym Assignments</label>
+                      <label className="label">Gym Assignments *</label>
                       <p className="text-xs text-gray-400 mb-1.5">Part-time ops staff can be rostered at multiple gyms and paid separately from each.</p>
                       <div className="space-y-1.5">{gyms.map(g => <label key={g.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={(editForm as any).gym_ids.includes(g.id)} onChange={() => toggleGym(g.id, 'edit')} className="rounded border-gray-300 text-red-600" /><span className="text-sm text-gray-700">{g.name}</span></label>)}</div>
                     </div>
