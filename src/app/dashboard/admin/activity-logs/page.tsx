@@ -228,7 +228,7 @@ export default function ActivityLogsPage() {
 
   const dayCount = Math.round((new Date(filterDateTo).getTime() - new Date(filterDateFrom).getTime()) / 86400000) + 1
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading) return <PageSpinner />
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] gap-4">

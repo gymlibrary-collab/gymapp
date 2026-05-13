@@ -114,7 +114,7 @@ export default function MyLeavePage() {
     load().finally(() => setDataLoading(false))
   }
 
-  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <PageSpinner />
   if (!user) return null
 
   const calcDays = (start: string, end: string, isHalfDay: boolean) => {
@@ -442,4 +442,3 @@ export default function MyLeavePage() {
     </div>
   )
 }
-  

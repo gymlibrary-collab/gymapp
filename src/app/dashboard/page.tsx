@@ -58,9 +58,7 @@ export default function DashboardPage() {
   }, [isActingAsTrainer])
 
   if (loading || !user) return (
-    <div className="flex items-center justify-center h-48">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600" />
-    </div>
+    <PageSpinner size="lg" />
   )
 
   const isAdmin    = user.role === 'admin'

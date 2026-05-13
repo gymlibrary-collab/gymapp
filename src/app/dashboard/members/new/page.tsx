@@ -106,7 +106,7 @@ export default function RegisterMemberPage() {
     load().finally(() => setDataLoading(false))
   }, [user])
 
-  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <PageSpinner />
   if (!user) return null
 
   const handleCreateMember = async (e: React.FormEvent) => {
@@ -122,7 +122,7 @@ export default function RegisterMemberPage() {
     // Check membership number uniqueness if provided
     if (memberForm.membership_number) {
       const { data: existing } = await supabase.from('members')
-        .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).maybeSingle()
+        .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).single()
       if (existing) { setError('This membership number is already registered at this gym'); return }
     }
 
@@ -131,7 +131,7 @@ export default function RegisterMemberPage() {
       const { data: dupPhone } = await supabase.from('members')
         .select('id, full_name, membership_number, gym:gyms(name)')
         .eq('phone', memberForm.phone)
-        .maybeSingle()
+        .single()
       if (dupPhone) {
         setDuplicateWarning(dupPhone)
         return

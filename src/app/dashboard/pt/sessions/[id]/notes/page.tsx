@@ -130,7 +130,7 @@ export default function PtSessionNotesPage() {
 
     // Queue WhatsApp to manager
     const { data: gymManager } = await supabase.from('users')
-      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').maybeSingle()
+      .select('phone, full_name').eq('manager_gym_id', session.gym_id).eq('role', 'manager').single()
     const renewalNote = renewalStatus === 'not_renewing'
       ? ` Member has indicated they will NOT be renewing. Reason: ${finalReason()}`
       : renewalStatus === 'renewed' ? ' Member has renewed their package.' : ''
@@ -186,9 +186,7 @@ export default function PtSessionNotesPage() {
   }
 
   if (!session || !user) return (
-    <div className="flex items-center justify-center h-48">
-      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
-    </div>
+    <PageSpinner />
   )
 
   const locked = isLocked()

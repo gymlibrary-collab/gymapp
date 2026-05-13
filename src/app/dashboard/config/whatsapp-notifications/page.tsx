@@ -101,9 +101,7 @@ export default function WhatsAppNotificationsPage() {
   const enabledCount = configs.filter(c => c.is_enabled).length
 
   if (loading) return (
-    <div className="flex items-center justify-center h-48">
-      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
-    </div>
+    <PageSpinner />
   )
 
   return (

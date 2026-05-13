@@ -221,9 +221,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center h-48">
-      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
-    </div>
+    <PageSpinner />
   )
 
   const todayStr = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })

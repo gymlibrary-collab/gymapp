@@ -11,9 +11,7 @@ export default function GuidePage() {
   useEffect(() => { if (!user) return; logActivity('page_view', 'User Guide', 'Viewed Admin user guide') }, [user])
 
   if (loading || !user) return (
-    <div className="flex items-center justify-center h-48">
-      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
-    </div>
+    <PageSpinner />
   )
 
   const sections = [
