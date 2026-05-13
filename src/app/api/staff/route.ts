@@ -30,11 +30,17 @@ export async function POST(request: NextRequest) {
     if (role === 'trainer' && body.employment_type === 'part_time') {
       return NextResponse.json({ error: 'Trainers must be full-time employees' }, { status: 400 })
     }
-    // Part-time ops staff must be assigned to at least one gym
-    if (role === 'staff' && body.employment_type === 'part_time') {
-      const assignedGyms = gym_ids || []
-      if (assignedGyms.length === 0) {
-        return NextResponse.json({ error: 'Part-time staff must be assigned to at least one gym' }, { status: 400 })
+    // Gym assignment mandatory for all non-admin, non-biz-ops roles
+    if (!['admin', 'business_ops'].includes(role)) {
+      const isPartTimeStaff = role === 'staff' && body.employment_type === 'part_time'
+      if (isPartTimeStaff) {
+        if (!gym_ids || gym_ids.length === 0) {
+          return NextResponse.json({ error: 'Part-time staff must be assigned to at least one gym' }, { status: 400 })
+        }
+      } else {
+        if (!body.gym_id) {
+          return NextResponse.json({ error: 'Please select an assigned gym' }, { status: 400 })
+        }
       }
     }
     if (!nickname?.trim()) {

@@ -135,10 +135,17 @@ export default function TrainersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
-    // Part-time ops staff must have at least one gym assigned
-    if (createForm.role === 'staff' && createForm.employment_type === 'part_time') {
-      if (!createForm.gym_ids || createForm.gym_ids.length === 0) {
-        setError('Please assign at least one gym for this part-time staff member'); return
+    // Gym assignment — mandatory for all non-admin, non-biz-ops roles
+    if (!['admin', 'business_ops'].includes(createForm.role)) {
+      const isPartTimeStaff = createForm.employment_type === 'part_time' && createForm.role === 'staff'
+      if (isPartTimeStaff) {
+        if (!createForm.gym_ids || createForm.gym_ids.length === 0) {
+          setError('Please assign at least one gym for this part-time staff member'); return
+        }
+      } else {
+        if (!(createForm as any).gym_id) {
+          setError('Please select an assigned gym'); return
+        }
       }
     }
     const err = validateAll([
