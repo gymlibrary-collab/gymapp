@@ -27,6 +27,7 @@ export default function RegisterMemberPage() {
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null)
   const [confirmedDuplicate, setConfirmedDuplicate] = useState(false)
   const [dataLoading, setDataLoading] = useState(true)
+  const [noActiveShift, setNoActiveShift] = useState(false)
   const [createdMemberId, setCreatedMemberId] = useState<string | null>(null)
 
   const [memberForm, setMemberForm] = useState({
@@ -51,27 +52,17 @@ export default function RegisterMemberPage() {
       const { data: gymsData } = await supabase.from('gyms').select('*').eq('is_active', true).order('name')
       setGyms(gymsData || [])
 
-      // Load global types + gym-specific types for this gym
-      const gymId = user!.manager_gym_id || null
-      let typesQ = supabase.from('membership_types').select('*').eq('is_active', true).order('price_sgd')
-      if (gymId) {
-        typesQ = typesQ.or(`gym_id.is.null,gym_id.eq.${gymId}`)
-      } else {
-        typesQ = typesQ.is('gym_id', null)
-      }
-      const { data: typesData } = await typesQ
-      setMembershipTypes(typesData || [])
-      setDataLoading(false)
-
       // Use per-staff membership commission rate, not global config
       setCommissionPct((user as any)?.membership_commission_sgd || 0)
 
       // Auto-detect gym — lock field for manager/staff/trainer, show dropdown only for biz_ops
+      let resolvedGymId: string | null = null
       if (user?.manager_gym_id) {
         // Manager/full-time staff: use assigned gym
-        const gym = gymsData?.find((g: any) => g.id === user!.manager_gym_id)
-        setMemberForm(f => ({ ...f, gym_id: user!.manager_gym_id ?? '' }))
-        setGymName(gym?.name || user!.manager_gym_id)
+        resolvedGymId = user!.manager_gym_id
+        const gym = gymsData?.find((g: any) => g.id === resolvedGymId)
+        setMemberForm(f => ({ ...f, gym_id: resolvedGymId ?? '' }))
+        setGymName(gym?.name || resolvedGymId || '')
         setGymLocked(true)
       } else if (user?.role === 'trainer') {
         // Trainer: get first assigned gym (any gym in trainer_gyms)
@@ -82,40 +73,72 @@ export default function RegisterMemberPage() {
           .limit(1)
         const tg = tgs?.[0]
         if (tg?.gym_id) {
+          resolvedGymId = tg.gym_id
           setMemberForm(f => ({ ...f, gym_id: tg.gym_id }))
           setGymName((tg.gyms as any)?.name || tg.gym_id)
           setGymLocked(true)
         } else if (gymsData?.length === 1) {
+          resolvedGymId = gymsData[0].id
           setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
           setGymName(gymsData[0].name)
           setGymLocked(true)
         }
       } else if (user?.employment_type === 'part_time') {
-        // Part-timer: look up today's or next upcoming roster shift
-        const today = new Date().toISOString().split('T')[0]
-        const { data: rosterShift } = await supabase.from('duty_roster')
+        // Part-timer: check if currently within an active rostered shift
+        // Use Singapore timezone (UTC+8) for accurate date/time comparison
+        const today = todaySGT()
+        const currentTime = currentTimeSGT()
+        const { data: activeShift } = await supabase.from('duty_roster')
           .select('gym_id, gyms:gym_id(name)')
           .eq('user_id', user!.id)
-          .gte('shift_date', today)
-          .order('shift_date', { ascending: true })
+          .eq('shift_date', today)
+          .lte('shift_start', currentTime)
+          .gte('shift_end', currentTime)
           .limit(1)
           .maybeSingle()
-        if (rosterShift?.gym_id) {
-          setMemberForm(f => ({ ...f, gym_id: rosterShift.gym_id }))
-          setGymName((rosterShift.gyms as any)?.name || '')
+        if (activeShift?.gym_id) {
+          resolvedGymId = activeShift.gym_id
+          setMemberForm(f => ({ ...f, gym_id: activeShift.gym_id }))
+          setGymName((activeShift.gyms as any)?.name || '')
           setGymLocked(true)
+        } else {
+          // No active shift right now — block membership sales
+          setNoActiveShift(true)
         }
-        // If no roster found — fall back to dropdown (gymName stays empty = show dropdown)
       } else if (gymsData?.length === 1) {
+        resolvedGymId = gymsData[0].id
         setMemberForm(f => ({ ...f, gym_id: gymsData[0].id }))
         setGymName(gymsData[0].name)
         setGymLocked(true)
       }
+
+      // Load membership types AFTER gym is resolved — global + gym-specific for detected gym
+      let typesQ = supabase.from('membership_types').select('*').eq('is_active', true).order('price_sgd')
+      if (resolvedGymId) {
+        typesQ = typesQ.or(`gym_id.is.null,gym_id.eq.${resolvedGymId}`)
+      } else {
+        typesQ = typesQ.is('gym_id', null)
+      }
+      const { data: typesData } = await typesQ
+      setMembershipTypes(typesData || [])
     }
     load().finally(() => setDataLoading(false))
   }, [user])
 
   if (loading || dataLoading) return <PageSpinner />
+
+  if (noActiveShift) return (
+    <div className="max-w-lg">
+      <div className="card p-6 text-center space-y-3">
+        <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
+          <span className="text-2xl">🕐</span>
+        </div>
+        <h2 className="font-semibold text-gray-900">No Active Shift</h2>
+        <p className="text-sm text-gray-500">You don't have an active rostered shift right now. Membership sales are only available during your scheduled shift hours.</p>
+        <p className="text-xs text-gray-400">If you believe this is an error, please contact your manager to check your roster.</p>
+      </div>
+    </div>
+  )
   if (!user) return null
 
   const handleCreateMember = async (e: React.FormEvent) => {
