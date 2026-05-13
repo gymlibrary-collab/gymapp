@@ -23,6 +23,7 @@ export default function MembersPage() {
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const { isActingAsTrainer } = useViewMode()
+  const isBizOps = user?.role === 'business_ops'
 
 
   useEffect(() => {
