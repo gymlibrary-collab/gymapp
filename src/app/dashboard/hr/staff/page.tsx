@@ -1,4 +1,4 @@
-'use client'
+\'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -774,11 +774,9 @@ function CommissionFields({ form, setF }: { form: any; setF: any }) {
       <p className="text-xs font-medium text-gray-700">Commission Rates</p>
       <div className="grid grid-cols-3 gap-2">
         <div><label className="label text-xs">Membership (SGD)</label><input className="input" type="number" min="0" step="0.01" value={form.membership_commission_sgd} onChange={e => setF((f: any) => ({ ...f, membership_commission_sgd: e.target.value }))} /></div>
+        <div><label className="label text-xs">PT Sign-up %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_signup_pct} onChange={e => setF((f: any) => ({ ...f, commission_signup_pct: e.target.value }))} /></div>
         {(form.role === 'trainer' || (form.role === 'manager' && form.is_also_trainer)) && (
-          <>
-            <div><label className="label text-xs">PT Sign-up %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_signup_pct} onChange={e => setF((f: any) => ({ ...f, commission_signup_pct: e.target.value }))} /></div>
-            <div><label className="label text-xs">PT Session %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_session_pct} onChange={e => setF((f: any) => ({ ...f, commission_session_pct: e.target.value }))} /></div>
-          </>
+          <div><label className="label text-xs">PT Session %</label><input className="input" type="number" min="0" max="100" step="0.5" value={form.commission_session_pct} onChange={e => setF((f: any) => ({ ...f, commission_session_pct: e.target.value }))} /></div>
         )}
       </div>
     </div>
