@@ -53,6 +53,7 @@ export default function CronLogsPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dates, setDates] = useState<string[]>([])
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'daily' | 'reminder'>('all')
   const supabase = createClient()
 
   const load = async () => {
@@ -85,11 +86,13 @@ export default function CronLogsPage() {
   if (loading || !user) return null
 
   // Filter logs for selected date
-  const filteredLogs = logs.filter((l: any) =>
-    new Date(l.started_at).toLocaleDateString('en-SG', {
+  const filteredLogs = logs.filter((l: any) => {
+    const dateMatch = new Date(l.started_at).toLocaleDateString('en-SG', {
       timeZone: 'Asia/Singapore', year: 'numeric', month: '2-digit', day: '2-digit'
     }) === selectedDate
-  )
+    const sourceMatch = sourceFilter === 'all' || (l.source || 'daily') === sourceFilter
+    return dateMatch && sourceMatch
+  })
 
   // Sort by job order for the selected date
   const sortedLogs = [...filteredLogs].sort((a, b) => {
@@ -116,6 +119,20 @@ export default function CronLogsPage() {
           <RefreshCw className="w-4 h-4" />
           Refresh
         </button>
+      </div>
+
+      {/* Source filter tabs */}
+      <div className="flex gap-2">
+        {(['all', 'daily', 'reminder'] as const).map(s => (
+          <button key={s} onClick={() => setSourceFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              sourceFilter === s
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            {s === 'all' ? 'All' : s === 'daily' ? 'Daily' : 'Reminders'}
+          </button>
+        ))}
       </div>
 
       {/* Date tabs */}
