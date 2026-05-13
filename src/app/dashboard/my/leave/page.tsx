@@ -163,10 +163,8 @@ export default function MyLeavePage() {
     }
 
     const lt = getEntitlement(form.leave_type)
-    if (lt.notSet && form.leave_type === 'annual') {
-      setError('Your leave entitlement has not been configured. Please contact Business Operations.')
-      setSaving(false); return
-    }
+    // Note: if leave_entitlement_days is null, treat as 0 — balance check below handles it
+    // Biz Ops accounts may not have entitlement configured — they should still see the form
     if (days > lt.available) {
       setError(`Insufficient ${LEAVE_TYPES.find(t => t.value === form.leave_type)?.label} balance. You have ${lt.available} day${lt.available !== 1 ? 's' : ''} available.`)
       setSaving(false); return
@@ -369,70 +367,73 @@ export default function MyLeavePage() {
         ) : (
           <div className="divide-y divide-gray-100">
             {applications.map(a => (
-              <div key={a.id} className="p-4 flex items-start gap-3">
-                {statusIcon(a.status)}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium text-gray-900">
-                      {LEAVE_TYPES.find(t => t.value === a.leave_type)?.label}
+              <div key={a.id}>
+                <div className="p-4 flex items-start gap-3">
+                  {statusIcon(a.status)}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-gray-900">
+                        {LEAVE_TYPES.find(t => t.value === a.leave_type)?.label}
+                      </p>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+                        a.status === 'approved' ? 'bg-green-100 text-green-700' :
+                        a.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}>
+                        {a.status}
+                      </span>
+                      {a.escalated_to_biz_ops && a.status === 'pending' && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Escalated to Biz Ops</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {formatDate(a.start_date)} — {formatDate(a.end_date)} ·
+                      {a.is_half_day ? ` ${a.half_day_period} (0.5 day)` : ` ${a.days_applied} day${a.days_applied !== 1 ? 's' : ''}`}
                     </p>
-                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
-                      a.status === 'approved' ? 'bg-green-100 text-green-700' :
-                      a.status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700')}>
-                      {a.status}
-                    </span>
-                    {a.escalated_to_biz_ops && a.status === 'pending' && (
-                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Escalated to Biz Ops</span>
-                    )}
+                    {a.reason && <p className="text-xs text-gray-400 mt-0.5">{a.reason}</p>}
+                    {a.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Reason: {a.rejection_reason}</p>}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {formatDate(a.start_date)} — {formatDate(a.end_date)} ·
-                    {a.is_half_day ? ` ${a.half_day_period} (0.5 day)` : ` ${a.days_applied} day${a.days_applied !== 1 ? 's' : ''}`}
-                  </p>
-                  {a.reason && <p className="text-xs text-gray-400 mt-0.5">{a.reason}</p>}
-                  {a.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Reason: {a.rejection_reason}</p>}
+                  {a.status === 'pending' && (
+                    <button onClick={() => handleCancel(a.id)}
+                      className="btn-secondary text-xs py-1 px-2 flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50">
+                      Withdraw
+                    </button>
+                  )}
+                  {a.status === 'approved' && new Date(a.start_date) >= new Date(new Date().toISOString().split('T')[0]) && (
+                    <button onClick={() => { setWithdrawId(a.id); setWithdrawReason('') }}
+                      className="btn-secondary text-xs py-1 px-2 flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50">
+                      Request Withdrawal
+                    </button>
+                  )}
+                  {a.status === 'withdrawal_requested' && (
+                    <span className="text-xs text-blue-600 font-medium flex-shrink-0">Awaiting acknowledgement</span>
+                  )}
                 </div>
-                {a.status === 'pending' && (
-                  <button onClick={() => handleCancel(a.id)}
-                    className="text-xs text-red-500 hover:underline flex-shrink-0">Withdraw</button>
-                )}
-                {a.status === 'approved' && new Date(a.start_date) >= new Date(new Date().toISOString().split('T')[0]) && (
-                  <button onClick={() => { setWithdrawId(a.id); setWithdrawReason('') }}
-                    className="btn-secondary text-xs py-1 px-2 flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50">
-                    Request Withdrawal
-                  </button>
-                )}
-                {a.status === 'withdrawal_requested' && (
-                  <span className="text-xs text-blue-600 font-medium flex-shrink-0">Awaiting acknowledgement</span>
+                {withdrawId === a.id && (
+                  <div className="mx-4 mb-3 p-3 bg-red-50 border border-red-100 rounded-xl space-y-3">
+                    <p className="text-xs text-gray-600 font-medium">Request Leave Withdrawal</p>
+                    <p className="text-xs text-gray-500">Your leave balance will be restored immediately. Your manager will be notified.</p>
+                    <div>
+                      <label className="label">Reason for withdrawal *</label>
+                      <textarea className="input" rows={2} value={withdrawReason}
+                        onChange={e => setWithdrawReason(e.target.value)}
+                        placeholder="e.g. Plans changed, no longer required" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={handleWithdraw}
+                        disabled={withdrawSaving || !withdrawReason.trim()}
+                        className="btn-primary text-xs py-1.5 flex-1 disabled:opacity-40">
+                        {withdrawSaving ? 'Submitting...' : 'Submit Withdrawal'}
+                      </button>
+                      <button onClick={() => { setWithdrawId(null); setWithdrawReason('') }}
+                        className="btn-secondary text-xs py-1.5 flex-1">Cancel</button>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
           </div>
         )}
       </div>
-      {withdrawId && (
-        <div className="card p-4 space-y-3 border-red-100 bg-red-50">
-          <h3 className="font-semibold text-gray-900 text-sm">Request Leave Withdrawal</h3>
-          <p className="text-xs text-gray-600">
-            Your leave balance will be restored immediately. Your manager will be notified to acknowledge.
-          </p>
-          <div>
-            <label className="label">Reason for withdrawal *</label>
-            <textarea className="input" rows={3} value={withdrawReason}
-              onChange={e => setWithdrawReason(e.target.value)}
-              placeholder="e.g. Plans changed, no longer required" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={handleWithdraw}
-              disabled={withdrawSaving || !withdrawReason.trim()}
-              className="btn-primary flex-1 disabled:opacity-40">
-              {withdrawSaving ? 'Submitting...' : 'Submit Withdrawal'}
-            </button>
-            <button onClick={() => { setWithdrawId(null); setWithdrawReason('') }}
-              className="btn-secondary flex-1">Cancel</button>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }
