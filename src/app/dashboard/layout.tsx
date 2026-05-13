@@ -142,6 +142,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setCollapsedSections(prev => ({ ...prev, [label]: !prev[label] }))
   }
 
+  const [showWarning, setShowWarning] = useState(false)
+  const [countdown, setCountdown] = useState(60)
+  const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(10)
+  const [viewMode, setViewMode] = useState<ViewMode>('manager')
+  const [initError, setInitError] = useState<string | null>(null)
+  const [appName, setAppName] = useState('GymApp')
+
+  const router = useRouter()
+  const pathname = usePathname()
   // Auto-expand section containing the active page
   useEffect(() => {
     if (user?.role !== 'business_ops') return
@@ -157,15 +166,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
   }, [pathname, user?.role])
-  const [showWarning, setShowWarning] = useState(false)
-  const [countdown, setCountdown] = useState(60)
-  const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(10)
-  const [viewMode, setViewMode] = useState<ViewMode>('manager')
-  const [initError, setInitError] = useState<string | null>(null)
-  const [appName, setAppName] = useState('GymApp')
-
-  const router = useRouter()
-  const pathname = usePathname()
   const supabase = createClient()
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownTimerRef  = useRef<ReturnType<typeof setInterval> | null>(null)
