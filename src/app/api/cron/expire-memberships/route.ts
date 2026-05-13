@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       ...(cancelled || []).map((m: any) => m.member_id),
       ...(expired || []).map((m: any) => m.member_id),
     ]
-    const uniqueIds = [...new Set(affectedMemberIds)]
+    const uniqueIds = affectedMemberIds.filter((id, idx, arr) => arr.indexOf(id) === idx)
 
     let deactivatedCount = 0
     for (const memberId of uniqueIds) {
