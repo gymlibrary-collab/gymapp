@@ -19,6 +19,8 @@ export default function MembersPage() {
   const [members, setMembers] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
+  const [gyms, setGyms] = useState<any[]>([])
+  const [selectedGym, setSelectedGym] = useState<string>('all')
   const supabase = createClient()
   const router = useRouter()
   const { logActivity } = useActivityLog()
