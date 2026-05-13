@@ -51,7 +51,15 @@ export default function RegisterMemberPage() {
       const { data: gymsData } = await supabase.from('gyms').select('*').eq('is_active', true).order('name')
       setGyms(gymsData || [])
 
-      const { data: typesData } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
+      // Load global types + gym-specific types for this gym
+      const gymId = user!.manager_gym_id || null
+      let typesQ = supabase.from('membership_types').select('*').eq('is_active', true).order('price_sgd')
+      if (gymId) {
+        typesQ = typesQ.or(`gym_id.is.null,gym_id.eq.${gymId}`)
+      } else {
+        typesQ = typesQ.is('gym_id', null)
+      }
+      const { data: typesData } = await typesQ
       setMembershipTypes(typesData || [])
       setDataLoading(false)
 
@@ -91,7 +99,7 @@ export default function RegisterMemberPage() {
           .gte('shift_date', today)
           .order('shift_date', { ascending: true })
           .limit(1)
-          .single()
+          .maybeSingle()
         if (rosterShift?.gym_id) {
           setMemberForm(f => ({ ...f, gym_id: rosterShift.gym_id }))
           setGymName((rosterShift.gyms as any)?.name || '')
@@ -123,7 +131,7 @@ export default function RegisterMemberPage() {
     // Check membership number uniqueness if provided
     if (memberForm.membership_number) {
       const { data: existing } = await supabase.from('members')
-        .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).single()
+        .select('id').eq('gym_id', memberForm.gym_id).eq('membership_number', memberForm.membership_number).maybeSingle()
       if (existing) { setError('This membership number is already registered at this gym'); return }
     }
 
@@ -132,7 +140,7 @@ export default function RegisterMemberPage() {
       const { data: dupPhone } = await supabase.from('members')
         .select('id, full_name, membership_number, gym:gyms(name)')
         .eq('phone', memberForm.phone)
-        .single()
+        .maybeSingle()
       if (dupPhone) {
         setDuplicateWarning(dupPhone)
         return
@@ -148,7 +156,7 @@ export default function RegisterMemberPage() {
       date_of_birth: memberForm.date_of_birth || null,
       health_notes: memberForm.health_notes || null,
       created_by: authUser!.id,
-    }).select().single()
+    }).select().maybeSingle()
 
     if (insertErr) { setError(insertErr.message); return }
     setCreatedMemberId(data.id)

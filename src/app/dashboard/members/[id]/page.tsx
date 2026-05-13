@@ -73,7 +73,7 @@ export default function MemberProfilePage() {
   const load = async () => {
     logActivity('page_view', 'Member Profile', 'Viewed member profile')
 
-    const { data: m } = await supabase.from('members').select('*, gym:gyms(name)').eq('id', id).single()
+    const { data: m } = await supabase.from('members').select('*, gym:gyms(name)').eq('id', id).maybeSingle()
     setMember(m)
     if (m) setEditForm({
       full_name: m.full_name, phone: m.phone, email: m.email || '',
@@ -95,14 +95,22 @@ export default function MemberProfilePage() {
         .select('*')
         .eq('gym_membership_id', activeMem.id)
         .eq('status', 'pending')
-        .single()
+        .maybeSingle()
       setCancellationRequest(cancelReq || null)
     } else {
       setCancellationRequest(null)
     }
 
     // Load membership types for renewal form
-    const { data: memTypes } = await supabase.from('membership_types').select('*').eq('is_active', true).order('name')
+    // Load global types + gym-specific types for this gym
+    const memGymId = member?.gym_id || null
+    let memTypesQ = supabase.from('membership_types').select('*').eq('is_active', true).order('price_sgd')
+    if (memGymId) {
+      memTypesQ = memTypesQ.or(`gym_id.is.null,gym_id.eq.${memGymId}`)
+    } else {
+      memTypesQ = memTypesQ.is('gym_id', null)
+    }
+    const { data: memTypes } = await memTypesQ
     setMembershipTypes(memTypes || [])
 
     // Load packages then auto-expire stale ones
