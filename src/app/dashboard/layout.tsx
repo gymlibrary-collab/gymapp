@@ -41,7 +41,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/hr/staff', label: 'Staff Management', icon: Users },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
-  { href: '/dashboard/pt/packages', label: 'PT Package Templates', icon: Package },
+  { href: '/dashboard/pt/packages', label: 'PT Packages', icon: Package },
   { href: '/dashboard/config/public-holidays', label: 'Public Holidays', icon: CalendarDays },
   { label: 'Configuration', header: true, collapsible: true },
   { href: '/dashboard/config/gyms', label: 'Gym Clubs', icon: Building2 },
@@ -374,7 +374,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 return (
                   <button key={i} onClick={() => toggleSection(item.label)}
                     className="w-full flex items-center justify-between px-3 pt-3 pb-1 group">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{item.label}</p>
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wider">{item.label}</p>
                     <ChevronRight className={cn('w-3 h-3 text-gray-400 transition-transform flex-shrink-0', isCollapsed ? '' : 'rotate-90')} />
                   </button>
                 )

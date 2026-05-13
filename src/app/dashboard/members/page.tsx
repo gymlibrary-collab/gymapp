@@ -94,6 +94,12 @@ export default function MembersPage() {
       </div>
 
       <div className="card p-3 flex flex-col sm:flex-row gap-2">
+        {isBizOps && gyms.length > 0 && (
+          <select className="input sm:w-48 flex-shrink-0" value={selectedGym} onChange={e => setSelectedGym(e.target.value)}>
+            <option value="all">All Gyms</option>
+            {gyms.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        )}
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input className="input pl-9" placeholder="Search by name, phone or membership no..." value={search} onChange={e => setSearch(e.target.value)} />

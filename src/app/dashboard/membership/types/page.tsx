@@ -59,6 +59,16 @@ export default function MembershipTypesPage() {
   }
 
   const toggleActive = async (type: any) => {
+    // Block deactivation if active memberships exist using this type
+    if (type.is_active) {
+      const { count } = await supabase.from('gym_memberships')
+        .select('id', { count: 'exact', head: true })
+        .eq('membership_type_id', type.id).eq('status', 'active').eq('sale_status', 'confirmed')
+      if ((count || 0) > 0) {
+        setError(`Cannot deactivate — ${count} active membership${count === 1 ? '' : 's'} currently use this type. Wait until they expire before deactivating.`)
+        return
+      }
+    }
     await supabase.from('membership_types').update({ is_active: !type.is_active }).eq('id', type.id)
     await load(); logActivity('update', 'Membership Types', type.is_active ? 'Deactivated membership type' : 'Activated membership type')
     showMsg(type.is_active ? 'Membership type deactivated' : 'Membership type activated')

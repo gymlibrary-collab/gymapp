@@ -33,7 +33,7 @@ const emptyForm = {
 
 export default function PackagesPage() {
 
-  const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [packages, setPackages] = useState<PackageTemplate[]>([])
   const [archived, setArchived] = useState<PackageTemplate[]>([])
@@ -124,7 +124,15 @@ export default function PackagesPage() {
   }
 
   const handleArchive = async (pkg: PackageTemplate) => {
-    if (!confirm(`Archive "${pkg.name}"?\n\nExisting members with this package will not be affected — their sessions continue normally.`)) return
+    // Block archiving if active packages exist using this template
+    const { count } = await supabase.from('packages')
+      .select('id', { count: 'exact', head: true })
+      .eq('package_template_id', pkg.id).eq('status', 'active').eq('manager_confirmed', true)
+    if ((count || 0) > 0) {
+      setError(`Cannot archive — ${count} active PT package${count === 1 ? '' : 's'} currently use this template. Wait until they are completed or expired before archiving.`)
+      return
+    }
+    if (!confirm(`Archive "${pkg.name}"?\n\nNo active packages are using this template.`)) return
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('package_templates').update({
       is_archived: true,
@@ -134,7 +142,7 @@ export default function PackagesPage() {
     }).eq('id', pkg.id)
     await loadPackages()
     logActivity('update', 'PT Package Templates', 'Archived PT package template')
-    showMsg(`"${pkg.name}" archived — existing member packages unaffected`)
+    showMsg(`"${pkg.name}" archived`)
   }
 
   const handleUnarchive = async (pkg: PackageTemplate) => {
