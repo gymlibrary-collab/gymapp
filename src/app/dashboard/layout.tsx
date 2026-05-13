@@ -249,8 +249,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name, logo_url)').eq('trainer_id', session.user.id).eq('is_primary', true).maybeSingle()
           if (tg && (tg as any).gyms) { setSidebarLogo((tg as any).gyms.logo_url ? (tg as any).gyms.logo_url + '?t=' + Date.now() : null); setGymName((tg as any).gyms.name) }
         } else {
-          const { data: gyms } = await supabase.from('gyms').select('name, logo_url').eq('is_active', true).limit(1)
-          if (gyms?.[0]) { setSidebarLogo(gyms[0].logo_url ? gyms[0].logo_url + '?t=' + Date.now() : null); setGymName(gyms[0].name) }
+          // Biz Ops belongs to HQ — use the same app-level logo as Admin
+          setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null)
+          setGymName(settings?.app_name || 'HQ')
         }
         startInactivityTimer()
         ACTIVITY_EVENTS.forEach(e => window.addEventListener(e, handleActivity, { passive: true }))
