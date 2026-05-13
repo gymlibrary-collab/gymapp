@@ -29,6 +29,8 @@ const adminNav: NavItem[] = [
 
 const bizOpsNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/pt/package-sales', label: 'PT Package Sales', icon: Package },
+  { href: '/dashboard/pt/sessions', label: 'PT Session Notes', icon: Calendar },
   { label: 'HR & Payroll', header: true },
   { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
   { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
@@ -40,8 +42,6 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/membership/types', label: 'Membership Types', icon: Layers },
   { href: '/dashboard/pt/packages', label: 'PT Package Templates', icon: Package },
-  { href: '/dashboard/pt/package-sales', label: 'PT Package Sales', icon: Package },
-  { href: '/dashboard/pt/sessions', label: 'PT Session Notes', icon: Calendar },
   { href: '/dashboard/config/public-holidays', label: 'Public Holidays', icon: CalendarDays },
   { label: 'Configuration', header: true },
   { href: '/dashboard/config/gyms', label: 'Gym Clubs', icon: Building2 },
