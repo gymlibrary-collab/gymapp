@@ -79,7 +79,7 @@ export default function ReportsPage() {
         const { count: activeCnt } = await supabase.from('gym_memberships').select('id',{count:'exact',head:true}).eq('gym_id',g.id).eq('status','active').eq('sale_status','confirmed')
         const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',g.id)
         const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',g.id)
-        const sIds = [...new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)])]
+        const sIds = Array.from(new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)]))
         let payroll = 0
         if (sIds.length > 0) {
           const { data: pays } = await supabase.from('payslips').select('gross_salary,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid']).in('user_id',sIds)
@@ -109,18 +109,18 @@ export default function ReportsPage() {
     let actMemQ = supabase.from('gym_memberships').select('member_id').eq('status','active').eq('sale_status','confirmed')
     if (gymId) actMemQ = actMemQ.eq('gym_id',gymId)
     const { data: activeMem } = await actMemQ
-    const activeMemberIds = new Set((activeMem||[]).map((m:any)=>m.member_id))
+    const activeMemberIds: Set<string> = new Set((activeMem||[]).map((m:any)=>m.member_id))
 
     let actPkgQ = supabase.from('packages').select('member_id,secondary_member_id').eq('status','active').eq('manager_confirmed',true)
     if (gymId) actPkgQ = actPkgQ.eq('gym_id',gymId)
     const { data: activePkgs } = await actPkgQ
-    const activePkgIds = new Set<string>()
+    const activePkgIds: Set<string> = new Set()
     ;(activePkgs||[]).forEach((p:any)=>{ if(p.member_id) activePkgIds.add(p.member_id); if(p.secondary_member_id) activePkgIds.add(p.secondary_member_id) })
 
-    const bothIds    = [...activeMemberIds].filter(id=>activePkgIds.has(id))
-    const memOnlyIds = [...activeMemberIds].filter(id=>!activePkgIds.has(id))
-    const pkgOnlyIds = [...activePkgIds].filter(id=>!activeMemberIds.has(id))
-    const totalActive = new Set([...activeMemberIds,...activePkgIds]).size
+    const bothIds    = Array.from(activeMemberIds).filter((id:string)=>activePkgIds.has(id))
+    const memOnlyIds = Array.from(activeMemberIds).filter((id:string)=>!activePkgIds.has(id))
+    const pkgOnlyIds = Array.from(activePkgIds).filter((id:string)=>!activeMemberIds.has(id))
+    const totalActive = new Set([...Array.from(activeMemberIds),...Array.from(activePkgIds)]).size
 
     // PT packages
     let ptQ = supabase.from('packages').select('id,trainer_id,member_id,secondary_member_id,total_price_sgd,signup_commission_sgd,signup_commission_paid').eq('manager_confirmed',true).gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
@@ -163,7 +163,7 @@ export default function ReportsPage() {
     if (gymId) {
       const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',gymId)
       const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',gymId)
-      sIds = [...new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)])]
+      sIds = Array.from(new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)]))
     }
     let payQ = supabase.from('payslips').select('gross_salary,employee_cpf_amount,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid'])
     if (sIds.length > 0) payQ = payQ.in('user_id',sIds)
