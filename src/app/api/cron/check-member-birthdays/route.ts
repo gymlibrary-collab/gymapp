@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
         const activePkgs = (m.packages || []).filter((p: any) => p.status === 'active' && p.manager_confirmed)
         if (activePkgs.length > 0) {
           for (const pkg of activePkgs) {
-            rows.push({ member_id: m.id, full_name: m.full_name, gym_id: m.gym_id, gym_name: m.gym?.name, date_of_birth: m.date_of_birth, age, birthday_date: todayStr, trainer_id: pkg.trainer_id, trainer_names: pkg.trainer?.nickname || pkg.trainer?.full_name?.split(' ')[0] || null, refreshed_at: now.toISOString() })
+            rows.push({ member_id: m.id, full_name: m.full_name, gym_id: m.gym_id, gym_name: (m.gym as any)?.name, date_of_birth: m.date_of_birth, age, birthday_date: todayStr, trainer_id: pkg.trainer_id, trainer_names: (pkg.trainer as any)?.nickname || (pkg.trainer as any)?.full_name?.split(' ')[0] || null, refreshed_at: now.toISOString() })
           }
         } else {
-          rows.push({ member_id: m.id, full_name: m.full_name, gym_id: m.gym_id, gym_name: m.gym?.name, date_of_birth: m.date_of_birth, age, birthday_date: todayStr, trainer_id: null, trainer_names: null, refreshed_at: now.toISOString() })
+          rows.push({ member_id: m.id, full_name: m.full_name, gym_id: m.gym_id, gym_name: (m.gym as any)?.name, date_of_birth: m.date_of_birth, age, birthday_date: todayStr, trainer_id: null, trainer_names: null, refreshed_at: now.toISOString() })
         }
       }
       await supabase.from('member_birthday_reminders').insert(rows)
