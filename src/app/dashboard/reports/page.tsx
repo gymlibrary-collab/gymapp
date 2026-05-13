@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName } from '@/lib/utils'
+import { getGymStaffIds } from '@/lib/dashboard'
 import { CreditCard, Package, Banknote, Download, Users, Building2 } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { PageSpinner } from '@/components/PageSpinner'
@@ -77,9 +78,7 @@ export default function ReportsPage() {
         const { data: pt }  = await supabase.from('packages').select('total_price_sgd,signup_commission_sgd').eq('gym_id',g.id).eq('manager_confirmed',true).neq('status','cancelled').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
         const { data: sess }= await supabase.from('sessions').select('session_commission_sgd').eq('gym_id',g.id).eq('status','completed').eq('manager_confirmed',true).eq('is_notes_complete',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
         const { count: activeCnt } = await supabase.from('gym_memberships').select('id',{count:'exact',head:true}).eq('gym_id',g.id).eq('status','active').eq('sale_status','confirmed')
-        const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',g.id)
-        const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',g.id)
-        const sIds = Array.from(new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)]))
+        const sIds = await getGymStaffIds(supabase, g.id)
         let payroll = 0
         if (sIds.length > 0) {
           const { data: pays } = await supabase.from('payslips').select('gross_salary,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid']).in('user_id',sIds)
@@ -171,12 +170,7 @@ export default function ReportsPage() {
     // Payroll — Biz Ops only
     let payslips: any[] = []
     if (isBizOps) {
-      let sIds: string[] = []
-      if (gymId) {
-        const { data: tgRows }   = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',gymId)
-        const { data: staffRows }= await supabase.from('users').select('id').eq('manager_gym_id',gymId)
-        sIds = Array.from(new Set([...(tgRows||[]).map((r:any)=>r.trainer_id),...(staffRows||[]).map((r:any)=>r.id)]))
-      }
+      const sIds = gymId ? await getGymStaffIds(supabase, gymId) : []
       let payQ = supabase.from('payslips').select('gross_salary,employee_cpf_amount,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid'])
       if (sIds.length > 0) payQ = payQ.in('user_id',sIds)
       const { data: pays } = await payQ

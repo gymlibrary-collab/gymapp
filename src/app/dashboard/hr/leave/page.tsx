@@ -3,6 +3,7 @@
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getGymStaffIds } from '@/lib/dashboard'
 import { createClient } from '@/lib/supabase-browser'
 import { formatDate , getRoleLabel } from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users, Save } from 'lucide-react'
@@ -61,25 +62,10 @@ export default function LeaveManagementPage() {
     let staffIds: string[] = []
     if (user!.role === 'manager' && user!.manager_gym_id) {
       // Manager approves: full-time trainers + ops staff at their gym
-      // Part-timers do NOT apply for leave in this system
-      const { data: opsStaff } = await supabase.from('users')
-        .select('id').eq('manager_gym_id', user!.manager_gym_id)
-        .eq('role', 'staff').neq('id', user!.id)
-      const { data: gymTrainers } = await supabase.from('trainer_gyms')
-        .select('trainer_id').eq('gym_id', user!.manager_gym_id)
-      // Full-time trainers only — filter out part-timers
-      const rawTrainerIds = (gymTrainers?.map((t: any) => t.trainer_id) || [])
-        .filter((id: string) => id !== user!.id)
-      let ftTrainerIds: string[] = []
-      if (rawTrainerIds.length > 0) {
-        const { data: ftOnly } = await supabase.from('users')
-          .select('id').in('id', rawTrainerIds)
-          .eq('role', 'trainer').eq('employment_type', 'full_time')
-        ftTrainerIds = ftOnly?.map((t: any) => t.id) || []
-      }
-      const opsIds = opsStaff?.map((s: any) => s.id) || []
+      // Build gym staff IDs using centralised helper + include manager's own
+      const gymStaffIds = await getGymStaffIds(supabase, user!.manager_gym_id!)
       // Include manager's own leave for holistic view — shown read-only
-      staffIds = Array.from(new Set([...opsIds, ...ftTrainerIds, user!.id]))
+      staffIds = Array.from(new Set([...gymStaffIds, user!.id]))
     } else if (user!.role === 'business_ops') {
       // Biz Ops approves:
       //   1. Manager leave (always)

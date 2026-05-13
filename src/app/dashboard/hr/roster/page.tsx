@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getGymStaffIds } from '@/lib/dashboard'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD } from '@/lib/utils'
@@ -77,12 +78,9 @@ export default function RosterPage() {
         .select('*').eq('gym_id', gId).eq('is_active', true).order('sort_order')
       setPresets(presetsData?.length ? presetsData : DEFAULT_PRESETS)
 
-      // Load part-timers
-      const { data: gymTrainers } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gId)
-      const tIds = gymTrainers?.map((t: any) => t.trainer_id) || []
-      let ptQ = supabase.from('users').select('*').eq('employment_type', 'part_time').eq('is_archived', false)
-      if (tIds.length > 0) ptQ = ptQ.in('id', tIds)
-      const { data: pt } = await ptQ.order('full_name')
+      // Load part-timers — shared pool, no gym scoping (all managers see all part-timers)
+      const { data: pt } = await supabase.from('users')
+        .select('*').eq('employment_type', 'part_time').eq('is_archived', false).order('full_name')
       setPartTimers(pt || [])
     }
 

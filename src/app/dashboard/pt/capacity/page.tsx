@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { getGymStaffIds } from '@/lib/dashboard'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD } from '@/lib/utils'
@@ -41,9 +42,8 @@ export default function TrainerCapacityPage() {
     // Load trainers for this gym
     let trainerQ = supabase.from('users').select('*').eq('role', 'trainer').eq('is_archived', false)
     if (user!.role === 'manager' && user!.manager_gym_id) {
-      const { data: tg } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', user!.manager_gym_id)
-      const tIds = tg?.map((t: any) => t.trainer_id) || []
-      if (tIds.length > 0) trainerQ = trainerQ.in('id', tIds)
+      const staffIds = await getGymStaffIds(supabase, user!.manager_gym_id)
+      if (staffIds.length > 0) trainerQ = trainerQ.in('id', staffIds)
     }
     const { data: trainerData } = await trainerQ.order('full_name')
 
