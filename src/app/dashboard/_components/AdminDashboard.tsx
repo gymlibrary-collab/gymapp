@@ -33,6 +33,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { Building2, Briefcase, UserCheck, Dumbbell, Calendar, Settings, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { cn, getGreeting, getDisplayName} from '@/lib/utils'
+import { PageSpinner } from '@/components/PageSpinner'
 
 // ── Helpers ───────────────────────────────────────────────────
 

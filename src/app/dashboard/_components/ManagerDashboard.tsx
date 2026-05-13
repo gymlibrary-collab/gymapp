@@ -45,6 +45,7 @@ import ManagerAlertsSection from './ManagerAlertsSection'
 import PendingConfirmationsBanner from './PendingConfirmationsBanner'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 import MemberBirthdayCard from './MemberBirthdayCard'
+import { PageSpinner } from '@/components/PageSpinner'
 import {
   getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
   fetchPayslipNotifications, dismissPayslipNotifications, fetchPendingSessionConfirmations, fetchPendingMemberships,
