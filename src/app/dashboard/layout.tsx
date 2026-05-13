@@ -24,6 +24,7 @@ const adminNav: NavItem[] = [
   { href: '/dashboard/admin/activity-logs', label: 'Activity Logs', icon: Activity },
   { href: '/dashboard/admin/cron-logs', label: 'Cron Logs', icon: Clock },
   { href: '/dashboard/admin/settings', label: 'App Settings', icon: Settings },
+  { href: '/dashboard/guide/admin', label: 'User Guide', icon: BookOpen },
 ]
 
 const bizOpsNav: NavItem[] = [
@@ -55,6 +56,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { href: '/dashboard/guide/biz-ops', label: 'User Guide', icon: BookOpen },
 ]
 
 const managerNav: NavItem[] = [
@@ -76,6 +78,7 @@ const managerNav: NavItem[] = [
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { href: '/dashboard/guide/manager', label: 'User Guide', icon: BookOpen },
 ]
 
 const trainerViewNav: NavItem[] = [
@@ -85,6 +88,7 @@ const trainerViewNav: NavItem[] = [
   { href: '/dashboard/pt/onboard', label: 'PT Onboarding', icon: Package },
   // My Account (My Leave + My Payslips) intentionally omitted in Trainer View —
   // manager-trainers manage leave and payslips from Manager View only.
+  { href: '/dashboard/guide/trainer', label: 'User Guide', icon: BookOpen },
 ]
 
 const pureTrainerNav: NavItem[] = [
@@ -96,6 +100,7 @@ const pureTrainerNav: NavItem[] = [
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { href: '/dashboard/guide/trainer', label: 'User Guide', icon: BookOpen },
 ]
 
 const partTimerNav: NavItem[] = [
@@ -105,6 +110,7 @@ const partTimerNav: NavItem[] = [
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
   // My Leave intentionally excluded — part-timers do not apply for leave in this system
+  { href: '/dashboard/guide/staff', label: 'User Guide', icon: BookOpen },
 ]
 
 const staffNav: NavItem[] = [
@@ -115,6 +121,7 @@ const staffNav: NavItem[] = [
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/leave', label: 'My Leave', icon: CalendarDays },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
+  { href: '/dashboard/guide/staff', label: 'User Guide', icon: BookOpen },
 ]
 
 const VIEW_KEY = 'gymapp_view_mode'
