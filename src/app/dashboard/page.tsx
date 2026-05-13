@@ -38,6 +38,7 @@ import BizOpsDashboard from './_components/BizOpsDashboard'
 import ManagerDashboard from './_components/ManagerDashboard'
 import TrainerDashboard from './_components/TrainerDashboard'
 import StaffDashboard from './_components/StaffDashboard'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)

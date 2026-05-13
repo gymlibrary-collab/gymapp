@@ -10,6 +10,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateAddress, validateAll } from '@/lib/validators'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { User, Phone, Shield, Globe, Calendar, MapPin, Save, CheckCircle, AlertCircle } from 'lucide-react'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MyParticularsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
@@ -32,7 +33,7 @@ export default function MyParticularsPage() {
     load()
   }, [])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading) return <PageSpinner />
   if (!user) return null
 
   const handleSave = async (e: React.FormEvent) => {

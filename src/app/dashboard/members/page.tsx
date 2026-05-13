@@ -10,6 +10,7 @@ import { Search, Plus, Users, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MembersPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })

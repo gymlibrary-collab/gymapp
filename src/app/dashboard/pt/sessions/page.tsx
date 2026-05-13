@@ -13,6 +13,7 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function PtSessionsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops', 'staff'] })

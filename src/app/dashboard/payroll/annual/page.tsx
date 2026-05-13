@@ -9,6 +9,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { FileText, Download, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function AnnualStatementPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })

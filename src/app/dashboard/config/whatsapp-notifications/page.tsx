@@ -9,6 +9,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { MessageSquare, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 interface NotifConfig {
   id: string

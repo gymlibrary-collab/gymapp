@@ -8,6 +8,7 @@ import { formatDate, formatSGD } from '@/lib/utils'
 import { Building2, Users, UserCheck, Dumbbell, MapPin, Maximize2, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function AdminGymsPage() {
 

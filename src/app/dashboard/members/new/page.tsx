@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateFullName, validateMembershipNumber, validateAll } from '@/lib/validators'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function RegisterMemberPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'staff', 'trainer'] })

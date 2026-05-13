@@ -10,6 +10,7 @@ import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function NewPtSessionPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })

@@ -3,6 +3,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect } from 'react'
 import { BookOpen, Users, FileText, Settings, Calendar, ChevronRight } from 'lucide-react'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function GuidePage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['admin'] })

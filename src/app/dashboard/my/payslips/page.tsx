@@ -9,6 +9,7 @@ import { addLogoHeader, PDF_TABLE_STYLE, renderPayslipPdf, renderCommissionPdf }
 import { FileText, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MyPayslipsPage() {
 

@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 const EDIT_WINDOW_MINUTES = 30
 
@@ -68,7 +69,7 @@ export default function PtSessionNotesPage() {
     load()
   }, [id])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading) return <PageSpinner />
   if (!user) return null
 
   // ── Is this the last session? ─────────────────────────────

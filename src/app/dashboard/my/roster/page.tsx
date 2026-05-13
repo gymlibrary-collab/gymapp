@@ -8,6 +8,7 @@ import { formatDate, formatSGD } from '@/lib/utils'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MyRosterPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })

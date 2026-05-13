@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 const LEAVE_TYPES: Record<string, string> = {
   annual: 'Annual Leave', medical: 'Medical Leave',

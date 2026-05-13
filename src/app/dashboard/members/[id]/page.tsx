@@ -15,6 +15,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { validatePhone, validateMembershipNumber, validateAll } from '@/lib/validators'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MemberProfilePage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
@@ -134,7 +135,7 @@ export default function MemberProfilePage() {
 
   useEffect(() => { load() }, [id])
 
-  if (loading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading) return <PageSpinner />
   if (!user) return null
 
   // ── Edit member ───────────────────────────────────────────

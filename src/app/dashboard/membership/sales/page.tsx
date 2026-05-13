@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MembershipSalesPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops', 'trainer', 'staff'] })
@@ -84,7 +85,7 @@ export default function MembershipSalesPage() {
 
   useEffect(() => { if (!user) return; load().finally(() => setDataLoading(false)) }, [user])
 
-  if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
+  if (loading || dataLoading) return <PageSpinner />
   if (!user) return null
 
 

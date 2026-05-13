@@ -12,6 +12,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function PayrollPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })

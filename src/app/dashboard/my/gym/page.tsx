@@ -9,6 +9,7 @@ import { Building2, MapPin, Maximize2, Calendar, ImageIcon, Upload, CheckCircle,
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MyGymPage() {
 
