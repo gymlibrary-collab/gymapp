@@ -36,6 +36,30 @@ export async function POST(request: NextRequest) {
 
     const adminClient = createAdminClient()
 
+    // ── Server-side field validation BEFORE creating auth account ──
+    // Prevents orphaned auth accounts when DB insert fails after auth creation
+    if (!full_name?.trim() || full_name.trim().length < 2) {
+      return NextResponse.json({ error: 'Full name is required (minimum 2 characters)' }, { status: 400 })
+    }
+    if (!email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'A valid email address is required' }, { status: 400 })
+    }
+    if (!phone) {
+      return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
+    }
+    if (!phone.startsWith('+')) {
+      return NextResponse.json({ error: 'Phone number must start with + (e.g. +65 9123 4567)' }, { status: 400 })
+    }
+    const phoneDigits = phone.replace(/[\s]/g, '').slice(1)
+    if (!/^\d+$/.test(phoneDigits) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+      return NextResponse.json({ error: 'Phone number must have 7–15 digits after the + prefix' }, { status: 400 })
+    }
+    // Check email not already in users table before touching auth
+    const { data: existingUser } = await adminClient.from('users').select('id').eq('email', email).maybeSingle()
+    if (existingUser) {
+      return NextResponse.json({ error: 'A staff account with this email already exists' }, { status: 400 })
+    }
+
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email, email_confirm: true, user_metadata: { full_name },
     })
@@ -69,7 +93,11 @@ export async function POST(request: NextRequest) {
       ? [currentUser.manager_gym_id] : gym_ids || []
 
     const { error: userError } = await adminClient.from('users').insert(userPayload)
-    if (userError) return NextResponse.json({ error: userError.message }, { status: 400 })
+    if (userError) {
+      // Clean up the auth account to prevent orphaned auth users
+      await adminClient.auth.admin.deleteUser(authData.user.id)
+      return NextResponse.json({ error: userError.message }, { status: 400 })
+    }
 
     // Assign trainer gyms — also for manager-trainers
     // Part-time ops staff (role='staff', employment_type='part_time') also need

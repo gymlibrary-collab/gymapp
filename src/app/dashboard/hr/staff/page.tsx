@@ -135,6 +135,36 @@ export default function TrainersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setError('')
+
+    // ── Full client-side validation before any API call ──────
+    if (!createForm.full_name?.trim() || createForm.full_name.trim().length < 2) {
+      setError('Full name is required (minimum 2 characters)'); return
+    }
+    if (!createForm.nickname?.trim()) {
+      setError('Nickname is required'); return
+    }
+    if (!createForm.email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email)) {
+      setError('A valid email address is required'); return
+    }
+    if (!createForm.role) {
+      setError('Please select a role'); return
+    }
+    // Gym assignment required for non-admin/non-biz-ops roles
+    if (!['admin', 'business_ops'].includes(createForm.role)) {
+      const isPartTimeStaff = createForm.employment_type === 'part_time' && createForm.role === 'staff'
+      if (isPartTimeStaff && (createForm as any).gym_ids?.length === 0) {
+        setError('Please assign at least one gym for this part-time staff member'); return
+      }
+      if (!isPartTimeStaff && !(createForm as any).gym_id) {
+        setError('Please select an assigned gym'); return
+      }
+    }
+    // Leave entitlement required for full-time non-admin biz-ops onboarding
+    if (isBizOps && createForm.employment_type !== 'part_time' && createForm.role !== 'admin') {
+      if (createForm.leave_entitlement_days === '' || createForm.leave_entitlement_days === null) {
+        setError('Annual leave entitlement is required'); return
+      }
+    }
     const err = validateAll([
       validatePhone(createForm.phone),
       validateNric((createForm as any).nric),
