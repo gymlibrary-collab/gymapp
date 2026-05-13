@@ -37,7 +37,7 @@ export function useActivityLog() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return null
     const { data } = await supabase.from('users')
-      .select('id, full_name, role').eq('id', authUser.id).single()
+      .select('id, full_name, role').eq('id', authUser.id).maybeSingle()
     if (!data) return null
     userCacheRef.current = { id: data.id, name: data.full_name, role: data.role }
     return userCacheRef.current

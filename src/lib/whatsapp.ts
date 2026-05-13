@@ -42,7 +42,7 @@ export async function renderWhatsAppTemplate(
       .select('template, is_active')
       .eq('notification_type', notificationType)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (!data?.template) return fallbackMessage
 
@@ -71,7 +71,7 @@ export async function isWhatsAppEnabled(
       .from('whatsapp_notifications_config')
       .select('is_enabled')
       .eq('id', notificationType)
-      .single()
+      .maybeSingle()
     return data?.is_enabled === true
   } catch {
     return false

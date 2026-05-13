@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: currentUser } = await serverClient
-      .from('users').select('role, manager_gym_id').eq('id', user.id).single()
+      .from('users').select('role, manager_gym_id').eq('id', user.id).maybeSingle()
 
     if (!currentUser || !['admin', 'manager', 'business_ops'].includes(currentUser.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -98,7 +98,7 @@ export async function PATCH(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: currentUser } = await serverClient
-      .from('users').select('role, manager_gym_id').eq('id', user.id).single()
+      .from('users').select('role, manager_gym_id').eq('id', user.id).maybeSingle()
 
     const body = await request.json()
     const {
@@ -127,7 +127,7 @@ export async function PATCH(request: Request) {
       if (isManager) {
         const { data: gymCheck } = await serverClient
           .from('trainer_gyms').select('trainer_id')
-          .eq('trainer_id', userId).eq('gym_id', currentUser.manager_gym_id || '').single()
+          .eq('trainer_id', userId).eq('gym_id', currentUser.manager_gym_id || '').maybeSingle()
         if (!gymCheck) return NextResponse.json({ error: 'Forbidden — trainer not in your gym' }, { status: 403 })
       } else {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -144,7 +144,7 @@ export async function PATCH(request: Request) {
     }
 
     if (reset_login) {
-      const { data: targetUser } = await adminClient.from('users').select('email').eq('id', userId).single()
+      const { data: targetUser } = await adminClient.from('users').select('email').eq('id', userId).maybeSingle()
       if (targetUser?.email) {
         await adminClient.auth.admin.generateLink({ type: 'recovery', email: targetUser.email })
       }
@@ -247,7 +247,7 @@ export async function PATCH(request: Request) {
     // Manager: can assign gym but only within their own gym.
     if ((isBizOps || isManager) && (gym_id !== undefined || gym_ids !== undefined)) {
       const targetEmployment = bodyEmploymentType
-        ?? (await adminClient.from('users').select('employment_type').eq('id', userId).single()).data?.employment_type
+        ?? (await adminClient.from('users').select('employment_type').eq('id', userId).maybeSingle()).data?.employment_type
 
       let idsToAssign: string[] = []
       if (targetEmployment === 'part_time' && gym_ids !== undefined) {
@@ -286,7 +286,7 @@ export async function DELETE(request: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { data: currentUser } = await serverClient
-      .from('users').select('role').eq('id', user.id).single()
+      .from('users').select('role').eq('id', user.id).maybeSingle()
     if (!currentUser || currentUser.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 })
     }

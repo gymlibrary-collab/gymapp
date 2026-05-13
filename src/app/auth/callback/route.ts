@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     .from('users')
     .select('id, is_archived, is_active')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!userRecord) {
     await supabase.auth.signOut()

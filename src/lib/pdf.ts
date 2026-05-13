@@ -91,14 +91,14 @@ export async function resolvePayslipBranding(
   staffData: { role: string; manager_gym_id?: string | null; id: string }
 ): Promise<{ logoUrl: string | null; gymName: string; companyName: string }> {
   const { data: settings } = await supabase
-    .from('app_settings').select('payslip_logo_url, company_name').eq('id', 'global').single()
+    .from('app_settings').select('payslip_logo_url, company_name').eq('id', 'global').maybeSingle()
   const companyName: string = settings?.company_name || 'Gym Operations'
 
   if (staffData.role === 'business_ops')
     return { logoUrl: settings?.payslip_logo_url || null, gymName: companyName, companyName }
 
   if (staffData.manager_gym_id) {
-    const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', staffData.manager_gym_id).single()
+    const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', staffData.manager_gym_id).maybeSingle()
     return { logoUrl: gym?.logo_url || null, gymName: gym?.name || companyName, companyName }
   }
 

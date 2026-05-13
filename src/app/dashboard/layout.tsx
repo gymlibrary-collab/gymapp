@@ -194,7 +194,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error || !session) { router.push('/'); return }
-        const { data: u } = await supabase.from('users').select('*').eq('id', session.user.id).single()
+        const { data: u } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle()
         if (!u) { await supabase.auth.signOut(); router.push('/?error=not_authorised'); return }
         if (u.is_archived || !u.is_active) { await supabase.auth.signOut(); router.push('/?error=account_disabled'); return }
         setUser(u); isLoggedInRef.current = true
@@ -211,17 +211,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const saved = sessionStorage.getItem(VIEW_KEY) as ViewMode | null
           setViewMode(saved || 'manager')
         }
-        const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes, app_name').eq('id', 'global').single()
+        const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes, app_name').eq('id', 'global').maybeSingle()
         const mins = settings?.auto_logout_minutes || 10; logoutMinutesRef.current = mins; setAutoLogoutMinutes(mins)
         // Set browser tab title from configured app name
         if (settings?.app_name) setAppName(settings.app_name)
         if (u.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null); setGymName('Gym Library')
         } else if ((u.role === 'manager' || u.role === 'staff') && u.manager_gym_id) {
-          const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', u.manager_gym_id).single()
+          const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', u.manager_gym_id).maybeSingle()
           if (gym) { setSidebarLogo(gym.logo_url ? gym.logo_url + '?t=' + Date.now() : null); setGymName(gym.name) }
         } else if (u.role === 'trainer') {
-          const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name, logo_url)').eq('trainer_id', session.user.id).eq('is_primary', true).single()
+          const { data: tg } = await supabase.from('trainer_gyms').select('gyms(name, logo_url)').eq('trainer_id', session.user.id).eq('is_primary', true).maybeSingle()
           if (tg && (tg as any).gyms) { setSidebarLogo((tg as any).gyms.logo_url ? (tg as any).gyms.logo_url + '?t=' + Date.now() : null); setGymName((tg as any).gyms.name) }
         } else {
           const { data: gyms } = await supabase.from('gyms').select('name, logo_url').eq('is_active', true).limit(1)

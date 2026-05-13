@@ -50,7 +50,7 @@ export default function DashboardPage() {
     const load = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) return
-      const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+      const { data: u } = await supabase.from('users').select('*').eq('id', authUser.id).maybeSingle()
       if (!u) return
       setUser(u)
       setLoading(false)

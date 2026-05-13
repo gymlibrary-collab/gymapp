@@ -30,7 +30,7 @@ export default function AdminSettingsPage() {
 
       const { data } = await supabase.from('app_settings')
         .select('login_logo_url, admin_sidebar_logo_url, auto_logout_minutes, app_name')
-        .eq('id', 'global').single()
+        .eq('id', 'global').maybeSingle()
       if (data) {
         setAppName(data.app_name || 'GymApp')
         setAutoLogoutMinutes(data.auto_logout_minutes?.toString() || '10')

@@ -80,7 +80,7 @@ export function useCurrentUser(options: UseCurrentUserOptions = {}): UseCurrentU
           .from('users')
           .select('*')
           .eq('id', authUser.id)
-          .single()
+          .maybeSingle()
 
         if (profileError || !profile) {
           setLoading(false)

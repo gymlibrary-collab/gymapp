@@ -69,7 +69,7 @@ export default function StaffPayrollDetailPage() {
     // Guard — only business_ops can access payroll
     setIsBizOpsRole(user!.role === 'business_ops')
 
-    const { data: staffData } = await supabase.from('users').select('*').eq('id', id).single()
+    const { data: staffData } = await supabase.from('users').select('*').eq('id', id).maybeSingle()
     setStaff(staffData)
 
     const { data: payrollData } = await supabase.from('staff_payroll').select('*').eq('user_id', id).maybeSingle()
@@ -368,7 +368,7 @@ export default function StaffPayrollDetailPage() {
     }
     setDeleting(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const { data: adminUser } = await supabase.from('users').select('full_name').eq('id', authUser?.id).single()
+    const { data: adminUser } = await supabase.from('users').select('full_name').eq('id', authUser?.id).maybeSingle()
     const ps = deleteModal.payslip
 
     // Write audit record before deleting
