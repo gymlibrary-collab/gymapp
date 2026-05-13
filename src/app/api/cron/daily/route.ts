@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-server'
+import { housekeepCronLogs } from '@/lib/cron'
 
 // ============================================================
 // /api/cron/daily
@@ -60,6 +61,9 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createAdminClient()
+
+  // ── Step 0: Housekeep cron logs (7-day rolling window) ──
+  await housekeepCronLogs(supabase)
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     ? request.nextUrl.origin
     : `https://${request.headers.get('host')}`
