@@ -45,51 +45,48 @@ export default function MyLeavePage() {
   const { success, error, showMsg, showError, setError } = useToast()
 
 
-  useEffect(() => {
-    if (!user) return
-    const load = async () => {
-      logActivity('page_view', 'My Leave', 'Viewed own leave')
+  const load = async () => {
+    logActivity('page_view', 'My Leave', 'Viewed own leave')
 
-      // Leave escalation is now handled by the daily cron job at
-      // /api/cron/escalate-leave (runs at 0100 SGT).
+    const { data: apps } = await supabase.from('leave_applications')
+      .select('*').eq('user_id', user!.id)
+      .order('created_at', { ascending: false })
+    setApplications(apps || [])
 
-      const { data: apps } = await supabase.from('leave_applications')
-        .select('*').eq('user_id', user!.id)
-        .order('created_at', { ascending: false })
-      setApplications(apps || [])
-
-      const { data: appSettings } = await supabase
+    const { data: appSettings } = await supabase
       .from('app_settings').select('leave_reset_year').eq('id', 'global').maybeSingle()
     if (appSettings?.leave_reset_year) setLeaveResetYear(appSettings.leave_reset_year)
 
     const currentYear = new Date().getFullYear()
-      const countDaysInYear = (app: any, year: number) => {
-        const yearEnd = `${year}-12-31`
-        const yearStart = `${year}-01-01`
-        const start = app.start_date > yearStart ? app.start_date : yearStart
-        const end = app.end_date < yearEnd ? app.end_date : yearEnd
-        if (end < start) return 0
-        const appDays = (new Date(app.end_date).getTime() - new Date(app.start_date).getTime()) / 86400000 + 1
-        const inYearDays = (new Date(end).getTime() - new Date(start).getTime()) / 86400000 + 1
-        return appDays > 0 ? Number((app.days_applied * inYearDays / appDays).toFixed(1)) : 0
-      }
-
-      // Calculate taken and pending per leave type
-      const taken: Record<string, number> = {}
-      const pending: Record<string, number> = {}
-      apps?.filter(a => a.start_date <= `${currentYear}-12-31` && a.end_date >= `${currentYear}-01-01`)
-        .forEach((a: any) => {
-          const days = countDaysInYear(a, currentYear)
-          if (a.status === 'approved') taken[a.leave_type] = (taken[a.leave_type] || 0) + days
-          if (a.status === 'pending') pending[a.leave_type] = (pending[a.leave_type] || 0) + days
-        })
-      setTakenByType(taken)
-      setPendingByType(pending)
-
-      const { data: ph } = await supabase.from('public_holidays')
-        .select('holiday_date').in('year', [currentYear, currentYear + 1])
-      setHolidays(ph?.map((h: any) => h.holiday_date) || [])
+    const countDaysInYear = (app: any, year: number) => {
+      const yearEnd = `${year}-12-31`
+      const yearStart = `${year}-01-01`
+      const start = app.start_date > yearStart ? app.start_date : yearStart
+      const end = app.end_date < yearEnd ? app.end_date : yearEnd
+      if (end < start) return 0
+      const appDays = (new Date(app.end_date).getTime() - new Date(app.start_date).getTime()) / 86400000 + 1
+      const inYearDays = (new Date(end).getTime() - new Date(start).getTime()) / 86400000 + 1
+      return appDays > 0 ? Number((app.days_applied * inYearDays / appDays).toFixed(1)) : 0
     }
+
+    const taken: Record<string, number> = {}
+    const pending: Record<string, number> = {}
+    apps?.filter(a => a.start_date <= `${currentYear}-12-31` && a.end_date >= `${currentYear}-01-01`)
+      .forEach((a: any) => {
+        const days = countDaysInYear(a, currentYear)
+        if (a.status === 'approved') taken[a.leave_type] = (taken[a.leave_type] || 0) + days
+        if (a.status === 'pending') pending[a.leave_type] = (pending[a.leave_type] || 0) + days
+      })
+    setTakenByType(taken)
+    setPendingByType(pending)
+
+    const { data: ph } = await supabase.from('public_holidays')
+      .select('holiday_date').in('year', [currentYear, currentYear + 1])
+    setHolidays(ph?.map((h: any) => h.holiday_date) || [])
+  }
+
+  useEffect(() => {
+    if (!user) return
     load().finally(() => setDataLoading(false))
   }, [user])
 
