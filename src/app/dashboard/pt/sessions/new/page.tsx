@@ -19,6 +19,7 @@ export default function NewPtSessionPage() {
   const supabase = createClient()
 
   const [members, setMembers] = useState<any[]>([])
+  const [memberHasActiveMembership, setMemberHasActiveMembership] = useState<boolean | null>(null)
   const [dataLoading, setDataLoading] = useState(true)
   const [packages, setPackages] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
@@ -67,6 +68,13 @@ export default function NewPtSessionPage() {
 
   // When member changes, filter packages to that member
   const memberPackages = packages.filter(p => p.member_id === form.member_id)
+
+  const checkMembership = async (memberId: string) => {
+    if (!memberId) { setMemberHasActiveMembership(null); return }
+    const { data } = await supabase.from('gym_memberships')
+      .select('id').eq('member_id', memberId).eq('status', 'active').eq('sale_status', 'confirmed').limit(1)
+    setMemberHasActiveMembership((data?.length || 0) > 0)
+  }
 
   // Re-check double booking when date/time/duration changes
   useEffect(() => {
@@ -205,12 +213,18 @@ export default function NewPtSessionPage() {
         <div>
           <label className="label">Member *</label>
           <select className="input" required value={form.member_id}
-            onChange={e => setForm(f => ({ ...f, member_id: e.target.value, package_id: '' }))}>
+            onChange={e => { setForm(f => ({ ...f, member_id: e.target.value, package_id: '' })); checkMembership(e.target.value) }}>
             <option value="">Select member...</option>
             {members.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
           </select>
           {members.length === 0 && (
             <p className="text-xs text-amber-600 mt-1">No members with active PT packages found.</p>
+          )}
+          {memberHasActiveMembership === false && (
+            <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700">This member does not have an active gym membership. You can still schedule the session, but please verify with the manager.</p>
+            </div>
           )}
         </div>
 

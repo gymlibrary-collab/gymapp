@@ -30,6 +30,9 @@ export default function MyLeavePage() {
   const [holidays, setHolidays] = useState<string[]>([])
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [withdrawId, setWithdrawId] = useState<string | null>(null)
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [withdrawSaving, setWithdrawSaving] = useState(false)
   const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
   const [dataLoading, setDataLoading] = useState(true)
   const [form, setForm] = useState({
@@ -89,6 +92,25 @@ export default function MyLeavePage() {
     }
     load().finally(() => setDataLoading(false))
   }, [user])
+
+  const handleWithdraw = async () => {
+    if (!withdrawId || !withdrawReason.trim()) return
+    setWithdrawSaving(true)
+    const app = applications.find((a: any) => a.id === withdrawId)
+    if (!app) { setWithdrawSaving(false); return }
+    // Changing status from 'approved' to 'withdrawal_requested' automatically
+    // restores the leave balance since balance is calculated dynamically
+    // from approved applications only.
+    const { error } = await supabase.from('leave_applications').update({
+      status: 'withdrawal_requested',
+      withdrawal_reason: withdrawReason.trim(),
+      withdrawal_requested_at: new Date().toISOString(),
+    }).eq('id', withdrawId)
+    if (error) { setWithdrawSaving(false); return }
+    logActivity('update', 'My Leave', `Requested withdrawal of approved leave — ${app.days_applied} days`)
+    setWithdrawId(null); setWithdrawReason(''); setWithdrawSaving(false)
+    load().finally(() => setDataLoading(false))
+  }
 
   if (loading || dataLoading) return <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" /></div>
   if (!user) return null
@@ -155,7 +177,7 @@ export default function MyLeavePage() {
 
     const { data: existing } = await supabase.from('leave_applications')
       .select('id, start_date, end_date, status, leave_type')
-      .eq('user_id', user!.id).in('status', ['pending', 'approved'])
+      .eq('user_id', user!.id).in('status', ['pending', 'approved', 'withdrawal_requested'])
       .lte('start_date', form.end_date).gte('end_date', form.start_date)
     if (existing && existing.length > 0) {
       const clash = existing[0]
@@ -377,11 +399,44 @@ export default function MyLeavePage() {
                   <button onClick={() => handleCancel(a.id)}
                     className="text-xs text-red-500 hover:underline flex-shrink-0">Withdraw</button>
                 )}
+                {a.status === 'approved' && new Date(a.start_date) >= new Date(new Date().toISOString().split('T')[0]) && (
+                  <button onClick={() => { setWithdrawId(a.id); setWithdrawReason('') }}
+                    className="text-xs text-red-500 hover:underline flex-shrink-0">Request Withdrawal</button>
+                )}
+                {a.status === 'withdrawal_requested' && (
+                  <span className="text-xs text-blue-600 font-medium flex-shrink-0">Awaiting acknowledgement</span>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+      {withdrawId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setWithdrawId(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900">Request Leave Withdrawal</h3>
+            <p className="text-sm text-gray-600">
+              Your leave balance will be restored immediately. Your manager will be notified to acknowledge.
+            </p>
+            <div>
+              <label className="label">Reason for withdrawal *</label>
+              <textarea className="input" rows={3} value={withdrawReason}
+                onChange={e => setWithdrawReason(e.target.value)}
+                placeholder="e.g. Plans changed, no longer required" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handleWithdraw}
+                disabled={withdrawSaving || !withdrawReason.trim()}
+                className="btn-primary flex-1 disabled:opacity-40">
+                {withdrawSaving ? 'Submitting...' : 'Submit Withdrawal'}
+              </button>
+              <button onClick={() => setWithdrawId(null)} className="btn-secondary flex-1">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

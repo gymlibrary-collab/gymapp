@@ -101,7 +101,7 @@ export default function LeaveManagementPage() {
       .in('user_id', staffIds)
       .order('created_at', { ascending: false })
     if (filter === 'pending') {
-      q = q.eq('status', 'pending')
+      q = q.in('status', ['pending', 'withdrawal_requested'])
       if (user!.role === 'business_ops') {
         // Biz-ops pending tab: escalated_to_biz_ops=true covers both
         // manager leave (always escalated) and escalated trainer/staff leave
@@ -209,7 +209,7 @@ export default function LeaveManagementPage() {
     }).eq('id', id)
     // WhatsApp to applicant (app already declared above)
     if (app) {
-      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
+      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).maybeSingle()
       await queueWhatsApp(supabase, {
         notificationType: 'leave_approved',
         phone: applicant?.phone,
@@ -243,9 +243,9 @@ export default function LeaveManagementPage() {
   const handleReject = async () => {
     if (!rejectId || !rejectReason.trim()) return
     const { data: rejectedApp } = await supabase.from('leave_applications')
-      .select('user_id, leave_type, start_date, end_date, days_applied').eq('id', rejectId).single()
+      .select('user_id, leave_type, start_date, end_date, days_applied').eq('id', rejectId).maybeSingle()
     const { data: { user: authUser3 } } = await supabase.auth.getUser()
-    const { data: me3 } = await supabase.from('users').select('full_name').eq('id', authUser3!.id).single()
+    const { data: me3 } = await supabase.from('users').select('full_name').eq('id', authUser3!.id).maybeSingle()
     await supabase.from('leave_applications').update({
       status: 'rejected', rejection_reason: rejectReason,
       rejected_at: new Date().toISOString(),
@@ -253,7 +253,7 @@ export default function LeaveManagementPage() {
     // WhatsApp to applicant
     const app = applications.find(a => a.id === rejectId)
     if (app) {
-      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).single()
+      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).maybeSingle()
       await queueWhatsApp(supabase, {
         notificationType: 'leave_rejected',
         phone: applicant?.phone,
@@ -333,6 +333,20 @@ export default function LeaveManagementPage() {
     setBulkResetting(false)
   }
 
+  const handleAcknowledgeWithdrawal = async (app: any) => {
+    // Balance was already restored when staff submitted the withdrawal request
+    // (status changed from approved → withdrawal_requested, removed from taken calc)
+    // Just mark as withdrawn and acknowledge
+    await supabase.from('leave_applications').update({
+      status: 'withdrawn',
+      withdrawal_acknowledged_at: new Date().toISOString(),
+      withdrawal_acknowledged_by: user!.id,
+    }).eq('id', app.id)
+    logActivity('confirm', 'Leave Management', `Acknowledged leave withdrawal for ${app.user?.full_name}`)
+    showMsg('Withdrawal acknowledged')
+    await load()
+  }
+
   const isJanuary = new Date().getMonth() === 0
 
   return (
@@ -354,9 +368,9 @@ export default function LeaveManagementPage() {
           className={cn('flex-1 py-2 text-sm font-medium rounded-lg transition-colors relative',
             tab === 'pending' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
           Pending
-          {applications.filter(a => a.status === 'pending').length > 0 && (
+          {applications.filter(a => a.status === 'pending' || a.status === 'withdrawal_requested').length > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center">
-              {applications.filter(a => a.status === 'pending').length}
+              {applications.filter(a => a.status === 'pending' || a.status === 'withdrawal_requested').length}
             </span>
           )}
         </button>
@@ -572,7 +586,11 @@ export default function LeaveManagementPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-900 text-sm">{app.user?.full_name}</p>
-                    <span className={statusBadge(app.status)}>{app.status}</span>
+                    <span className={app.status === 'withdrawal_requested'
+                      ? 'text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700'
+                      : statusBadge(app.status)}>
+                      {app.status === 'withdrawal_requested' ? 'withdrawal requested' : app.status}
+                    </span>
                     <span className="text-xs text-gray-500">{LEAVE_TYPES[app.leave_type] || app.leave_type}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
@@ -580,12 +598,20 @@ export default function LeaveManagementPage() {
                   </p>
                   {app.reason && <p className="text-xs text-gray-400 mt-0.5">Reason: {app.reason}</p>}
                   {app.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Rejected: {app.rejection_reason}</p>}
+                  {app.withdrawal_reason && <p className="text-xs text-blue-600 mt-0.5">Withdrawal reason: {app.withdrawal_reason}</p>}
+                  {app.status === 'withdrawal_requested' && <p className="text-xs text-green-600 mt-0.5">✓ {app.days_applied} days restored to staff balance</p>}
                 </div>
                 {app.status === 'pending' && (
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => handleApprove(app.id)} className="btn-primary text-xs py-1.5 flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Approve</button>
                     <button onClick={() => setRejectId(app.id)} className="btn-danger text-xs py-1.5 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> Reject</button>
                   </div>
+                )}
+                {app.status === 'withdrawal_requested' && (
+                  <button onClick={() => handleAcknowledgeWithdrawal(app)}
+                    className="btn-secondary text-xs py-1.5 flex items-center gap-1 flex-shrink-0">
+                    <CheckCircle className="w-3.5 h-3.5" /> Acknowledge
+                  </button>
                 )}
               </div>
             </div>
