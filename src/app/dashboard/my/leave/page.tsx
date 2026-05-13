@@ -95,16 +95,21 @@ export default function MyLeavePage() {
     setWithdrawSaving(true)
     const app = applications.find((a: any) => a.id === withdrawId)
     if (!app) { setWithdrawSaving(false); return }
-    // Changing status from 'approved' to 'withdrawal_requested' automatically
-    // restores the leave balance since balance is calculated dynamically
-    // from approved applications only.
-    const { error } = await supabase.from('leave_applications').update({
-      status: 'withdrawal_requested',
-      withdrawal_reason: withdrawReason.trim(),
-      withdrawal_requested_at: new Date().toISOString(),
-    }).eq('id', withdrawId)
-    if (error) { setWithdrawSaving(false); return }
-    logActivity('update', 'My Leave', `Requested withdrawal of approved leave — ${app.days_applied} days`)
+
+    if (app.status === 'pending') {
+      // Pending leave — just delete it
+      await supabase.from('leave_applications').delete().eq('id', withdrawId).eq('status', 'pending')
+      logActivity('update', 'My Leave', `Withdrew pending leave application — ${app.days_applied} days`)
+    } else {
+      // Approved leave — change to withdrawal_requested (balance auto-restores)
+      const { error } = await supabase.from('leave_applications').update({
+        status: 'withdrawal_requested',
+        withdrawal_reason: withdrawReason.trim(),
+        withdrawal_requested_at: new Date().toISOString(),
+      }).eq('id', withdrawId)
+      if (error) { setWithdrawSaving(false); return }
+      logActivity('update', 'My Leave', `Requested withdrawal of approved leave — ${app.days_applied} days`)
+    }
     setWithdrawId(null); setWithdrawReason(''); setWithdrawSaving(false)
     load().finally(() => setDataLoading(false))
   }
@@ -165,7 +170,7 @@ export default function MyLeavePage() {
     const lt = getEntitlement(form.leave_type)
     // Note: if leave_entitlement_days is null, treat as 0 — balance check below handles it
     // Biz Ops accounts may not have entitlement configured — they should still see the form
-    if (days > lt.available) {
+    if (days > lt.available && lt.entitlement > 0) {
       setError(`Insufficient ${LEAVE_TYPES.find(t => t.value === form.leave_type)?.label} balance. You have ${lt.available} day${lt.available !== 1 ? 's' : ''} available.`)
       setSaving(false); return
     }
@@ -392,7 +397,7 @@ export default function MyLeavePage() {
                     {a.rejection_reason && <p className="text-xs text-red-500 mt-0.5">Reason: {a.rejection_reason}</p>}
                   </div>
                   {a.status === 'pending' && (
-                    <button onClick={() => handleCancel(a.id)}
+                    <button onClick={() => { setWithdrawId(a.id); setWithdrawReason('') }}
                       className="btn-secondary text-xs py-1 px-2 flex-shrink-0 text-red-600 border-red-200 hover:bg-red-50">
                       Withdraw
                     </button>
@@ -437,3 +442,4 @@ export default function MyLeavePage() {
     </div>
   )
 }
+  
