@@ -35,7 +35,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Clock, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
+import { cn, formatSGD, formatDateTime, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import NonRenewalModal from './NonRenewalModal'
 import StatsRow from './StatsRow'
@@ -45,14 +45,14 @@ import ManagerAlertsSection from './ManagerAlertsSection'
 import PendingConfirmationsBanner from './PendingConfirmationsBanner'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 import MemberBirthdayCard from './MemberBirthdayCard'
-import {
+import { cn,
   getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
   fetchPayslipNotifications, dismissPayslipNotifications, fetchPendingSessionConfirmations, fetchPendingMemberships,
   fetchLowSessionPackages, fetchExpiringPackages, fetchExpiringMemberships,
   fetchAtRiskMembers, fetchNotifications, dismissNotifications, fetchPendingLeave,
   fetchUpcomingSessions,
 } from '@/lib/dashboard'
-import { PageSpinner } from '@/components/PageSpinner'
+import { cn, PageSpinner } from '@/components/PageSpinner'
 
 interface ManagerDashboardProps {
   user: any
@@ -95,6 +95,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   const [newPayslip, setNewPayslip] = useState<any>(null)
   const [newCommission, setNewCommission] = useState<any>(null)
   const [memRejectionNotifs, setMemRejectionNotifs] = useState<any[]>([])
+  const [disputeNotifs, setDisputeNotifs] = useState<any[]>([])
   const [leaveDecisionNotifs, setLeaveDecisionNotifs] = useState<any[]>([])
   const [rejectionNotifs, setRejectionNotifs] = useState<any[]>([])
 
@@ -259,6 +260,12 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setNewPayslip(ps)
       setNewCommission(pc)
 
+      // Dispute resolution notifications
+      const { data: dispNotifs } = await supabase.from('manager_dispute_notif')
+        .select('*').eq('manager_id', user.id).is('seen_at', null)
+        .order('created_at', { ascending: false })
+      setDisputeNotifs(dispNotifs || [])
+
       // ── Show dashboard now — Phase 1 complete ──────────────
       setLoading(false)
 
@@ -319,6 +326,11 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
     setExpiringMemberships(prev => prev.map((m: any) => m.id === nonRenewalModal.id ? { ...m, membership_actioned: true } : m))
     setNonRenewalModal(null); setNonRenewalSaving(false)
   }
+  const dismissDisputeNotif = async (id: string) => {
+    await supabase.from('manager_dispute_notif').update({ seen_at: new Date().toISOString() }).eq('id', id)
+    setDisputeNotifs(prev => prev.filter((n: any) => n.id !== id))
+  }
+
   const dismissPayslipNotif = async () => {
     await dismissPayslipNotifications(supabase, user.id)
     setNewPayslip(null); setNewCommission(null)
@@ -367,6 +379,23 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       )}
 
       <StaffBirthdayPanel gymId={gymId} isBizOps={false} />
+
+      {/* Dispute resolution notifications */}
+      {disputeNotifs.map((n: any) => (
+        <div key={n.id} className={cn('flex items-center gap-3 rounded-xl p-4 border',
+          n.resolution === 'approved' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
+          <div className="flex-1">
+            <p className={cn('text-sm font-medium', n.resolution === 'approved' ? 'text-green-800' : 'text-red-800')}>
+              {n.message}
+            </p>
+          </div>
+          <button onClick={() => dismissDisputeNotif(n.id)}
+            className={cn('text-xs hover:underline flex-shrink-0',
+              n.resolution === 'approved' ? 'text-green-600' : 'text-red-600')}>
+            Dismiss
+          </button>
+        </div>
+      ))}
 
       <NotificationBanners
         newPayslip={newPayslip}

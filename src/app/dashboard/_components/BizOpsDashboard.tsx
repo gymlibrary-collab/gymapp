@@ -84,6 +84,19 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
       user_id: shift.user_id, shift_id: shiftId,
       shift_date: shift.shift_date, gym_id: shift.gym_id, resolution, message,
     })
+    // Notify the manager who raised the dispute
+    const managerMessage = resolution === 'approved'
+      ? `Dispute approved — ${shift.user?.full_name}'s shift on ${shift.shift_date} confirmed absent. Excluded from payroll.`
+      : `Dispute rejected — ${shift.user?.full_name}'s shift on ${shift.shift_date} confirmed as worked. Included in payroll.`
+    await supabase.from('manager_dispute_notif').insert({
+      manager_id: shift.disputed_by,
+      shift_id: shiftId,
+      staff_name: shift.user?.full_name || '',
+      shift_date: shift.shift_date,
+      gym_id: shift.gym_id,
+      resolution,
+      message: managerMessage,
+    })
     setDisputedShifts((prev: any[]) => prev.filter((s: any) => s.id !== shiftId))
     setResolvingDispute(null)
     if (disputedShifts.length <= 1) setShowDisputePanel(false)
