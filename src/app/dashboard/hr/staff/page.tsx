@@ -63,7 +63,6 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
-  const [staffGymMap, setStaffGymMap] = useState<Record<string, string>>({})
 
   const router = useRouter()
   const supabase = createClient()
@@ -117,21 +116,7 @@ export default function TrainersPage() {
     const { data: active } = await activeQ.order('employment_type').order('role').order('full_name')
     setStaff(active || [])
 
-    // For managers: fetch full gym assignments for part-timers via API (bypasses trainer_gyms RLS)
-    if (isManager && active) {
-      const partTimerIds = active.filter((s: any) => s.employment_type === 'part_time').map((s: any) => s.id)
-      const gymMapEntries: Record<string, string> = {}
-      for (const ptId of partTimerIds) {
-        const res = await fetch(`/api/gyms?staff_id=${ptId}`)
-        if (res.ok) {
-          const gyms = await res.json()
-          if (Array.isArray(gyms)) {
-            gymMapEntries[ptId] = gyms.map((g: any) => g.name).join(', ') || 'Unassigned'
-          }
-        }
-      }
-      setStaffGymMap(gymMapEntries)
-    }
+
     // Store archQ in ref for deferred loading when Archived tab is clicked
     archQRef.current = archQ
     // Skip archived on initial load — deferred until tab is clicked
@@ -188,17 +173,18 @@ export default function TrainersPage() {
     setEditingUser(member)
     // Fetch trainer_gyms separately to ensure ALL gym assignments are loaded
     // (nested select in the staff list query may not return all rows)
-    // Fetch trainer_gyms with gym names via join — trainer_gyms_read is open to all
-    // authenticated users so the nested gyms(name) join works even for managers
-    // Fetch ALL gym assignments via API using adminClient — bypasses trainer_gyms RLS
+    // Fetch all gym assignments directly — trainer_gyms_read now allows managers
+    // to read all rows for staff in their gym (migration v85)
+    const { data: tgRows } = await supabase.from('trainer_gyms')
+      .select('gym_id, gyms(id, name)').eq('trainer_id', member.id)
     const nameMap: Record<string, string> = {}
     const allGymIds: string[] = []
-    const res = await fetch(`/api/gyms?staff_id=${member.id}`)
-    let gymData: any[] = []
-    try { gymData = await res.json() } catch {}
-    if (Array.isArray(gymData)) {
-      gymData.forEach((g: any) => { allGymIds.push(g.id); nameMap[g.id] = g.name })
-    }
+    ;(tgRows || []).forEach((r: any) => {
+      if (r.gym_id) {
+        allGymIds.push(r.gym_id)
+        if (r.gyms?.name) nameMap[r.gym_id] = r.gyms.name
+      }
+    })
     setAllGymNames(nameMap)
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
@@ -384,8 +370,7 @@ export default function TrainersPage() {
   const getGymLabel = (m: any) => {
     if (m.role === 'admin') return 'HQ'
     if (m.role === 'business_ops') return 'All Gyms'
-    // Part-timers: use staffGymMap which is loaded via API (bypasses trainer_gyms RLS)
-    if (m.employment_type === 'part_time' && staffGymMap[m.id]) return staffGymMap[m.id]
+    // trainer_gyms nested join now returns all rows for managers (migration v85)
     const gymNames = (m.trainer_gyms || []).map((tg: any) => tg.gyms?.name).filter(Boolean)
     return gymNames.length > 0 ? gymNames.join(', ') : 'Unassigned'
   }
