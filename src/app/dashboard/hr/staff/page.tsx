@@ -63,6 +63,7 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
+  const [staffGymMap, setStaffGymMap] = useState<Record<string, string>>({})
 
   const router = useRouter()
   const supabase = createClient()
@@ -115,6 +116,22 @@ export default function TrainersPage() {
 
     const { data: active } = await activeQ.order('employment_type').order('role').order('full_name')
     setStaff(active || [])
+
+    // For managers: fetch full gym assignments for part-timers via API (bypasses trainer_gyms RLS)
+    if (isManager && active) {
+      const partTimerIds = active.filter((s: any) => s.employment_type === 'part_time').map((s: any) => s.id)
+      const gymMapEntries: Record<string, string> = {}
+      for (const ptId of partTimerIds) {
+        const res = await fetch(`/api/gyms?staff_id=${ptId}`)
+        if (res.ok) {
+          const gyms = await res.json()
+          if (Array.isArray(gyms)) {
+            gymMapEntries[ptId] = gyms.map((g: any) => g.name).join(', ') || 'Unassigned'
+          }
+        }
+      }
+      setStaffGymMap(gymMapEntries)
+    }
     // Store archQ in ref for deferred loading when Archived tab is clicked
     archQRef.current = archQ
     // Skip archived on initial load — deferred until tab is clicked
@@ -365,11 +382,10 @@ export default function TrainersPage() {
   }
 
   const getGymLabel = (m: any) => {
-    // All roles read from trainer_gyms — single source of truth for gym assignment.
-    // Managers also have manager_gym_id but trainer_gyms is always populated.
-    // Exception: admin and business_ops have no gym assignment.
     if (m.role === 'admin') return 'HQ'
     if (m.role === 'business_ops') return 'All Gyms'
+    // Part-timers: use staffGymMap which is loaded via API (bypasses trainer_gyms RLS)
+    if (m.employment_type === 'part_time' && staffGymMap[m.id]) return staffGymMap[m.id]
     const gymNames = (m.trainer_gyms || []).map((tg: any) => tg.gyms?.name).filter(Boolean)
     return gymNames.length > 0 ? gymNames.join(', ') : 'Unassigned'
   }
