@@ -792,7 +792,7 @@ export default function StaffPayrollDetailPage() {
                   </div>
                 )}
                 {/* Inline deduction editor — draft only, Biz Ops only */}
-                {ps.status === 'draft' && isBizOps && (
+                {ps.status === 'draft' && isBizOpsRole && (
                   editingDeduction?.id === ps.id ? (
                     <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
                       <p className="text-xs font-medium text-gray-700">Edit Deduction</p>
