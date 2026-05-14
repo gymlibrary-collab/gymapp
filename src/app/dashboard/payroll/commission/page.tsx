@@ -517,13 +517,13 @@ export default function CommissionPayoutsPage() {
                           <div>
                             <label className="label text-xs">Amount (SGD)</label>
                             <input className="input" type="number" min="0" step="0.01"
-                              value={editingDeduction.amount}
+                              value={editingDeduction?.amount ?? ''}
                               onChange={e => setEditingDeduction(d => d ? {...d, amount: e.target.value} : null)} />
                           </div>
                           <div>
                             <label className="label text-xs">Reason</label>
                             <input className="input" type="text" placeholder="e.g. Cash advance recovery"
-                              value={editingDeduction.reason}
+                              value={editingDeduction?.reason ?? ''}
                               onChange={e => setEditingDeduction(d => d ? {...d, reason: e.target.value} : null)} />
                           </div>
                         </div>
