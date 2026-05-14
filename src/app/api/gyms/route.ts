@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const { data: requester } = await adminClient
       .from('users').select('role, manager_gym_id').eq('id', user.id).maybeSingle()
 
-    if (!requester) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+    if (!requester) return NextResponse.json({ error: 'Unauthorised — requester not found', debug: { userId: user.id, staffId } }, { status: 401 })
 
     // Allow: querying own assignments (any role)
     // Allow: manager querying staff in their gym
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         .maybeSingle()
       if (!check) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     } else if (!['admin', 'business_ops'].includes(requester.role)) {
-      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorised — role not allowed', debug: { role: requester.role, staffId, userId: user.id, isSelf: staffId === user.id } }, { status: 401 })
     }
 
     const { data: tgData, error: tgErr } = await adminClient

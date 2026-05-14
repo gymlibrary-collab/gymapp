@@ -33,9 +33,12 @@ export default function MyParticularsPage() {
       // Load assigned gyms for part-timers via API (bypasses trainer_gyms RLS)
       if ((user as any).employment_type === 'part_time') {
         const res = await fetch(`/api/gyms?staff_id=${user!.id}`)
-        if (res.ok) {
-          const gymData = await res.json()
-          setAssignedGyms(Array.isArray(gymData) ? gymData.map((g: any) => g.name).filter(Boolean) : [])
+        const gymData = await res.json()
+        console.log('[particulars] gym API status:', res.status, 'data:', JSON.stringify(gymData))
+        if (res.ok && Array.isArray(gymData)) {
+          setAssignedGyms(gymData.map((g: any) => g.name).filter(Boolean))
+        } else {
+          setAssignedGyms([`DEBUG: status=${res.status} ${JSON.stringify(gymData)}`])
         }
       }
     }
@@ -145,7 +148,7 @@ export default function MyParticularsPage() {
           </div>
         </div>
 
-        {(user as any).employment_type === 'part_time' && assignedGyms.length > 0 && (
+        {(user as any).employment_type === 'part_time' && (
           <div className="flex items-start gap-3">
             <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
             <div>
