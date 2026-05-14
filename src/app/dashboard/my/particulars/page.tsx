@@ -39,10 +39,11 @@ export default function MyParticularsPage() {
           if (Array.isArray(gymData) && gymData.length > 0) {
             setAssignedGyms(gymData.map((g: any) => g.name).filter(Boolean))
           } else {
-            setAssignedGyms([`status:${res.status} body:${raw}`])
+            // Show raw response for debugging
+            setAssignedGyms([`s:${res.status} ${raw.substring(0, 120)}`])
           }
         } catch {
-          setAssignedGyms([`parse error: ${raw}`])
+          setAssignedGyms([`err: ${raw.substring(0, 80)}`])
         }
       }
     }
