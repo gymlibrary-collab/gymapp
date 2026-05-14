@@ -494,6 +494,17 @@ export default function RosterPage() {
         </div>
       )}
 
+      {/* DEBUG — remove after troubleshooting */}
+      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs space-y-1 break-all mb-2">
+        <p className="font-semibold text-yellow-800">Roster Debug</p>
+        <p>weekStart: {weekStart}</p>
+        <p>weekDays: {JSON.stringify(weekDays)}</p>
+        <p>roster count: {roster.length}</p>
+        <p>roster dates: {JSON.stringify(roster.map((r:any) => r.shift_date))}</p>
+        <p>gymId: {gymId}</p>
+        <p>partTimers: {partTimers.map((p:any) => p.full_name).join(', ')}</p>
+      </div>
+
       {/* Weekly roster */}
       {viewMode === 'week' && weekDays.map(date => {
         const dayShifts = roster.filter(r => r.shift_date === date)
