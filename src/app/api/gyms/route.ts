@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
 
     if (!requester) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
-    if (requester.role === 'manager') {
+    // Allow: querying own assignments (any role)
+    // Allow: manager querying staff in their gym
+    // Allow: admin and biz ops querying anyone
+    if (staffId === user.id) {
+      // Self-query — always allowed
+    } else if (requester.role === 'manager') {
       // Check staff member has at least one row in manager's gym
       const { data: check } = await adminClient
         .from('trainer_gyms')

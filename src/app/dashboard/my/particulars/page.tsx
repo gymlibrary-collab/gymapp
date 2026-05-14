@@ -30,10 +30,13 @@ export default function MyParticularsPage() {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
       setForm({ phone: user!.phone || '', address: (user as any).address || '', nickname: (user as any).nickname || user!.full_name.split(' ')[0] })
-      // Load assigned gyms for part-timers
+      // Load assigned gyms for part-timers via API (bypasses trainer_gyms RLS)
       if ((user as any).employment_type === 'part_time') {
-        const { data: tgRows } = await supabase.from('trainer_gyms').select('gyms(name)').eq('trainer_id', user!.id)
-        setAssignedGyms((tgRows || []).map((r: any) => r.gyms?.name).filter(Boolean))
+        const res = await fetch(`/api/gyms?staff_id=${user!.id}`)
+        if (res.ok) {
+          const gymData = await res.json()
+          setAssignedGyms(Array.isArray(gymData) ? gymData.map((g: any) => g.name).filter(Boolean) : [])
+        }
       }
     }
     load()
