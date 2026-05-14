@@ -80,12 +80,12 @@ export default function TrainersPage() {
     const staffRoles = ['manager', 'trainer', 'staff']
 
     let activeQ = supabase.from('users')
-      .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
+      .select('*, trainer_gyms(gym_id, gyms(name), is_primary), manager_gym:gyms!users_manager_gym_id_fkey(name)')
       .eq('is_archived', false)
       .in('role', staffRoles)
 
     let archQ = supabase.from('users')
-      .select('*, trainer_gyms(gym_id, gyms(name)), manager_gym:gyms!users_manager_gym_id_fkey(name)')
+      .select('*, trainer_gyms(gym_id, gyms(name), is_primary), manager_gym:gyms!users_manager_gym_id_fkey(name)')
       .eq('is_archived', true)
       .in('role', staffRoles)
 
@@ -168,8 +168,13 @@ export default function TrainersPage() {
     setSaving(false); showMsg('Account created')
   }
 
-  const openEdit = (member: any) => {
+  const openEdit = async (member: any) => {
     setEditingUser(member)
+    // Fetch trainer_gyms separately to ensure ALL gym assignments are loaded
+    // (nested select in the staff list query may not return all rows)
+    const { data: tgRows } = await supabase.from('trainer_gyms')
+      .select('gym_id').eq('trainer_id', member.id)
+    const allGymIds = (tgRows || []).map((r: any) => r.gym_id)
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -178,9 +183,9 @@ export default function TrainersPage() {
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
       membership_commission_sgd: member.membership_commission_sgd?.toString() || '0',
-      // Full-timers (all roles): single assigned gym; part-time ops staff: multi-gym
-      gym_id: member.trainer_gyms?.[0]?.gym_id || member.manager_gym_id || '',
-      gym_ids: member.trainer_gyms?.map((tg: any) => tg.gym_id) || [],
+      // Use separately fetched trainer_gyms for accurate gym assignment
+      gym_id: allGymIds[0] || member.manager_gym_id || '',
+      gym_ids: allGymIds,
       manager_gym_id: member.manager_gym_id || '',
       is_also_trainer: member.is_also_trainer || false,
       date_of_birth: member.date_of_birth || '',

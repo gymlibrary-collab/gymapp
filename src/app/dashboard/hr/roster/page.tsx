@@ -78,10 +78,18 @@ export default function RosterPage() {
         .select('*').eq('gym_id', gId).eq('is_active', true).order('sort_order')
       setPresets(presetsData?.length ? presetsData : DEFAULT_PRESETS)
 
-      // Load part-timers — shared pool, no gym scoping (all managers see all part-timers)
-      const { data: pt } = await supabase.from('users')
-        .select('*').eq('employment_type', 'part_time').eq('is_archived', false).order('full_name')
-      setPartTimers(pt || [])
+      // Load part-timers assigned to this gym only (via trainer_gyms)
+      const { data: ptGymRows } = await supabase.from('trainer_gyms')
+        .select('trainer_id').eq('gym_id', gId)
+      const ptIds = (ptGymRows || []).map((r: any) => r.trainer_id)
+      let pt: any[] = []
+      if (ptIds.length > 0) {
+        const { data: ptData } = await supabase.from('users')
+          .select('*').eq('employment_type', 'part_time').eq('is_archived', false)
+          .in('id', ptIds).order('full_name')
+        pt = ptData || []
+      }
+      setPartTimers(pt)
     }
 
     // Load roster — week or month range

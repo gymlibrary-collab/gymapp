@@ -67,8 +67,6 @@ export default function PtSessionsPage() {
     else if (filter === 'pending_confirm') {
       q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
       const isBizOpsRole = user?.role === 'business_ops'
-  const { partTimerActiveGymId } = usePartTimerContext()
-  const isPartTime = user?.employment_type === 'part_time'
       q = q.eq('escalated_to_biz_ops', isBizOpsRole)
       if (!isBizOpsRole && user?.manager_gym_id) q = q.eq('gym_id', user!.manager_gym_id)
     }
@@ -83,6 +81,7 @@ export default function PtSessionsPage() {
 
   if (loading) return <PageSpinner />
   if (!user) return null
+  if (isPartTime && !partTimerActiveGymId) return <NoActiveShift pageName="Gym Schedule" />
 
   const isManager = user?.role === 'manager' && !isActingAsTrainer
   const isTrainer = user?.role === 'trainer' || isActingAsTrainer
