@@ -61,7 +61,6 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
-  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const router = useRouter()
   const supabase = createClient()
@@ -176,23 +175,21 @@ export default function TrainersPage() {
     // (nested select in the staff list query may not return all rows)
     // Fetch trainer_gyms with gym names via join — trainer_gyms_read is open to all
     // authenticated users so the nested gyms(name) join works even for managers
-    // Fetch gym IDs only — no join to avoid gyms RLS filtering out other gyms
-    const { data: tgRows } = await supabase.from('trainer_gyms')
-      .select('gym_id').eq('trainer_id', member.id)
-    const allGymIds = (tgRows || []).map((r: any) => r.gym_id)
-    // Fetch gym names via API (adminClient bypasses gyms RLS)
+    // Fetch ALL gym assignments via API using adminClient — bypasses trainer_gyms RLS
+    // (RLS restricts managers to only see rows for their own gym)
     const nameMap: Record<string, string> = {}
-    let debugApiResult = 'not called'
-    if (allGymIds.length > 0) {
-      const res = await fetch(`/api/gyms?ids=${allGymIds.join(',')}`)
+    const allGymIds: string[] = []
+    const res = await fetch(`/api/gyms?staff_id=${member.id}`)
+    if (res.ok) {
       const gymData = await res.json()
-      debugApiResult = `status:${res.status} data:${JSON.stringify(gymData)}`
-      if (res.ok && Array.isArray(gymData)) {
-        gymData.forEach((g: any) => { nameMap[g.id] = g.name })
+      if (Array.isArray(gymData)) {
+        gymData.forEach((g: any) => {
+          allGymIds.push(g.id)
+          nameMap[g.id] = g.name
+        })
       }
     }
     setAllGymNames(nameMap)
-    setDebugInfo({ allGymIds, nameMap, apiResult: debugApiResult })
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -201,7 +198,7 @@ export default function TrainersPage() {
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
       membership_commission_sgd: member.membership_commission_sgd?.toString() || '0',
-      // Use separately fetched trainer_gyms for accurate gym assignment
+      // Use gym assignments from API (bypasses RLS)
       gym_id: allGymIds[0] || member.manager_gym_id || '',
       gym_ids: allGymIds,
       manager_gym_id: member.manager_gym_id || '',
@@ -529,14 +526,6 @@ export default function TrainersPage() {
                     <div>
                       <label className="label">Assigned Gym</label>
                       <select className="input" value={(editForm as any).gym_id} onChange={e => setEditForm((f: any) => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">— No gym assigned —</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
-                    </div>
-                  )}
-                  {debugInfo && (editForm as any).employment_type === 'part_time' && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs space-y-1 break-all">
-                      <p className="font-semibold text-yellow-800">Debug</p>
-                      <p>gymIds: {JSON.stringify(debugInfo.allGymIds)}</p>
-                      <p>nameMap: {JSON.stringify(debugInfo.nameMap)}</p>
-                      <p>api: {debugInfo.apiResult}</p>
                     </div>
                   )}
                   {editForm.role === 'manager' && isBizOps && <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />}
