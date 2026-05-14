@@ -484,6 +484,10 @@ export default function RosterPage() {
       {/* Monthly view — staff grouped with shift pills */}
       {viewMode === 'month' && (
         <div className="space-y-3">
+          {/* DEBUG */}
+          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+            Month debug: roster={roster.length} partTimers={partTimers.length} rangeStart check
+          </div>
           {partTimers.map(pt => {
             const ptShifts = roster.filter((r: any) => r.user_id === pt.id)
             if (ptShifts.length === 0) return (
