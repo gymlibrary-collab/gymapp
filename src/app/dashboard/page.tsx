@@ -38,6 +38,7 @@ import BizOpsDashboard from './_components/BizOpsDashboard'
 import ManagerDashboard from './_components/ManagerDashboard'
 import TrainerDashboard from './_components/TrainerDashboard'
 import StaffDashboard from './_components/StaffDashboard'
+import PartTimerDashboardWrapper from './_components/PartTimerDashboardWrapper'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function DashboardPage() {
@@ -72,7 +73,13 @@ export default function DashboardPage() {
   if (isBizOps)  return <BizOpsDashboard user={user} />
   if (isManager) return <ManagerDashboard user={user} />
   if (isTrainer) return <TrainerDashboard user={user} isActingAsTrainer={isActingAsTrainer} />
-  if (isStaff)   return <StaffDashboard user={user} />
+  if (isStaff) {
+    if (user.employment_type === 'part_time') {
+      // Part-timer: detect active shift to determine gym context
+      return <PartTimerDashboardWrapper user={user} />
+    }
+    return <StaffDashboard user={user} />
+  }
 
   return null
 }

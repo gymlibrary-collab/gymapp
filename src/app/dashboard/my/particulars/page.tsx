@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateAddress, validateAll } from '@/lib/validators'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
-import { User, Phone, Shield, Globe, Calendar, MapPin, Save, CheckCircle, AlertCircle } from 'lucide-react'
+import { User, Phone, Shield, Globe, Calendar, MapPin, Save, Building2, Briefcase } from 'lucide-react'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MyParticularsPage() {
@@ -18,6 +18,7 @@ export default function MyParticularsPage() {
 
   const { logActivity } = useActivityLog()
   const [form, setForm] = useState({ phone: '', address: '', nickname: '' })
+  const [assignedGyms, setAssignedGyms] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const router = useRouter()
   const supabase = createClient()
@@ -29,6 +30,11 @@ export default function MyParticularsPage() {
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
       setForm({ phone: user!.phone || '', address: (user as any).address || '', nickname: (user as any).nickname || user!.full_name.split(' ')[0] })
+      // Load assigned gyms for part-timers
+      if ((user as any).employment_type === 'part_time') {
+        const { data: tgRows } = await supabase.from('trainer_gyms').select('gyms(name)').eq('trainer_id', user!.id)
+        setAssignedGyms((tgRows || []).map((r: any) => r.gyms?.name).filter(Boolean))
+      }
     }
     load()
   }, [])
@@ -119,6 +125,32 @@ export default function MyParticularsPage() {
             <p className="text-sm text-gray-900">{(user as any).date_of_joining ? formatDate((user as any).date_of_joining) : <span className="italic text-gray-400">Not set</span>}</p>
           </div>
         </div>
+
+        <div className="flex items-start gap-3">
+          <Briefcase className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-gray-400">Employment Type</p>
+            <p className="text-sm text-gray-900 capitalize">{(user as any).employment_type?.replace('_', ' ') || <span className="italic text-gray-400">Not set</span>}</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <User className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-gray-400">Email</p>
+            <p className="text-sm text-gray-900">{user.email || <span className="italic text-gray-400">Not set</span>}</p>
+          </div>
+        </div>
+
+        {(user as any).employment_type === 'part_time' && assignedGyms.length > 0 && (
+          <div className="flex items-start gap-3">
+            <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs text-gray-400">Assigned Gym(s)</p>
+              <p className="text-sm text-gray-900">{assignedGyms.join(', ')}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Editable contact details */}

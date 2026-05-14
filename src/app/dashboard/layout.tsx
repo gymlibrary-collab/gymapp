@@ -105,11 +105,13 @@ const pureTrainerNav: NavItem[] = [
 
 const partTimerNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/members', label: 'Members', icon: Users },
+  { href: '/dashboard/pt/sessions', label: 'Gym Schedule', icon: Calendar },
   { href: '/dashboard/my/roster', label: 'My Roster', icon: CalendarDays },
   { label: 'My Account', header: true },
   { href: '/dashboard/my/particulars', label: 'My Particulars', icon: ClipboardList },
   { href: '/dashboard/my/payslips', label: 'My Payslips', icon: Receipt },
-  // My Leave intentionally excluded — part-timers do not apply for leave in this system
+  // My Leave intentionally excluded — part-timers have no annual leave entitlement
   { href: '/dashboard/guide/staff', label: 'User Guide', icon: BookOpen },
 ]
 
@@ -131,6 +133,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [user, setUser] = useState<any>(null)
   const [sidebarLogo, setSidebarLogo] = useState<string | null>(null)
   const [gymName, setGymName] = useState('GymApp')
+  const [partTimerActiveGymId, setPartTimerActiveGymId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     'HR & Payroll': true,
@@ -242,7 +245,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (settings?.app_name) setAppName(settings.app_name)
         if (u.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null); setGymName('Gym Library')
-        } else if ((u.role === 'manager' || u.role === 'staff') && u.manager_gym_id) {
+        } else if (u.role === 'manager' && u.manager_gym_id) {
+          const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', u.manager_gym_id).maybeSingle()
+          if (gym) { setSidebarLogo(gym.logo_url ? gym.logo_url + '?t=' + Date.now() : null); setGymName(gym.name) }
+        } else if (u.role === 'staff' && u.employment_type === 'part_time') {
+          // Part-timer: show logo of active shift gym, fall back to HQ logo outside shift
+          const { todaySGT, currentTimeSGT } = await import('@/lib/utils')
+          const today = todaySGT(); const now = currentTimeSGT()
+          const { data: activeShift } = await supabase.from('duty_roster')
+            .select('gym_id, gyms:gym_id(name, logo_url)')
+            .eq('user_id', session.user.id).eq('shift_date', today)
+            .lte('shift_start', now).gte('shift_end', now)
+            .limit(1).maybeSingle()
+          if (activeShift?.gym_id) {
+            const g = (activeShift.gyms as any)
+            setPartTimerActiveGymId(activeShift.gym_id)
+            setSidebarLogo(g?.logo_url ? g.logo_url + '?t=' + Date.now() : null)
+            setGymName(g?.name || '')
+          } else {
+            // Outside shift — use HQ logo
+            setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null)
+            setGymName(settings?.app_name || 'HQ')
+          }
+        } else if (u.role === 'staff' && u.manager_gym_id) {
+          // Full-time ops staff
           const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', u.manager_gym_id).maybeSingle()
           if (gym) { setSidebarLogo(gym.logo_url ? gym.logo_url + '?t=' + Date.now() : null); setGymName(gym.name) }
         } else if (u.role === 'trainer') {

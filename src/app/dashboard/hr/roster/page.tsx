@@ -59,8 +59,8 @@ export default function RosterPage() {
   const { success, error, showMsg, showError, setError } = useToast()
 
 
-  const loadData = async () => {
-    logActivity('page_view', 'Duty Roster', 'Viewed duty roster')
+  const loadData = async (isInitial = false) => {
+    if (isInitial) logActivity('page_view', 'Duty Roster', 'Viewed duty roster')
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = user!.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {
@@ -105,7 +105,7 @@ export default function RosterPage() {
     setRoster(rData || [])
   }
 
-  useEffect(() => { loadData() }, [weekStart, viewMode, monthOffset])
+  useEffect(() => { loadData(true) }, [weekStart, viewMode, monthOffset])
 
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -158,8 +158,7 @@ export default function RosterPage() {
 
   const handleBulkSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const rateErr = validateHourlyRate(bulkForm.hourly_rate)
-    if (rateErr) { setError(rateErr); return }
+    // Hourly rate is read-only from staff profile — no validation needed
     if (!gymId || bulkForm.dates.length === 0) { setError('Select at least one date'); return }
     const times = getShiftTimes()
     if (!times) { setError('Select a shift time'); return }
@@ -192,11 +191,12 @@ export default function RosterPage() {
       if (err) { setError(err.message); setSaving(false); return }
     }
 
-    await loadData()
+    setSaving(false)
     setBulkForm({ user_id: '', preset_id: '', custom_start: '', custom_end: '', hourly_rate: '', dates: [] })
-    setShowBulkForm(false); setSaving(false)
+    setShowBulkForm(false)
     logActivity('create', 'Duty Roster', `Added ${rows.length} roster shift(s)`)
     showMsg(`${rows.length} shift${rows.length !== 1 ? 's' : ''} added`)
+    await loadData()
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -366,12 +366,14 @@ export default function RosterPage() {
             )}
           </div>
 
-          {/* Hourly rate */}
+          {/* Hourly rate — read-only, pulled from staff profile */}
           {bulkForm.user_id && (
             <div>
-              <label className="label">Hourly Rate (SGD) *</label>
-              <input className="input" type="number" min="0.50" max="100" step="0.50" required value={bulkForm.hourly_rate}
-                onChange={e => setBulkForm(f => ({ ...f, hourly_rate: e.target.value }))} />
+              <label className="label">Hourly Rate (SGD)</label>
+              <input className="input bg-gray-50 text-gray-600 cursor-not-allowed" type="number" readOnly
+                value={bulkForm.hourly_rate}
+                title="Hourly rate is set in the staff profile and cannot be changed here" />
+              <p className="text-xs text-gray-400 mt-1">Rate from staff profile — edit in Staff Management to change</p>
             </div>
           )}
 
