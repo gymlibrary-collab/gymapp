@@ -32,7 +32,9 @@ export default function PtSessionsPage() {
   const supabase = createClient()
   const router = useRouter()
   const { isActingAsTrainer } = useViewMode()
-
+  const isBizOpsRole = user?.role === 'business_ops'
+  const { partTimerActiveGymId } = usePartTimerContext()
+  const isPartTime = user?.employment_type === 'part_time'
 
   const loadSessions = async () => {    // detail is reviewed in person with each gym manager.
     logActivity('page_view', 'PT Sessions', 'Viewed pt sessions')
