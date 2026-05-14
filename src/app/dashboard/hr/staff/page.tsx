@@ -60,6 +60,7 @@ export default function TrainersPage() {
   const [completingOffboard, setCompletingOffboard] = useState(false)
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
+  const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
 
   const router = useRouter()
   const supabase = createClient()
@@ -175,6 +176,14 @@ export default function TrainersPage() {
     const { data: tgRows } = await supabase.from('trainer_gyms')
       .select('gym_id').eq('trainer_id', member.id)
     const allGymIds = (tgRows || []).map((r: any) => r.gym_id)
+    // For manager viewing part-timer: fetch all gym names for the read-only list
+    // (RLS restricts gyms table to manager's own gym only)
+    if (member.employment_type === 'part_time' && member.role === 'staff') {
+      const { data: gymNames } = await supabase.from('gyms').select('id, name').in('id', allGymIds)
+      const nameMap: Record<string, string> = {}
+      ;(gymNames || []).forEach((g: any) => { nameMap[g.id] = g.name })
+      setAllGymNames(nameMap)
+    }
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -266,6 +275,30 @@ export default function TrainersPage() {
     showMsg('Offboarding completed — ' + offboardingChecklist.member.full_name)
   }
 
+  const handleRemoveFromGym = async (memberId: string, gymId: string, gymName: string) => {
+    // Check for upcoming/today roster shifts before removing
+    const today = todaySGT()
+    const { data: upcomingShifts } = await supabase.from('duty_roster')
+      .select('id, shift_date')
+      .eq('user_id', memberId)
+      .eq('gym_id', gymId)
+      .gte('shift_date', today)
+    if (upcomingShifts && upcomingShifts.length > 0) {
+      setError(`Cannot remove from ${gymName} — ${upcomingShifts.length} upcoming/today roster shift${upcomingShifts.length !== 1 ? 's' : ''} must be cleared first`)
+      return
+    }
+    setSaving(true)
+    // Remove trainer_gyms row for this gym
+    const { error: rmErr } = await supabase.from('trainer_gyms')
+      .delete().eq('trainer_id', memberId).eq('gym_id', gymId)
+    if (rmErr) { setError(rmErr.message); setSaving(false); return }
+    logActivity('update', 'Staff Management', `Removed part-timer from gym: ${gymName}`)
+    await loadData()
+    setEditingUser(null)
+    setSaving(false)
+    showMsg(`Removed from ${gymName}`)
+  }
+
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!editingUser) return
     setError('')
@@ -290,7 +323,7 @@ export default function TrainersPage() {
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed'); setSaving(false); return }
     await loadData(); setEditingUser(null); setSaving(false); showMsg('Profile updated')
-    logActivity('update', 'Staff Management', 'Updated staff member record')
+    logActivity('update', 'Staff Management', `Updated staff profile: ${editingUser?.full_name || ''}`)
   }
 
   const handleArchive = async (member: any) => {
@@ -442,12 +475,45 @@ export default function TrainersPage() {
               {/* Gym assignment */}
               {(editForm.role !== 'admin' && editForm.role !== 'business_ops') && !isSelf(editingUser) && (
                 <>
-                  {/* Part-time ops staff (role=staff): multi-gym checkboxes */}
-                  {(editForm as any).employment_type === 'part_time' && editForm.role === 'staff' ? (
+                  {/* Part-time ops staff — Biz Ops: full multi-gym checkboxes */}
+                  {(editForm as any).employment_type === 'part_time' && editForm.role === 'staff' && isBizOps ? (
                     <div>
                       <label className="label">Gym Assignments *</label>
                       <p className="text-xs text-gray-400 mb-1.5">Part-time ops staff can be rostered at multiple gyms and paid separately from each.</p>
                       <div className="space-y-1.5">{gyms.map(g => <label key={g.id} className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={(editForm as any).gym_ids.includes(g.id)} onChange={() => toggleGym(g.id, 'edit')} className="rounded border-gray-300 text-red-600" /><span className="text-sm text-gray-700">{g.name}</span></label>)}</div>
+                    </div>
+                  ) : (editForm as any).employment_type === 'part_time' && editForm.role === 'staff' && isManagerRole ? (
+                    /* Part-time ops staff — Manager view: own gym checkbox + other gyms read-only */
+                    <div className="space-y-3">
+                      <label className="label">Gym Assignments</label>
+                      {/* Own gym — manager can remove part-timer from their gym */}
+                      {(editForm as any).gym_ids.includes(user!.manager_gym_id!) && (
+                        <div className="p-3 border border-gray-200 rounded-lg space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" defaultChecked className="rounded border-gray-300 text-red-600"
+                              onChange={async (e) => {
+                                if (!e.target.checked) {
+                                  e.target.checked = true // prevent visual uncheck until confirmed
+                                  if (window.confirm(`Remove this part-timer from ${user!.manager_gym_id ? gyms.find(g => g.id === user!.manager_gym_id)?.name : 'your gym'}? This cannot be undone from this portal — only Business Operations can reassign them.`)) {
+                                    await handleRemoveFromGym(editingUser!.id, user!.manager_gym_id!, gyms.find(g => g.id === user!.manager_gym_id)?.name || 'your gym')
+                                  }
+                                }
+                              }} />
+                            <span className="text-sm font-medium text-gray-900">{gyms.find(g => g.id === user!.manager_gym_id)?.name || 'Your Gym'}</span>
+                            <span className="text-xs text-gray-400 ml-auto">your gym</span>
+                          </label>
+                          <p className="text-xs text-amber-600">⚠ Uncheck to remove this staff from your gym. Clear all upcoming rosters first. Only Business Ops can reassign.</p>
+                        </div>
+                      )}
+                      {/* Other gyms — read-only list */}
+                      {(editForm as any).gym_ids.filter((id: string) => id !== user!.manager_gym_id).length > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1.5">Also assigned to (managed by other gyms):</p>
+                          <div className="space-y-1">{(editForm as any).gym_ids.filter((id: string) => id !== user!.manager_gym_id).map((id: string) => (
+                            <p key={id} className="text-sm text-gray-600 pl-2">• {allGymNames[id] || gyms.find(g => g.id === id)?.name || id}</p>
+                          ))}</div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     /* Full-timers, part-time trainers, and managers: single gym dropdown */
