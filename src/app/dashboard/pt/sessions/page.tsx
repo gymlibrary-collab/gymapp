@@ -13,6 +13,8 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { usePartTimerContext } from '@/lib/part-timer-context'
+import { NoActiveShift } from '@/components/NoActiveShift'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function PtSessionsPage() {
@@ -43,7 +45,7 @@ export default function PtSessionsPage() {
 
     const isTrainer = user!.role === 'trainer' || isActingAsTrainer
     const isStaff = user!.role === 'staff'
-    const gymId = user!.manager_gym_id
+    const gymId = user!.employment_type === 'part_time' ? partTimerActiveGymId : user!.manager_gym_id
 
     if (gymId && !isStaff) q = q.eq('gym_id', gymId)
     else if (isStaff && user!.manager_gym_id) {
@@ -63,6 +65,8 @@ export default function PtSessionsPage() {
     else if (filter === 'pending_confirm') {
       q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
       const isBizOpsRole = user?.role === 'business_ops'
+  const { partTimerActiveGymId } = usePartTimerContext()
+  const isPartTime = user?.employment_type === 'part_time'
       q = q.eq('escalated_to_biz_ops', isBizOpsRole)
       if (!isBizOpsRole && user?.manager_gym_id) q = q.eq('gym_id', user!.manager_gym_id)
     }

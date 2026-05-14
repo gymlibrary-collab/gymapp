@@ -488,7 +488,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center"><span className="text-red-700 font-semibold text-xs">{user.full_name.charAt(0)}</span></div>
         </div>
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 p-4 md:p-6"><PartTimerContext.Provider value={{ partTimerActiveGymId }}>{children}</PartTimerContext.Provider></main>
       </div>
     </ViewModeContext.Provider>
   )

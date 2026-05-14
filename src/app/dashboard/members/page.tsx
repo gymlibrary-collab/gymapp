@@ -10,6 +10,8 @@ import { Search, Plus, Users, CreditCard } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { usePartTimerContext } from '@/lib/part-timer-context'
+import { NoActiveShift } from '@/components/NoActiveShift'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function MembersPage() {
@@ -26,6 +28,8 @@ export default function MembersPage() {
   const { logActivity } = useActivityLog()
   const { isActingAsTrainer } = useViewMode()
   const isBizOps = user?.role === 'business_ops'
+  const { partTimerActiveGymId } = usePartTimerContext()
+  const isPartTime = user?.employment_type === 'part_time'
 
 
   useEffect(() => {
@@ -48,7 +52,9 @@ export default function MembersPage() {
       // Scope by role/view
       // Trainers see all active members at their gym — not just ones they created.
       // This allows them to renew memberships and onboard any active gym member onto PT.
-      if ((user!.role === 'manager' || user!.role === 'staff' || user!.role === 'trainer') && user!.manager_gym_id) {
+      if (user!.employment_type === 'part_time' && partTimerActiveGymId) {
+        q = q.eq('gym_id', partTimerActiveGymId)
+      } else if ((user!.role === 'manager' || user!.role === 'staff' || user!.role === 'trainer') && user!.manager_gym_id) {
         q = q.eq('gym_id', user!.manager_gym_id)
       } else if (isActingAsTrainer && user!.manager_gym_id) {
         q = q.eq('gym_id', user!.manager_gym_id)

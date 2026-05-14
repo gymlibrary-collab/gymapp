@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { todaySGT, currentTimeSGT, getDisplayName, getGreeting } from '@/lib/utils'
 import StaffDashboard from './StaffDashboard'
 import { PageSpinner } from '@/components/PageSpinner'
-import { CalendarDays } from 'lucide-react'
+import { NoActiveShift } from '@/components/NoActiveShift'
 
 interface Props { user: any }
 
@@ -66,21 +66,7 @@ export default function PartTimerDashboardWrapper({ user }: Props) {
         <h1 className="text-xl font-bold text-gray-900">{getGreeting(getDisplayName(user))} 👋</h1>
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
-      <div className="card p-8 text-center space-y-4">
-        <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-          <CalendarDays className="w-7 h-7 text-gray-400" />
-        </div>
-        <div>
-          <p className="font-semibold text-gray-900">No Active Shift</p>
-          <p className="text-sm text-gray-500 mt-1">
-            You don't have an active rostered shift right now.
-            Dashboard information is available during your scheduled shift hours.
-          </p>
-        </div>
-        <p className="text-xs text-gray-400">
-          Check <strong>My Roster</strong> in the sidebar to see your upcoming shifts.
-        </p>
-      </div>
+      <NoActiveShift pageName="Dashboard" />
     </div>
   )
 }
