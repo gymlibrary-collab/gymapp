@@ -44,6 +44,9 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
   const [leaveResetReminder, setLeaveResetReminder] = useState(false)
   const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
   const [cancelApprovedNotifs, setCancelApprovedNotifs] = useState<any[]>([])
+  const [disputedShifts, setDisputedShifts] = useState<any[]>([])
+  const [showDisputePanel, setShowDisputePanel] = useState(false)
+  const [resolvingDispute, setResolvingDispute] = useState<string | null>(null)
   const supabase = createClient()
 
   const resolveDispute = async (shiftId: string, resolution: 'approved' | 'rejected') => {
@@ -115,6 +118,13 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
         .order('approved_at', { ascending: false })
       setCancelApprovedNotifs(cancelNotifs || [])
 
+      // Disputed roster shifts awaiting resolution
+      const { data: disputed } = await supabase.from('duty_roster')
+        .select('*, user:users!duty_roster_user_id_fkey(full_name), gym:gyms(name)')
+        .eq('status', 'disputed')
+        .order('disputed_at', { ascending: true })
+      setDisputedShifts(disputed || [])
+
       if (now.getMonth() === 11) {
         const nextYear = now.getFullYear() + 1
         const { count } = await supabase.from('public_holidays')
@@ -158,7 +168,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
     load()
   }, [])
 
-  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && cancelApprovedNotifs.length === 0 && !leaveResetReminder) return null
+  if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && cancelApprovedNotifs.length === 0 && disputedShifts.length === 0 && !leaveResetReminder) return null
 
   return (
     <div className="space-y-3">

@@ -1,4 +1,26 @@
 
+// ── Working Days Helper ──────────────────────────────────────
+// Returns true if today is within N working days after the given date.
+// Working days exclude weekends and public holidays.
+export function withinWorkingDays(shiftDateStr: string, days: number, publicHolidays: string[]): boolean {
+  const holidaySet = new Set(publicHolidays)
+  const [sy, sm, sd] = shiftDateStr.split('-').map(Number)
+  let shiftDate = new Date(sy, sm - 1, sd)
+  let workingDays = 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  let cursor = new Date(shiftDate)
+  cursor.setDate(cursor.getDate() + 1) // start counting from day after shift
+
+  while (cursor <= today) {
+    const dow = cursor.getDay()
+    const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}-${String(cursor.getDate()).padStart(2,'0')}`
+    if (dow !== 0 && dow !== 6 && !holidaySet.has(dateStr)) workingDays++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return workingDays <= days
+}
+
 // ── Singapore Timezone Helpers ──────────────────────────────
 // Singapore is UTC+8 — all date/time comparisons in the app
 // should use SGT to avoid off-by-one day errors near midnight.
