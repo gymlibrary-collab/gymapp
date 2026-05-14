@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       .eq('trainer_id', staffId)
     if (tgErr) return NextResponse.json({ error: tgErr.message }, { status: 500 })
     const gymIds = (tgData || []).map((r: any) => r.gym_id).filter(Boolean)
-    if (gymIds.length === 0) return NextResponse.json({ debug: 'no trainer_gyms rows found', staffId, authUid: user.id })
+    if (gymIds.length === 0) return NextResponse.json([])
     const { data: gymData, error: gymErr } = await adminClient
       .from('gyms')
       .select('id, name')
