@@ -173,17 +173,15 @@ export default function TrainersPage() {
     setEditingUser(member)
     // Fetch trainer_gyms separately to ensure ALL gym assignments are loaded
     // (nested select in the staff list query may not return all rows)
+    // Fetch trainer_gyms with gym names via join — trainer_gyms_read is open to all
+    // authenticated users so the nested gyms(name) join works even for managers
     const { data: tgRows } = await supabase.from('trainer_gyms')
-      .select('gym_id').eq('trainer_id', member.id)
+      .select('gym_id, gyms(name)').eq('trainer_id', member.id)
     const allGymIds = (tgRows || []).map((r: any) => r.gym_id)
-    // For manager viewing part-timer: fetch all gym names for the read-only list
-    // (RLS restricts gyms table to manager's own gym only)
-    if (member.employment_type === 'part_time' && member.role === 'staff') {
-      const { data: gymNames } = await supabase.from('gyms').select('id, name').in('id', allGymIds)
-      const nameMap: Record<string, string> = {}
-      ;(gymNames || []).forEach((g: any) => { nameMap[g.id] = g.name })
-      setAllGymNames(nameMap)
-    }
+    // Build name map from the join result — bypasses gyms table RLS restriction
+    const nameMap: Record<string, string> = {}
+    ;(tgRows || []).forEach((r: any) => { if (r.gym_id && r.gyms?.name) nameMap[r.gym_id] = r.gyms.name })
+    setAllGymNames(nameMap)
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -494,12 +492,12 @@ export default function TrainersPage() {
                               onChange={async (e) => {
                                 if (!e.target.checked) {
                                   e.target.checked = true // prevent visual uncheck until confirmed
-                                  if (window.confirm(`Remove this part-timer from ${user!.manager_gym_id ? gyms.find(g => g.id === user!.manager_gym_id)?.name : 'your gym'}? This cannot be undone from this portal — only Business Operations can reassign them.`)) {
-                                    await handleRemoveFromGym(editingUser!.id, user!.manager_gym_id!, gyms.find(g => g.id === user!.manager_gym_id)?.name || 'your gym')
+                                  if (window.confirm(`Remove this part-timer from ${allGymNames[user!.manager_gym_id!] || 'your gym'}? This cannot be undone from this portal — only Business Operations can reassign them.`)) {
+                                    await handleRemoveFromGym(editingUser!.id, user!.manager_gym_id!, allGymNames[user!.manager_gym_id!] || 'your gym')
                                   }
                                 }
                               }} />
-                            <span className="text-sm font-medium text-gray-900">{gyms.find(g => g.id === user!.manager_gym_id)?.name || 'Your Gym'}</span>
+                            <span className="text-sm font-medium text-gray-900">{allGymNames[user!.manager_gym_id!] || 'Your Gym'}</span>
                             <span className="text-xs text-gray-400 ml-auto">your gym</span>
                           </label>
                           <p className="text-xs text-amber-600">⚠ Uncheck to remove this staff from your gym. Clear all upcoming rosters first. Only Business Ops can reassign.</p>
