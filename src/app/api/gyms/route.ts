@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     const { data: requester } = await adminClient
       .from('users').select('role, manager_gym_id').eq('id', user.id).maybeSingle()
 
-    if (!requester) return NextResponse.json({ error: 'Unauthorised — requester not found', debug: { userId: user.id, staffId } }, { status: 401 })
+    if (!requester) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
     // Allow: querying own assignments (any role)
     // Allow: manager querying staff in their gym
@@ -39,16 +39,24 @@ export async function GET(req: NextRequest) {
         .maybeSingle()
       if (!check) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     } else if (!['admin', 'business_ops'].includes(requester.role)) {
-      return NextResponse.json({ error: 'Unauthorised — role not allowed', debug: { role: requester.role, staffId, userId: user.id, isSelf: staffId === user.id } }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     }
 
+    // Fetch gym IDs from trainer_gyms, then gym names separately
+    // (nested join may be subject to RLS even with adminClient)
     const { data: tgData, error: tgErr } = await adminClient
       .from('trainer_gyms')
-      .select('gym_id, gyms(id, name)')
+      .select('gym_id')
       .eq('trainer_id', staffId)
     if (tgErr) return NextResponse.json({ error: tgErr.message }, { status: 500 })
-    const gyms = (tgData || []).map((r: any) => ({ id: r.gym_id, name: r.gyms?.name || '' }))
-    return NextResponse.json(gyms)
+    const gymIds = (tgData || []).map((r: any) => r.gym_id).filter(Boolean)
+    if (gymIds.length === 0) return NextResponse.json([])
+    const { data: gymData, error: gymErr } = await adminClient
+      .from('gyms')
+      .select('id, name')
+      .in('id', gymIds)
+    if (gymErr) return NextResponse.json({ error: gymErr.message }, { status: 500 })
+    return NextResponse.json(gymData || [])
   }
 
   // ?ids=uuid1,uuid2 — returns gym names for given IDs
