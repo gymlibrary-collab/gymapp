@@ -119,8 +119,11 @@ export default function MembershipTypesPage() {
         <button type="button" onClick={() => { isGlobal ? setShowGlobalForm(false) : setShowGymForm(false); setEditing(null); setForm(EMPTY_FORM) }}><X className="w-4 h-4 text-gray-400" /></button>
       </div>
       {!isGlobal && (
-        <div className="p-2 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-500">Gym: <span className="font-medium text-gray-700">{gyms.find(g => g.id === (form.gym_id || selectedGymFilter))?.name || '—'}</span></p>
+        <div>
+          <label className="label">Gym *</label>
+          <select className="input" value={form.gym_id || selectedGymFilter} onChange={e => setForm(f => ({ ...f, gym_id: e.target.value }))} required>
+            {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
         </div>
       )}
       <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={isGlobal ? 'e.g. Monthly, Annual' : 'e.g. 12-Month Promo — Gym A'} /></div>
@@ -196,12 +199,7 @@ export default function MembershipTypesPage() {
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Gym-Specific Types</h2>
-          <div className="flex items-center gap-2">
-            <select className="input text-xs py-1.5" value={selectedGymFilter} onChange={e => { setSelectedGymFilter(e.target.value); setShowGymForm(false); setEditing(null); setForm(EMPTY_FORM) }}>
-              {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            <button onClick={() => { setShowGymForm(!showGymForm); setShowGlobalForm(false); setEditing(null); setForm({ ...EMPTY_FORM, gym_id: selectedGymFilter }) }} className="btn-primary text-xs py-1.5 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add</button>
-          </div>
+          <button onClick={() => { setShowGymForm(!showGymForm); setShowGlobalForm(false); setEditing(null); setForm(EMPTY_FORM) }} className="btn-primary text-xs py-1.5 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add</button>
         </div>
         {showGymForm && <div className="p-4 border-b border-gray-100"><TypeForm isGlobal={false} /></div>}
         {gymTypes.length === 0
