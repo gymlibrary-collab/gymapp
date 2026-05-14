@@ -587,7 +587,7 @@ export default function TrainersPage() {
                         <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
                           {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
                         </span>
-                        <span className={member.employment_type === 'part_time' ? 'bg-blue-100 text-blue-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-gray-100 text-gray-600 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
+                        <span className={member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-indigo-100 text-indigo-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
                           {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
                         </span>
                         <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
