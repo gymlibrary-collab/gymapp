@@ -63,9 +63,10 @@ export default function RosterPage() {
 
 
   const loadData = async (isInitial = false) => {
+    if (!user) return
     if (isInitial) logActivity('page_view', 'Duty Roster', 'Viewed duty roster')
     // Biz Ops has no assigned gym — default to first active gym for roster view
-    let gId = user!.manager_gym_id || null
+    let gId = user.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {
       const { data: firstGym } = await supabase.from('gyms').select('id').eq('is_active', true).order('name').limit(1).maybeSingle()
       gId = firstGym?.id || null
@@ -116,7 +117,7 @@ export default function RosterPage() {
     setRoster(rData || [])
   }
 
-  useEffect(() => { loadData(true) }, [weekStart, viewMode, monthOffset])
+  useEffect(() => { if (user) loadData(true) }, [weekStart, viewMode, monthOffset, user])
 
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -225,7 +226,7 @@ export default function RosterPage() {
   const handleLock = async (entry: any) => {
     if (!confirm(`Lock shift for ${entry.user?.full_name}?`)) return
     await supabase.from('duty_roster').update({
-      is_locked: true, locked_at: new Date().toISOString(), locked_by: user?.id, status: 'completed'
+      is_locked: true, locked_at: new Date(Date.now() + 8*60*60*1000).toISOString(), locked_by: user?.id, status: 'completed'
     }).eq('id', entry.id)
     logActivity('update', 'Duty Roster', 'Locked roster shift')
     await loadData(); showMsg('Shift locked')
@@ -318,8 +319,8 @@ export default function RosterPage() {
             className="btn-secondary p-2 disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
           <div className="flex-1 text-center">
             <p className="text-sm font-medium text-gray-900">{(() => {
-              const now = new Date()
-              const d = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+              const nowSGTms = new Date(Date.now() + 8*60*60*1000)
+              const d = new Date(nowSGTms.getUTCFullYear(), nowSGTms.getUTCMonth() + monthOffset, 1)
               return d.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
             })()}</p>
             <p className="text-xs text-gray-400">{roster.length} shifts · {totalHours.toFixed(1)}h · {formatSGD(totalPay)}</p>
