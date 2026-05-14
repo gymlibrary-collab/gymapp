@@ -1,20 +1,19 @@
 'use client'
 
-import { AlertTriangle, useEffect, useState } from 'react'
-import { AlertTriangle, useRouter } from 'next/navigation'
-import { AlertTriangle, getGymStaffIds } from '@/lib/dashboard'
-import { AlertTriangle, createClient } from '@/lib/supabase-browser'
-import { AlertTriangle, useActivityLog } from '@/hooks/useActivityLog'
-import { AlertTriangle, formatDate, formatSGD, todaySGT, withinWorkingDays } from '@/lib/utils'
-import { AlertTriangle, validateHourlyRate } from '@/lib/validators'
-import { AlertTriangle,
-  Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
-  ChevronLeft, ChevronRight, Settings, Clock, Users, AlertTriangle
+import { useEffect, useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { getGymStaffIds } from '@/lib/dashboard'
+import { createClient } from '@/lib/supabase-browser'
+import { useActivityLog } from '@/hooks/useActivityLog'
+import { formatDate, formatSGD, todaySGT, withinWorkingDays } from '@/lib/utils'
+import { validateHourlyRate } from '@/lib/validators'
+import { AlertTriangle, Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
+  ChevronLeft, ChevronRight, Settings, Clock, Users
 } from 'lucide-react'
-import { AlertTriangle, cn } from '@/lib/utils'
-import { AlertTriangle, useToast } from '@/hooks/useToast'
-import { AlertTriangle, StatusBanner } from '@/components/StatusBanner'
-import { AlertTriangle, useCurrentUser } from '@/hooks/useCurrentUser'
+import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/useToast'
+import { StatusBanner } from '@/components/StatusBanner'
+import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 const DEFAULT_PRESETS = [
   { label: 'Morning', shift_start: '08:00', shift_end: '13:00' },
