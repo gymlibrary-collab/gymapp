@@ -119,11 +119,8 @@ export default function MembershipTypesPage() {
         <button type="button" onClick={() => { isGlobal ? setShowGlobalForm(false) : setShowGymForm(false); setEditing(null); setForm(EMPTY_FORM) }}><X className="w-4 h-4 text-gray-400" /></button>
       </div>
       {!isGlobal && (
-        <div>
-          <label className="label">Gym *</label>
-          <select className="input" value={form.gym_id || selectedGymFilter} onChange={e => setForm(f => ({ ...f, gym_id: e.target.value }))} required>
-            {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
+        <div className="p-2 bg-gray-50 rounded-lg">
+          <p className="text-xs text-gray-500">Gym: <span className="font-medium text-gray-700">{gyms.find(g => g.id === (form.gym_id || selectedGymFilter))?.name || '—'}</span></p>
         </div>
       )}
       <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={isGlobal ? 'e.g. Monthly, Annual' : 'e.g. 12-Month Promo — Gym A'} /></div>
