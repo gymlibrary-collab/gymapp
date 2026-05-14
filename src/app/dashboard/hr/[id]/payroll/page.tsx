@@ -400,7 +400,7 @@ export default function StaffPayrollDetailPage() {
 
   const handleDeletePayslip = async (payslipId: string) => {
     if (!confirm('Delete this draft payslip? This cannot be undone.')) return
-    await supabase.from('payslips').delete().eq('id', payslipId).eq('status', 'draft')
+    await supabase.from('payslips').delete().eq('id', payslipId).eq('status', 'draft')  // status guard prevents deleting non-draft payslips
     logActivity('delete', 'Staff Payroll', 'Deleted draft payslip')
     await loadData(); showMsg('Draft payslip deleted')
   }
@@ -439,8 +439,8 @@ export default function StaffPayrollDetailPage() {
     })
     if (auditErr) { setError('Failed to write audit record: ' + auditErr.message); setDeleting(false); return }
 
-    // Delete the payslip
-    await supabase.from('payslips').delete().eq('id', ps.id)
+    // Delete the payslip — .eq('status', 'approved') ensures paid payslips cannot be deleted even via crafted requests
+    await supabase.from('payslips').delete().eq('id', ps.id).eq('status', 'approved')
     setDeleteModal(null); setDeleteReason(''); setDeleting(false)
     logActivity('delete', 'Staff Payroll', 'Deleted approved payslip')
     await loadData(); showMsg('Payslip deleted — audit record saved')
