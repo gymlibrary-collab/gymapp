@@ -45,14 +45,14 @@ import ManagerAlertsSection from './ManagerAlertsSection'
 import PendingConfirmationsBanner from './PendingConfirmationsBanner'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 import MemberBirthdayCard from './MemberBirthdayCard'
-import { cn,
+import {
   getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
   fetchPayslipNotifications, dismissPayslipNotifications, fetchPendingSessionConfirmations, fetchPendingMemberships,
   fetchLowSessionPackages, fetchExpiringPackages, fetchExpiringMemberships,
   fetchAtRiskMembers, fetchNotifications, dismissNotifications, fetchPendingLeave,
   fetchUpcomingSessions,
 } from '@/lib/dashboard'
-import { cn, PageSpinner } from '@/components/PageSpinner'
+import { PageSpinner } from '@/components/PageSpinner'
 
 interface ManagerDashboardProps {
   user: any
