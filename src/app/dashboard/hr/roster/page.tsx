@@ -9,7 +9,7 @@ import { validateHourlyRate } from '@/lib/validators'
 import { AlertTriangle, Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
   ChevronLeft, ChevronRight, Settings, Clock, Users
 } from 'lucide-react'
-import { formatDate, formatSGD, todaySGT, withinWorkingDays, cn } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT, cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -55,7 +55,6 @@ export default function RosterPage() {
   const [saving, setSaving] = useState(false)
   const [disputeEntry, setDisputeEntry] = useState<any>(null)
   const [disputeReason, setDisputeReason] = useState('')
-  const [publicHolidays, setPublicHolidays] = useState<string[]>([])
   const [paidPayslipKeys, setPaidPayslipKeys] = useState<Set<string>>(new Set())
   const [overlapWarning, setOverlapWarning] = useState<string | null>(null)
   const router = useRouter()
@@ -117,11 +116,6 @@ export default function RosterPage() {
     if (gId) rQ = rQ.eq('gym_id', gId)
     const { data: rData } = await rQ
     setRoster(rData || [])
-
-    // Load public holidays for dispute grace period calculation
-    const { data: phData } = await supabase.from('public_holidays')
-      .select('holiday_date').gte('holiday_date', todaySGT())
-    setPublicHolidays((phData || []).map((h: any) => h.holiday_date))
 
     // Load approved/paid payslip keys to block disputes on already-paid shifts
     // Key format: userId:gymId:month:year
@@ -592,7 +586,14 @@ export default function RosterPage() {
                       )}
                       {/* Dispute button — blocked if payslip already approved/paid */}
                       {!isBizOps && entry.is_locked && entry.status === 'completed' && !entry.disputed_at &&
-                        withinWorkingDays(entry.shift_date, 3, publicHolidays) && (() => {
+                        (() => {
+                          // 3 calendar days grace period from shift date
+                          const [sy, sm, sd] = entry.shift_date.split('-').map(Number)
+                          const shiftDate = new Date(sy, sm - 1, sd)
+                          const todayDate = new Date(todaySGT())
+                          const diffDays = Math.floor((todayDate.getTime() - shiftDate.getTime()) / (1000 * 60 * 60 * 24))
+                          return diffDays <= 3
+                        })() && (() => {
                           const [sy, sm] = entry.shift_date.split('-')
                           const psKey = `${entry.user_id}:${gymId}:${parseInt(sm)}:${parseInt(sy)}`
                           return !paidPayslipKeys.has(psKey)
