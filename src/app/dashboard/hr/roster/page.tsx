@@ -34,8 +34,11 @@ export default function RosterPage() {
   const [roster, setRoster] = useState<any[]>([])
   const [presets, setPresets] = useState<any[]>([])
   const [weekStart, setWeekStart] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - (d.getDay() || 7) + 1)
-    return d.toISOString().split('T')[0]
+    // Use SGT for correct week calculation in Singapore timezone
+    const sgNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+    const day = sgNow.getUTCDay() || 7  // 1=Mon ... 7=Sun
+    sgNow.setUTCDate(sgNow.getUTCDate() - day + 1)
+    return sgNow.toISOString().split('T')[0]
   })
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
   const [monthOffset, setMonthOffset] = useState(0)
@@ -95,10 +98,10 @@ export default function RosterPage() {
     // Load roster — week or month range
     let rangeStart: string, rangeEnd: string
     if (viewMode === 'month') {
-      const now = new Date()
-      const d = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1)
+      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, 1))
       rangeStart = d.toISOString().split('T')[0]
-      const last = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+      const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
       rangeEnd = last.toISOString().split('T')[0]
     } else {
       const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
