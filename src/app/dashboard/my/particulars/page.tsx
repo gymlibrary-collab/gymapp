@@ -33,9 +33,16 @@ export default function MyParticularsPage() {
       // Load assigned gyms for part-timers via API (bypasses trainer_gyms RLS)
       if ((user as any).employment_type === 'part_time') {
         const res = await fetch(`/api/gyms?staff_id=${user!.id}`)
-        if (res.ok) {
-          const gymData = await res.json()
-          setAssignedGyms(Array.isArray(gymData) ? gymData.map((g: any) => g.name).filter(Boolean) : [])
+        const raw = await res.text()
+        try {
+          const gymData = JSON.parse(raw)
+          if (Array.isArray(gymData) && gymData.length > 0) {
+            setAssignedGyms(gymData.map((g: any) => g.name).filter(Boolean))
+          } else {
+            setAssignedGyms([`status:${res.status} body:${raw}`])
+          }
+        } catch {
+          setAssignedGyms([`parse error: ${raw}`])
         }
       }
     }
@@ -145,12 +152,15 @@ export default function MyParticularsPage() {
           </div>
         </div>
 
-        {(user as any).employment_type === 'part_time' && assignedGyms.length > 0 && (
+        {(user as any).employment_type === 'part_time' && (
           <div className="flex items-start gap-3">
             <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-xs text-gray-400">Assigned Gym(s)</p>
-              <p className="text-sm text-gray-900">{assignedGyms.join(', ')}</p>
+              {assignedGyms.length > 0
+                ? <p className="text-sm text-gray-900">{assignedGyms.join(', ')}</p>
+                : <p className="text-sm italic text-gray-400">Loading...</p>
+              }
             </div>
           </div>
         )}
