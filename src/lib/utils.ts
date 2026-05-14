@@ -5,14 +5,16 @@
 export function withinWorkingDays(shiftDateStr: string, days: number, publicHolidays: string[]): boolean {
   const holidaySet = new Set(publicHolidays)
   const [sy, sm, sd] = shiftDateStr.split('-').map(Number)
-  let shiftDate = new Date(sy, sm - 1, sd)
+  const shiftDate = new Date(sy, sm - 1, sd)
   let workingDays = 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Use SGT for accurate grace period calculation in Singapore timezone
+  const todaySGTStr = todaySGT()
+  const [ty, tm, td] = todaySGTStr.split('-').map(Number)
+  const todayDate = new Date(ty, tm - 1, td)
   let cursor = new Date(shiftDate)
   cursor.setDate(cursor.getDate() + 1) // start counting from day after shift
 
-  while (cursor <= today) {
+  while (cursor <= todayDate) {
     const dow = cursor.getDay()
     const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}-${String(cursor.getDate()).padStart(2,'0')}`
     if (dow !== 0 && dow !== 6 && !holidaySet.has(dateStr)) workingDays++
