@@ -13,6 +13,7 @@ import {
   TrendingUp, Layers, UserMinus, MessageSquare, ClipboardList, Shield, Activity, AlertCircle, BookOpen
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PartTimerContext } from '@/lib/part-timer-context'
 
 type NavItem = { href?: string; label: string; icon?: any; header?: boolean; collapsible?: boolean }
 
