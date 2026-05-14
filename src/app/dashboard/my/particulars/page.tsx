@@ -104,9 +104,7 @@ export default function MyParticularsPage() {
           <Shield className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-xs text-gray-400">NRIC / FIN / Passport</p>
-            <p className="text-sm text-gray-900">{user.nric
-              ? user.nric.slice(0, 1) + '•••••' + user.nric.slice(-2)
-              : <span className="italic text-gray-400">Not set</span>}
+            <p className="text-sm text-gray-900">{user.nric || <span className="italic text-gray-400">Not set</span>}
             </p>
           </div>
         </div>
