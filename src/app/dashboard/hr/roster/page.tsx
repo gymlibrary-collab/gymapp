@@ -56,7 +56,6 @@ export default function RosterPage() {
   const [disputeEntry, setDisputeEntry] = useState<any>(null)
   const [disputeReason, setDisputeReason] = useState('')
   const [paidPayslipKeys, setPaidPayslipKeys] = useState<Set<string>>(new Set())
-  const [debugPtIds, setDebugPtIds] = useState<number>(0)
   const [overlapWarning, setOverlapWarning] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -96,7 +95,6 @@ export default function RosterPage() {
         pt = ptData || []
       }
       setPartTimers(pt)
-      setDebugPtIds(ptIds.length)
     }
 
     // Load roster — week or month range
@@ -486,18 +484,21 @@ export default function RosterPage() {
       {/* Monthly view — staff grouped with shift pills */}
       {viewMode === 'month' && (
         <div className="space-y-3">
-          {/* DEBUG */}
-          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-            Month debug: roster={roster.length} partTimers={partTimers.length} gymId={gymId || 'null'} ptIdsFound={debugPtIds}
-          </div>
-          {partTimers.map(pt => {
-            const ptShifts = roster.filter((r: any) => r.user_id === pt.id)
-            if (ptShifts.length === 0) return (
-              <div key={pt.id} className="card p-4 flex items-center justify-between opacity-50">
-                <p className="text-sm font-medium text-gray-700">{pt.full_name}</p>
-                <p className="text-xs text-gray-400">No shifts this month</p>
+          {/* Group roster by user_id — shift-centric so historical shifts always show */}
+          {(() => {
+            const grouped: Record<string, any[]> = {}
+            roster.forEach((r: any) => {
+              if (!grouped[r.user_id]) grouped[r.user_id] = []
+              grouped[r.user_id].push(r)
+            })
+            if (Object.keys(grouped).length === 0) return (
+              <div className="card p-8 text-center">
+                <p className="text-sm text-gray-500">No shifts this month.</p>
               </div>
             )
+            return Object.entries(grouped).map(([userId, ptShifts]) => {
+            const pt = { id: userId, full_name: (ptShifts[0] as any).user?.full_name || userId }
+            if (ptShifts.length === 0) return null
             const totalHrs = ptShifts.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0)
             const totalPay2 = ptShifts.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0)
             return (
@@ -520,12 +521,8 @@ export default function RosterPage() {
                 </div>
               </div>
             )
-          })}
-          {partTimers.length === 0 && (
-            <div className="card p-8 text-center">
-              <p className="text-sm text-gray-500">No part-time staff found.</p>
-            </div>
-          )}
+          })
+          })()}
         </div>
       )}
 
