@@ -71,6 +71,7 @@ export default function PayrollPage() {
       .gte('shift_date', monthStart)
       .lte('shift_date', monthEnd)
       .eq('status', 'completed')
+      .is('payslip_id', null)  // only show unpaid shifts in preview
 
     const totals: Record<string, any> = {}
     rosterData?.forEach((r: any) => {
@@ -148,10 +149,11 @@ export default function PayrollPage() {
     const existingRes = await supabase.from('payslips').select('user_id, gym_id')
       .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
     // Part-timers: load roster grouped by gym_id so we generate one payslip per gym
-    const rosterRes = await supabase.from('duty_roster').select('user_id, gym_id, hours_worked, gross_pay')
+    const rosterRes = await supabase.from('duty_roster').select('user_id, gym_id, hours_worked, gross_pay, id')
       .in('user_id', allUserIds)
       .gte('shift_date', monthStart).lte('shift_date', monthEnd)
       .eq('status', 'completed')
+      .is('payslip_id', null)  // only unpaid shifts
     const bonusRes = await supabase.from('staff_bonuses').select('user_id, amount')
       .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
     // Load pending deductions (overpayment recovery from dispute approvals)
@@ -166,17 +168,27 @@ export default function PayrollPage() {
     const existingApproved = new Set(
       existingRes.data?.filter((p: any) => p.status !== 'draft').map((p: any) => `${p.user_id}:${p.gym_id || 'null'}`) || []
     )
+    // Clear payslip_id on roster rows linked to draft payslips before deleting
+    // (ON DELETE SET NULL handles this via FK, but explicit clear is more reliable)
+    const { data: draftPayslips } = await supabase.from('payslips')
+      .select('id').eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
+    if (draftPayslips && draftPayslips.length > 0) {
+      const draftIds = draftPayslips.map((p: any) => p.id)
+      await supabase.from('duty_roster')
+        .update({ payslip_id: null }).in('payslip_id', draftIds)
+    }
     // Delete all existing DRAFT payslips for this month — regeneration overwrites them
     await supabase.from('payslips')
       .delete().eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
     // rosterByUserGym: { userId: { gymId: { hours, pay } } }
-    const rosterByUserGym: Record<string, Record<string, {hours: number, pay: number}>> = {}
+    const rosterByUserGym: Record<string, Record<string, {hours: number, pay: number, shiftIds: string[]}>> = {}
     rosterRes.data?.forEach((r: any) => {
       if (!rosterByUserGym[r.user_id]) rosterByUserGym[r.user_id] = {}
       const gymKey = r.gym_id || 'null'
-      if (!rosterByUserGym[r.user_id][gymKey]) rosterByUserGym[r.user_id][gymKey] = { hours: 0, pay: 0 }
+      if (!rosterByUserGym[r.user_id][gymKey]) rosterByUserGym[r.user_id][gymKey] = { hours: 0, pay: 0, shiftIds: [] }
       rosterByUserGym[r.user_id][gymKey].hours += r.hours_worked || 0
       rosterByUserGym[r.user_id][gymKey].pay += r.gross_pay || 0
+      rosterByUserGym[r.user_id][gymKey].shiftIds.push(r.id)
     })
     const bonusByUser: Record<string, number> = {}
     bonusRes.data?.forEach((b: any) => {
@@ -260,6 +272,18 @@ export default function PayrollPage() {
 
     if (toInsert.length > 0) {
       const { data: inserted } = await supabase.from('payslips').insert(toInsert).select('id, user_id, gym_id')
+      // Stamp payslip_id on roster rows — prevents double payment
+      if (inserted) {
+        for (const ps of inserted) {
+          const gymKey = ps.gym_id || 'null'
+          const shiftIds = rosterByUserGym[ps.user_id]?.[gymKey]?.shiftIds || []
+          if (shiftIds.length > 0) {
+            await supabase.from('duty_roster')
+              .update({ payslip_id: ps.id })
+              .in('id', shiftIds)
+          }
+        }
+      }
       // Mark pending deductions as applied
       if (appliedDeductionIds.length > 0) {
         await supabase.from('pending_deductions')

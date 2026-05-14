@@ -58,6 +58,8 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
     const { error } = await supabase.from('duty_roster').update({
       status: newStatus, dispute_resolved_at: resolvedAt,
       dispute_resolved_by: user?.id, dispute_resolution: resolution,
+      // Clear payslip_id so shift is picked up in next payslip run if resolved as worked
+      payslip_id: null,
     }).eq('id', shiftId)
     if (error) { setResolvingDispute(null); return }
     if (resolution === 'approved') {
