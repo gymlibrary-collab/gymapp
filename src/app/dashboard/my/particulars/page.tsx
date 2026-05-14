@@ -26,21 +26,16 @@ export default function MyParticularsPage() {
   const { success, error, showMsg, showError, setError } = useToast()
 
 
-  // Load gym assignments immediately — separate effect fires as soon as user.id available
-  useEffect(() => {
-    if (!user?.id || (user as any).employment_type !== 'part_time') return
-    supabase.from('trainer_gyms')
-      .select('gyms(name)').eq('trainer_id', user.id)
-      .then(({ data }) => {
-        setAssignedGyms((data || []).map((r: any) => r.gyms?.name).filter(Boolean))
-      })
-  }, [user?.id])
-
   useEffect(() => {
     if (!user) return
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
       setForm({ phone: user.phone || '', address: (user as any).address || '', nickname: (user as any).nickname || user.full_name.split(' ')[0] })
+      // Gym assignments are now included in the user object from useCurrentUser
+      if ((user as any).employment_type === 'part_time') {
+        const gyms = ((user as any).trainer_gyms || []).map((tg: any) => tg.gyms?.name).filter(Boolean)
+        setAssignedGyms(gyms)
+      }
     }
     load()
   }, [user])
