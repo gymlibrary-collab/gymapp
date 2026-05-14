@@ -162,6 +162,7 @@ export default function MyPayslipsPage() {
                             : <span>Basic: {formatSGD(slip.basic_salary)}</span>
                           }
                           {slip.bonus_amount > 0 && <span>Bonus: {formatSGD(slip.bonus_amount)}</span>}
+                          {slip.deduction_amount > 0 && <span className="text-red-600">Deduction: -{formatSGD(slip.deduction_amount)}</span>}
                           <span className="font-medium text-gray-900">Net: {formatSGD(slip.net_salary)}</span>
                         </div>
                         <div className="flex items-center gap-1.5 mt-1">

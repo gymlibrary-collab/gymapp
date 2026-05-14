@@ -598,7 +598,7 @@ export default function PayrollPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-gray-900 text-sm">{member.full_name}</p>
                   <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>{getRoleLabel(member.role)}</span>
-                  <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', isPartTime ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
+                  <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', isPartTime ? 'bg-orange-100 text-orange-700' : 'bg-indigo-100 text-indigo-700')}>
                     {isPartTime ? 'Part-time' : 'Full-time'}
                   </span>
                   {payroll?.is_cpf_liable && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">CPF</span>}

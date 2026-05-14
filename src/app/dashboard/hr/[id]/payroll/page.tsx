@@ -192,14 +192,17 @@ export default function StaffPayrollDetailPage() {
 
     // ── Part-timer: sum completed roster shifts ───────────────
     let totalHours = 0, totalPay = 0
+    let rosterShiftIds: string[] = []
     if (isPartTime) {
       const monthStart = `${pYear}-${String(pMonth).padStart(2, '0')}-01`
       const monthEnd = new Date(pYear, pMonth, 0).toISOString().split('T')[0]
       const { data: roster } = await supabase.from('duty_roster')
-        .select('hours_worked, gross_pay').eq('user_id', id)
-        .gte('shift_date', monthStart).lte('shift_date', monthEnd).eq('status', 'completed')
+        .select('id, hours_worked, gross_pay').eq('user_id', id)
+        .gte('shift_date', monthStart).lte('shift_date', monthEnd)
+        .eq('status', 'completed').is('payslip_id', null) // only unpaid shifts
       totalHours = roster?.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0) || 0
       totalPay = roster?.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0) || 0
+      rosterShiftIds = roster?.map((r: any) => r.id) || []
     }
 
     const basicSalary = isPartTime ? totalPay : (payroll?.current_salary || 0)
@@ -209,6 +212,30 @@ export default function StaffPayrollDetailPage() {
     const { data: bonusRows } = await supabase.from('staff_bonuses')
       .select('amount').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear)
     const bonusAmt = bonusRows?.reduce((s: number, b: any) => s + (b.amount || 0), 0) || 0
+
+    // ── Pending deductions (overpayment recovery from disputes) ──
+    let deductionAmount = 0
+    let deductionReason: string | null = null
+    let deductionIds: string[] = []
+    if (isPartTime) {
+      const gymId2 = staff?.trainer_gyms?.[0]?.gym_id || staff?.manager_gym_id || null
+      const { data: deductions } = await supabase.from('pending_deductions')
+        .select('id, amount, reason').eq('user_id', id as string)
+        .is('applied_at', null)
+        .is('gym_id', gymId2 ? undefined : null)
+      if (gymId2) {
+        const gymDeductions = await supabase.from('pending_deductions')
+          .select('id, amount, reason').eq('user_id', id as string)
+          .eq('gym_id', gymId2).is('applied_at', null)
+        if (gymDeductions.data?.length) {
+          gymDeductions.data.forEach((d: any) => {
+            deductionAmount += d.amount || 0
+            deductionReason = d.reason
+            deductionIds.push(d.id)
+          })
+        }
+      }
+    }
 
     // ── CPF ceiling config from commission_config ─────────────
     const { data: cfgRows } = await supabase.from('commission_config')
@@ -304,7 +331,7 @@ export default function StaffPayrollDetailPage() {
     }
 
     const grossSalary = basicSalary + bonusAmt
-    const netSalary = grossSalary - empCpf
+    const netSalary = grossSalary - deductionAmount - empCpf
     const totalEmployerCost = grossSalary + erCpf
 
     // Use delete+insert instead of upsert — avoids ON CONFLICT issues
@@ -342,11 +369,30 @@ export default function StaffPayrollDetailPage() {
       low_income_flag: lowIncomeFlag,
       cpf_adjustment_amount: cpfAdjustmentAmount,
       cpf_adjustment_note: cpfAdjustmentNote || null,
+      deduction_amount: deductionAmount,
+      deduction_reason: deductionReason,
       notes: payslipForm.notes || null, status: 'draft',
       generated_by: user?.id, generated_at: new Date().toISOString(),
     })
 
     if (err) { setError(err.message); setSaving(false); return }
+
+    // Fetch the newly inserted payslip to get its ID
+    const { data: newPs } = await supabase.from('payslips')
+      .select('id').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear)
+      .eq('status', 'draft').maybeSingle()
+    if (newPs?.id) {
+      // Stamp payslip_id on roster rows — prevents double payment
+      if (rosterShiftIds.length > 0) {
+        await supabase.from('duty_roster').update({ payslip_id: newPs.id }).in('id', rosterShiftIds)
+      }
+      // Mark pending deductions as applied
+      if (deductionIds.length > 0) {
+        await supabase.from('pending_deductions')
+          .update({ applied_at: new Date().toISOString(), applied_payslip_id: newPs.id })
+          .in('id', deductionIds)
+      }
+    }
     logActivity('create', 'Staff Payroll', 'Generated individual payslip')
     await loadData(); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
   }
@@ -710,6 +756,15 @@ export default function StaffPayrollDetailPage() {
                     <div>
                       <p className="font-medium">Year-End CPF Adjustment</p>
                       <p className="mt-0.5">{ps.cpf_adjustment_note}</p>
+                    </div>
+                  </div>
+                )}
+                {ps.deduction_amount > 0 && (
+                  <div className="flex items-start gap-1.5 bg-red-50 border border-red-200 rounded-lg p-2 mt-2 text-xs text-red-700">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Deduction: -{formatSGD(ps.deduction_amount)}</p>
+                      {ps.deduction_reason && <p className="mt-0.5">{ps.deduction_reason}</p>}
                     </div>
                   </div>
                 )}
