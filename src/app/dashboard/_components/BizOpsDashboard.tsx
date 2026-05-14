@@ -36,7 +36,7 @@ interface BizOpsDashboardProps {
 
 // ── BizOpsDashboardAlerts ─────────────────────────────────────
 // Leave notifications + year-end admin reminders (CPF, holidays, entitlements)
-function BizOpsDashboardAlerts() {
+function BizOpsDashboardAlerts({ user }: { user: any }) {
   const [pendingManagerLeave, setPendingManagerLeave] = useState(0)
   const [escalatedLeave, setEscalatedLeave] = useState(0)
   const [holidaysSetUp, setHolidaysSetUp] = useState(true)
@@ -45,6 +45,44 @@ function BizOpsDashboardAlerts() {
   const [leaveResetYear, setLeaveResetYear] = useState<number>(2026)
   const [cancelApprovedNotifs, setCancelApprovedNotifs] = useState<any[]>([])
   const supabase = createClient()
+
+  const resolveDispute = async (shiftId: string, resolution: 'approved' | 'rejected') => {
+    setResolvingDispute(shiftId)
+    const shift = disputedShifts.find((s: any) => s.id === shiftId)
+    if (!shift) return
+    const newStatus = resolution === 'approved' ? 'absent' : 'completed'
+    const resolvedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
+    const { error } = await supabase.from('duty_roster').update({
+      status: newStatus, dispute_resolved_at: resolvedAt,
+      dispute_resolved_by: user?.id, dispute_resolution: resolution,
+    }).eq('id', shiftId)
+    if (error) { setResolvingDispute(null); return }
+    if (resolution === 'approved') {
+      const shiftMonth = parseInt(shift.shift_date.split('-')[1])
+      const shiftYear = parseInt(shift.shift_date.split('-')[0])
+      const { data: existingPayslip } = await supabase.from('payslips')
+        .select('id, status').eq('user_id', shift.user_id)
+        .eq('gym_id', shift.gym_id).eq('month', shiftMonth).eq('year', shiftYear)
+        .in('status', ['approved', 'paid']).maybeSingle()
+      if (existingPayslip) {
+        await supabase.from('pending_deductions').insert({
+          user_id: shift.user_id, gym_id: shift.gym_id, amount: shift.gross_pay,
+          reason: `Overpayment recovery — absent shift on ${shift.shift_date} (dispute approved)`,
+          shift_id: shiftId, shift_date: shift.shift_date,
+        })
+      }
+    }
+    const message = resolution === 'approved'
+      ? `Your shift on ${shift.shift_date} at ${shift.gym?.name} has been marked absent after dispute review. Any overpayment will be recovered in your next payslip.`
+      : `Your shift on ${shift.shift_date} at ${shift.gym?.name} has been confirmed as worked after dispute review.`
+    await supabase.from('shift_dispute_notif').insert({
+      user_id: shift.user_id, shift_id: shiftId,
+      shift_date: shift.shift_date, gym_id: shift.gym_id, resolution, message,
+    })
+    setDisputedShifts((prev: any[]) => prev.filter((s: any) => s.id !== shiftId))
+    setResolvingDispute(null)
+    if (disputedShifts.length <= 1) setShowDisputePanel(false)
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -607,58 +645,6 @@ function BizOpsGymTabs() {
 export default function BizOpsDashboard({ user }: BizOpsDashboardProps) {
   const todayStr = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
-  const resolveDispute = async (shiftId: string, resolution: 'approved' | 'rejected') => {
-    setResolvingDispute(shiftId)
-    const shift = disputedShifts.find((s: any) => s.id === shiftId)
-    if (!shift) return
-    const newStatus = resolution === 'approved' ? 'absent' : 'completed'
-    const resolvedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
-
-    const { error } = await supabase.from('duty_roster').update({
-      status: newStatus,
-      dispute_resolved_at: resolvedAt,
-      dispute_resolved_by: user?.id,
-      dispute_resolution: resolution,
-    }).eq('id', shiftId)
-    if (error) { setResolvingDispute(null); return }
-
-    // If dispute approved (absent confirmed) — check if payslip already paid
-    // If paid, create a pending deduction for next month's payslip
-    if (resolution === 'approved') {
-      const shiftMonth = parseInt(shift.shift_date.split('-')[1])
-      const shiftYear = parseInt(shift.shift_date.split('-')[0])
-      const { data: existingPayslip } = await supabase.from('payslips')
-        .select('id, status').eq('user_id', shift.user_id)
-        .eq('gym_id', shift.gym_id).eq('month', shiftMonth).eq('year', shiftYear)
-        .in('status', ['approved', 'paid']).maybeSingle()
-      if (existingPayslip) {
-        // Payslip already approved/paid — create pending deduction for next month
-        await supabase.from('pending_deductions').insert({
-          user_id: shift.user_id,
-          gym_id: shift.gym_id,
-          amount: shift.gross_pay,
-          reason: `Overpayment recovery — absent shift on ${shift.shift_date} (dispute approved)`,
-          shift_id: shiftId,
-          shift_date: shift.shift_date,
-        })
-      }
-      // If payslip is still draft — Biz Ops should regenerate it (no auto-action)
-    }
-
-    // Notify part-timer
-    const message = resolution === 'approved'
-      ? `Your shift on ${shift.shift_date} at ${shift.gym?.name} has been marked absent after dispute review. Any overpayment will be recovered in your next payslip.`
-      : `Your shift on ${shift.shift_date} at ${shift.gym?.name} has been confirmed as worked after dispute review.`
-    await supabase.from('shift_dispute_notif').insert({
-      user_id: shift.user_id, shift_id: shiftId,
-      shift_date: shift.shift_date, gym_id: shift.gym_id,
-      resolution, message,
-    })
-    setDisputedShifts((prev: any[]) => prev.filter((s: any) => s.id !== shiftId))
-    setResolvingDispute(null)
-    if (disputedShifts.length <= 1) setShowDisputePanel(false)
-  }
-
   return (
     <div className="space-y-5">
       <div>
@@ -666,7 +652,7 @@ export default function BizOpsDashboard({ user }: BizOpsDashboardProps) {
         <p className="text-sm text-gray-500">{todayStr}</p>
       </div>
       <StaffBirthdayPanel isBizOps={true} />
-      <BizOpsDashboardAlerts />
+      <BizOpsDashboardAlerts user={user} />
       <BizOpsGymTabs />
     </div>
   )
