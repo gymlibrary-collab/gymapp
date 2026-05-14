@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
@@ -51,6 +51,7 @@ export default function TrainersPage() {
   const [gyms, setGyms] = useState<any[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
   const [archivedLoaded, setArchivedLoaded] = useState(false)
+  const archQRef = useRef<any>(null)
   const [filterRole, setFilterRole] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -114,6 +115,8 @@ export default function TrainersPage() {
 
     const { data: active } = await activeQ.order('employment_type').order('role').order('full_name')
     setStaff(active || [])
+    // Store archQ in ref for deferred loading when Archived tab is clicked
+    archQRef.current = archQ
     // Skip archived on initial load — deferred until tab is clicked
     const { data: gymData } = await supabase.from('gyms').select('*').eq('is_active', true)
     setGyms(gymData || [])
@@ -398,7 +401,7 @@ export default function TrainersPage() {
         <button onClick={async () => {
           setTab('archived')
           if (!archivedLoaded) {
-            const { data: arch } = await archQ.order('archived_at', { ascending: false })
+            const { data: arch } = await archQRef.current.order('archived_at', { ascending: false })
             setArchived(arch || [])
             setArchivedLoaded(true)
           }
