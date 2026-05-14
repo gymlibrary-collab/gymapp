@@ -54,7 +54,7 @@ export default function MyParticularsPage() {
     const res = await fetch('/api/staff', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user!.id, phone: form.phone, address: form.address || null }),
+      body: JSON.stringify({ userId: user!.id, phone: form.phone, address: form.address || null, nickname: form.nickname.trim() }),
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed to save'); setSaving(false); return }
