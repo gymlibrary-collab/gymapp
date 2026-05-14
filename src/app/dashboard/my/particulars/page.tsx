@@ -27,19 +27,19 @@ export default function MyParticularsPage() {
 
 
   useEffect(() => {
+    if (!user) return
     const load = async () => {
       logActivity('page_view', 'My Particulars', 'Viewed own profile particulars')
-      setForm({ phone: user!.phone || '', address: (user as any).address || '', nickname: (user as any).nickname || user!.full_name.split(' ')[0] })
+      setForm({ phone: user.phone || '', address: (user as any).address || '', nickname: (user as any).nickname || user.full_name.split(' ')[0] })
       // Load assigned gyms for part-timers via API (bypasses trainer_gyms RLS)
       if ((user as any).employment_type === 'part_time') {
-        const res = await fetch(`/api/gyms?staff_id=${user!.id}`)
+        const res = await fetch(`/api/gyms?staff_id=${user.id}`)
         const raw = await res.text()
         try {
           const gymData = JSON.parse(raw)
           if (Array.isArray(gymData) && gymData.length > 0) {
             setAssignedGyms(gymData.map((g: any) => g.name).filter(Boolean))
           } else {
-            // Show raw response for debugging
             setAssignedGyms([`s:${res.status} ${raw.substring(0, 120)}`])
           }
         } catch {
@@ -48,7 +48,7 @@ export default function MyParticularsPage() {
       }
     }
     load()
-  }, [])
+  }, [user])
 
   if (loading) return <PageSpinner />
   if (!user) return null
