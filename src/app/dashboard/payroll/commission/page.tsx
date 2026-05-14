@@ -26,6 +26,7 @@ export default function CommissionPayoutsPage() {
   const [staff, setStaff] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingDeduction, setEditingDeduction] = useState<{id: string, amount: string, reason: string} | null>(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [showGenerateForm, setShowGenerateForm] = useState(false)
@@ -186,7 +187,8 @@ export default function CommissionPayoutsPage() {
           employee_cpf_rate: empCpfRate, employer_cpf_rate: erCpfRate,
           aw_subject_to_cpf: awSubject,
           employee_cpf_amount: empCpf, employer_cpf_amount: erCpf,
-          net_commission_sgd: total - empCpf,
+          // net_commission_sgd is now a generated column (total - deduction_amount)
+          // empCpf included in total_commission_sgd calculation upstream
         })
       }
     }
@@ -269,6 +271,20 @@ export default function CommissionPayoutsPage() {
     logActivity('create', 'Commission Payouts', `Generated ${preview.length} commission payout(s) as draft`)
     logActivity('create', 'Commission Payouts', `Generated ${preview.length} payout draft(s) for ${getMonthName(genForm.period_month)} ${genForm.period_year}`)
     showMsg(`${preview.length} commission payout(s) generated as draft`)
+  }
+
+  const handleSaveDeduction = async () => {
+    if (!editingDeduction) return
+    setSaving(true)
+    const amount = parseFloat(editingDeduction.amount) || 0
+    await supabase.from('commission_payouts').update({
+      deduction_amount: amount,
+      deduction_reason: editingDeduction.reason.trim() || null,
+    }).eq('id', editingDeduction.id).eq('status', 'draft')
+    setEditingDeduction(null)
+    setSaving(false)
+    await loadData()
+    showMsg('Deduction saved')
   }
 
   const handleStatusChange = async (payoutId: string, newStatus: 'approved' | 'paid') => {
@@ -488,7 +504,43 @@ export default function CommissionPayoutsPage() {
                     {payout.membership_sales_count > 0 && <span>Memberships: {formatSGD(payout.membership_commission_sgd)}</span>}
                     <span className="font-bold text-green-700">Total: {formatSGD(payout.total_commission_sgd)}</span>
                   </div>
+                  {payout.deduction_amount > 0 && (
+                    <p className="text-xs text-red-600 mt-0.5">Deduction: -{formatSGD(payout.deduction_amount)}{payout.deduction_reason ? ` — ${payout.deduction_reason}` : ''}</p>
+                  )}
                   {payout.paid_at && <p className="text-xs text-green-600 mt-0.5">Paid {formatDate(payout.paid_at)}</p>}
+                  {/* Inline deduction editor — draft only */}
+                  {payout.status === 'draft' && isBizOps && (
+                    editingDeduction?.id === payout.id ? (
+                      <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                        <p className="text-xs font-medium text-gray-700">Edit Deduction</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="label text-xs">Amount (SGD)</label>
+                            <input className="input" type="number" min="0" step="0.01"
+                              value={editingDeduction.amount}
+                              onChange={e => setEditingDeduction(d => d ? {...d, amount: e.target.value} : null)} />
+                          </div>
+                          <div>
+                            <label className="label text-xs">Reason</label>
+                            <input className="input" type="text" placeholder="e.g. Cash advance recovery"
+                              value={editingDeduction.reason}
+                              onChange={e => setEditingDeduction(d => d ? {...d, reason: e.target.value} : null)} />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={handleSaveDeduction} disabled={saving}
+                            className="btn-primary text-xs py-1.5 flex-1">{saving ? 'Saving...' : 'Save'}</button>
+                          <button onClick={() => setEditingDeduction(null)}
+                            className="btn-secondary text-xs py-1.5">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setEditingDeduction({ id: payout.id, amount: (payout.deduction_amount || 0).toString(), reason: payout.deduction_reason || '' })}
+                        className="mt-1 text-xs text-gray-400 hover:text-gray-600 underline">
+                        {payout.deduction_amount > 0 ? 'Edit deduction' : '+ Add deduction'}
+                      </button>
+                    )
+                  )}
                 </div>
                 {isBizOps && (
                   <div className="flex items-center gap-1.5 flex-shrink-0">

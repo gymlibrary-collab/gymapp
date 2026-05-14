@@ -206,7 +206,8 @@ export default function MyPayslipsPage() {
                 <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
                   <span>PT: {formatSGD(p.pt_signup_commission_sgd + p.pt_session_commission_sgd)}</span>
                   <span>Membership: {formatSGD(p.membership_commission_sgd)}</span>
-                  <span className="font-medium text-green-700">Total: {formatSGD(p.total_commission_sgd)}</span>
+                  {p.deduction_amount > 0 && <span className="text-red-600">Deduction: -{formatSGD(p.deduction_amount)}</span>}
+                  <span className="font-medium text-green-700">Net: {formatSGD(p.net_commission_sgd || p.total_commission_sgd)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                   {p.status === 'paid'

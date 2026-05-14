@@ -36,6 +36,7 @@ export default function StaffPayrollDetailPage() {
   const [saving, setSaving] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ payslip: any } | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
+  const [editingDeduction, setEditingDeduction] = useState<{id: string, type: 'payslip' | 'commission', amount: string, reason: string} | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [isBizOpsRole, setIsBizOpsRole] = useState(false)
 
@@ -445,6 +446,28 @@ export default function StaffPayrollDetailPage() {
     await loadData(); showMsg('Payslip deleted — audit record saved')
   }
 
+  const handleSaveDeduction = async () => {
+    if (!editingDeduction) return
+    setSaving(true)
+    const amount = parseFloat(editingDeduction.amount) || 0
+    if (editingDeduction.type === 'payslip') {
+      await supabase.from('payslips').update({
+        deduction_amount: amount,
+        deduction_reason: editingDeduction.reason.trim() || null,
+      }).eq('id', editingDeduction.id).eq('status', 'draft')
+    } else {
+      await supabase.from('commission_payouts').update({
+        deduction_amount: amount,
+        deduction_reason: editingDeduction.reason.trim() || null,
+      }).eq('id', editingDeduction.id).eq('status', 'pending')
+    }
+    logActivity('update', 'Staff Payroll', `Updated deduction on ${editingDeduction.type}`)
+    setEditingDeduction(null)
+    setSaving(false)
+    await loadData()
+    showMsg('Deduction saved')
+  }
+
   const handlePayslipAction = async (payslipId: string, action: 'approved' | 'paid') => {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     // Guard: only approved payslips can be marked paid
@@ -759,14 +782,47 @@ export default function StaffPayrollDetailPage() {
                     </div>
                   </div>
                 )}
-                {ps.deduction_amount > 0 && (
+                {ps.deduction_amount > 0 && editingDeduction?.id !== ps.id && (
                   <div className="flex items-start gap-1.5 bg-red-50 border border-red-200 rounded-lg p-2 mt-2 text-xs text-red-700">
                     <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium">Deduction: -{formatSGD(ps.deduction_amount)}</p>
                       {ps.deduction_reason && <p className="mt-0.5">{ps.deduction_reason}</p>}
                     </div>
                   </div>
+                )}
+                {/* Inline deduction editor — draft only, Biz Ops only */}
+                {ps.status === 'draft' && isBizOps && (
+                  editingDeduction?.id === ps.id ? (
+                    <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                      <p className="text-xs font-medium text-gray-700">Edit Deduction</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="label text-xs">Amount (SGD)</label>
+                          <input className="input" type="number" min="0" step="0.01"
+                            value={editingDeduction.amount}
+                            onChange={e => setEditingDeduction(d => d ? {...d, amount: e.target.value} : null)} />
+                        </div>
+                        <div>
+                          <label className="label text-xs">Reason</label>
+                          <input className="input" type="text" placeholder="e.g. Cash advance recovery"
+                            value={editingDeduction.reason}
+                            onChange={e => setEditingDeduction(d => d ? {...d, reason: e.target.value} : null)} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleSaveDeduction} disabled={saving}
+                          className="btn-primary text-xs py-1.5 flex-1">{saving ? 'Saving...' : 'Save'}</button>
+                        <button onClick={() => setEditingDeduction(null)}
+                          className="btn-secondary text-xs py-1.5">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setEditingDeduction({ id: ps.id, type: 'payslip', amount: (ps.deduction_amount || 0).toString(), reason: ps.deduction_reason || '' })}
+                      className="mt-2 text-xs text-gray-400 hover:text-gray-600 underline">
+                      {ps.deduction_amount > 0 ? 'Edit deduction' : '+ Add deduction'}
+                    </button>
+                  )
                 )}
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', ps.status === 'paid' ? 'bg-green-100 text-green-700' : ps.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'badge-pending')}>{ps.status.charAt(0).toUpperCase() + ps.status.slice(1)}</span>
