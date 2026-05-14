@@ -50,6 +50,7 @@ export default function TrainersPage() {
   const [archived, setArchived] = useState<any[]>([])
   const [gyms, setGyms] = useState<any[]>([])
   const [tab, setTab] = useState<'active' | 'archived'>('active')
+  const [archivedLoaded, setArchivedLoaded] = useState(false)
   const [filterRole, setFilterRole] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -61,7 +62,6 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
-  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const router = useRouter()
   const supabase = createClient()
@@ -92,18 +92,15 @@ export default function TrainersPage() {
       .in('role', staffRoles)
 
     if (isManager && gymId) {
-      // Trainers assigned to this gym via trainer_gyms
+      // Single query for all staff assigned to this gym via trainer_gyms
       const { data: tgRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
-      const trainerIds = tgRows?.map((r: any) => r.trainer_id) || []
+      const allTgIds = tgRows?.map((r: any) => r.trainer_id) || []
+      const trainerIds = allTgIds // all roles in trainer_gyms for this gym
+      const ptIds: string[] = [] // no longer needed separately
 
       // Only roles a manager should see: trainer and staff (not admin/biz ops/other managers)
       activeQ = activeQ.in('role', ['trainer', 'staff'])
       archQ   = archQ.in('role', ['trainer', 'staff'])
-
-      // Part-time ops staff scoped to those assigned to this gym via trainer_gyms
-      // (Part-timers with this gym in their gym_ids list — stored in trainer_gyms table)
-      const { data: ptRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId)
-      const ptIds = (ptRows || []).map((r: any) => r.trainer_id).filter((id: string) => !trainerIds.includes(id))
 
       const allGymIds = Array.from(new Set([...trainerIds, ...ptIds]))
       if (allGymIds.length > 0) {
@@ -117,10 +114,7 @@ export default function TrainersPage() {
 
     const { data: active } = await activeQ.order('employment_type').order('role').order('full_name')
     setStaff(active || [])
-
-    const { data: arch } = await archQ.order('archived_at', { ascending: false })
-    setArchived(arch || [])
-
+    // Skip archived on initial load — deferred until tab is clicked
     const { data: gymData } = await supabase.from('gyms').select('*').eq('is_active', true)
     setGyms(gymData || [])
     setDataLoading(false)
@@ -180,14 +174,12 @@ export default function TrainersPage() {
     const nameMap: Record<string, string> = {}
     const allGymIds: string[] = []
     const res = await fetch(`/api/gyms?staff_id=${member.id}`)
-    const rawText = await res.text()
     let gymData: any[] = []
-    try { gymData = JSON.parse(rawText) } catch {}
+    try { gymData = await res.json() } catch {}
     if (Array.isArray(gymData)) {
       gymData.forEach((g: any) => { allGymIds.push(g.id); nameMap[g.id] = g.name })
     }
     setAllGymNames(nameMap)
-    setDebugInfo({ status: res.status, raw: rawText, allGymIds, nameMap })
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -403,7 +395,14 @@ export default function TrainersPage() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
         <button onClick={() => setTab('active')} className={cn('flex-1 py-1.5 rounded-md text-xs font-medium transition-colors', tab === 'active' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600')}>Active ({staff.length})</button>
-        <button onClick={() => setTab('archived')} className={cn('flex-1 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5', tab === 'archived' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600')}><Archive className="w-3.5 h-3.5" /> Archived ({archived.length})</button>
+        <button onClick={async () => {
+          setTab('archived')
+          if (!archivedLoaded) {
+            const { data: arch } = await archQ.order('archived_at', { ascending: false })
+            setArchived(arch || [])
+            setArchivedLoaded(true)
+          }
+        }} className={cn('flex-1 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5', tab === 'archived' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600')}><Archive className="w-3.5 h-3.5" /> Archived ({archived.length})</button>
       </div>
 
       {tab === 'active' && (
@@ -514,7 +513,7 @@ export default function TrainersPage() {
                         <div>
                           <p className="text-xs text-gray-400 mb-1.5">Also assigned to (managed by other gyms):</p>
                           <div className="space-y-1">{(editForm as any).gym_ids.filter((id: string) => id !== user!.manager_gym_id).map((id: string) => (
-                            <p key={id} className="text-sm text-gray-600 pl-2">• {allGymNames[id] || gyms.find(g => g.id === id)?.name || id}</p>
+                            <p key={id} className="text-sm font-semibold text-gray-800 pl-2">• {allGymNames[id] || gyms.find(g => g.id === id)?.name || id}</p>
                           ))}</div>
                         </div>
                       )}
@@ -524,15 +523,6 @@ export default function TrainersPage() {
                     <div>
                       <label className="label">Assigned Gym</label>
                       <select className="input" value={(editForm as any).gym_id} onChange={e => setEditForm((f: any) => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">— No gym assigned —</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
-                    </div>
-                  )}
-                  {debugInfo && (editForm as any).employment_type === 'part_time' && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs space-y-1 break-all">
-                      <p className="font-semibold text-yellow-800">Debug</p>
-                      <p>status: {debugInfo.status}</p>
-                      <p>raw: {debugInfo.raw}</p>
-                      <p>gymIds: {JSON.stringify(debugInfo.allGymIds)}</p>
-                      <p>nameMap: {JSON.stringify(debugInfo.nameMap)}</p>
                     </div>
                   )}
                   {editForm.role === 'manager' && isBizOps && <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />}
