@@ -61,7 +61,6 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
-  const [debugInfo, setDebugInfo] = useState<any>(null)
 
   const router = useRouter()
   const supabase = createClient()
@@ -176,16 +175,20 @@ export default function TrainersPage() {
     // (nested select in the staff list query may not return all rows)
     // Fetch trainer_gyms with gym names via join — trainer_gyms_read is open to all
     // authenticated users so the nested gyms(name) join works even for managers
-    const { data: tgRows, error: tgErr } = await supabase.from('trainer_gyms')
-      .select('gym_id, gyms(name)').eq('trainer_id', member.id)
+    // Fetch gym IDs only — no join to avoid gyms RLS filtering out other gyms
+    const { data: tgRows } = await supabase.from('trainer_gyms')
+      .select('gym_id').eq('trainer_id', member.id)
     const allGymIds = (tgRows || []).map((r: any) => r.gym_id)
+    // Fetch gym names via API (adminClient bypasses gyms RLS)
     const nameMap: Record<string, string> = {}
-    ;(tgRows || []).forEach((r: any) => {
-      if (r.gym_id && r.gyms?.name) nameMap[r.gym_id] = r.gyms.name
-    })
+    if (allGymIds.length > 0) {
+      const res = await fetch(`/api/gyms?ids=${allGymIds.join(',')}`)
+      if (res.ok) {
+        const gymData = await res.json()
+        gymData.forEach((g: any) => { nameMap[g.id] = g.name })
+      }
+    }
     setAllGymNames(nameMap)
-    // Debug: store raw query result for UI display
-    setDebugInfo({ tgRows, tgErr, allGymIds, nameMap })
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -522,17 +525,6 @@ export default function TrainersPage() {
                     <div>
                       <label className="label">Assigned Gym</label>
                       <select className="input" value={(editForm as any).gym_id} onChange={e => setEditForm((f: any) => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">— No gym assigned —</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
-                    </div>
-                  )}
-                  {/* DEBUG PANEL — remove after troubleshooting */}
-                  {debugInfo && (editForm as any).employment_type === 'part_time' && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs space-y-1">
-                      <p className="font-semibold text-yellow-800">Debug Info</p>
-                      <p>tgRows count: {debugInfo.tgRows?.length ?? 'null'}</p>
-                      <p>tgErr: {debugInfo.tgErr ? JSON.stringify(debugInfo.tgErr) : 'none'}</p>
-                      <p>allGymIds: {JSON.stringify(debugInfo.allGymIds)}</p>
-                      <p>nameMap: {JSON.stringify(debugInfo.nameMap)}</p>
-                      <p>tgRows raw: {JSON.stringify(debugInfo.tgRows)}</p>
                     </div>
                   )}
                   {editForm.role === 'manager' && isBizOps && <AlsoTrainerToggle value={(editForm as any).is_also_trainer} onChange={v => setEditForm((f: any) => ({ ...f, is_also_trainer: v }))} />}
