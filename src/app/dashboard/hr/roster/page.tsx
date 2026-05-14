@@ -56,6 +56,7 @@ export default function RosterPage() {
   const [disputeEntry, setDisputeEntry] = useState<any>(null)
   const [disputeReason, setDisputeReason] = useState('')
   const [paidPayslipKeys, setPaidPayslipKeys] = useState<Set<string>>(new Set())
+  const [debugPtIds, setDebugPtIds] = useState<number>(0)
   const [overlapWarning, setOverlapWarning] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -95,6 +96,7 @@ export default function RosterPage() {
         pt = ptData || []
       }
       setPartTimers(pt)
+      setDebugPtIds(ptIds.length)
     }
 
     // Load roster — week or month range
@@ -486,7 +488,7 @@ export default function RosterPage() {
         <div className="space-y-3">
           {/* DEBUG */}
           <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-            Month debug: roster={roster.length} partTimers={partTimers.length} rangeStart check
+            Month debug: roster={roster.length} partTimers={partTimers.length} gymId={gymId || 'null'} ptIdsFound={debugPtIds}
           </div>
           {partTimers.map(pt => {
             const ptShifts = roster.filter((r: any) => r.user_id === pt.id)
