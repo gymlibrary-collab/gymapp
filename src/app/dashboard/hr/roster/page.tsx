@@ -32,6 +32,7 @@ export default function RosterPage() {
   const [gymName, setGymName] = useState('')
   const [partTimers, setPartTimers] = useState<any[]>([])
   const [roster, setRoster] = useState<any[]>([])
+  const [rosterError, setRosterError] = useState<string | null>(null)
   const [presets, setPresets] = useState<any[]>([])
   const [weekStart, setWeekStart] = useState(() => {
     // Use SGT for correct week calculation in Singapore timezone
@@ -113,8 +114,9 @@ export default function RosterPage() {
       .gte('shift_date', rangeStart).lte('shift_date', rangeEnd)
       .order('shift_date').order('shift_start')
     if (gId) rQ = rQ.eq('gym_id', gId)
-    const { data: rData } = await rQ
+    const { data: rData, error: rErr } = await rQ
     setRoster(rData || [])
+    setRosterError(rErr?.message || null)
   }
 
   useEffect(() => { if (user) loadData(true) }, [weekStart, viewMode, monthOffset, user])
@@ -503,6 +505,8 @@ export default function RosterPage() {
         <p>roster dates: {JSON.stringify(roster.map((r:any) => r.shift_date))}</p>
         <p>gymId: {gymId}</p>
         <p>partTimers: {partTimers.map((p:any) => p.full_name).join(', ')}</p>
+        <p>rosterError: {rosterError || 'none'}</p>
+        <p>rangeStart: {roster.length === 0 ? 'check below' : 'ok'}</p>
       </div>
 
       {/* Weekly roster */}
