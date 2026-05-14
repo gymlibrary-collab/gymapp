@@ -117,6 +117,7 @@ export default function TrainersPage() {
     setStaff(active || [])
 
 
+
     // Store archQ in ref for deferred loading when Archived tab is clicked
     archQRef.current = archQ
     // Skip archived on initial load — deferred until tab is clicked
@@ -370,7 +371,8 @@ export default function TrainersPage() {
   const getGymLabel = (m: any) => {
     if (m.role === 'admin') return 'HQ'
     if (m.role === 'business_ops') return 'All Gyms'
-    // trainer_gyms nested join now returns all rows for managers (migration v85)
+    // gyms_manager_read (v86) now allows managers to read all relevant gyms
+    // nested gyms(name) join works correctly
     const gymNames = (m.trainer_gyms || []).map((tg: any) => tg.gyms?.name).filter(Boolean)
     return gymNames.length > 0 ? gymNames.join(', ') : 'Unassigned'
   }
