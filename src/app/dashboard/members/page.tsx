@@ -68,6 +68,7 @@ export default function MembersPage() {
 
   if (loading) return <PageSpinner />
   if (!user) return null
+  if (isPartTime && !partTimerActiveGymId) return <NoActiveShift pageName="Members" />
 
   const getActiveMembership = (member: any) => {
     const memberships = member.gym_memberships || []
@@ -85,7 +86,7 @@ export default function MembersPage() {
     return matchSearch && matchStatus
   })
 
-  const canAddMember = user?.role === 'manager' || user?.role === 'business_ops' || isActingAsTrainer || user?.role === 'trainer' || user?.role === 'staff'
+  const canAddMember = (user?.role === 'manager' || user?.role === 'business_ops' || isActingAsTrainer || user?.role === 'trainer' || user?.role === 'staff') && !(isPartTime && !partTimerActiveGymId)
 
 
   return (
