@@ -224,6 +224,66 @@ function BizOpsDashboardAlerts() {
           }} className="text-xs text-red-600 hover:underline flex-shrink-0">Dismiss</button>
         </div>
       )}
+
+      {/* Disputed shifts banner */}
+      {disputedShifts.length > 0 && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-800">
+              {disputedShifts.length} disputed shift{disputedShifts.length !== 1 ? 's' : ''} awaiting resolution
+            </p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              {disputedShifts.map((s: any) => `${s.user?.full_name} (${s.shift_date})`).join(', ')}
+            </p>
+          </div>
+          <button onClick={() => setShowDisputePanel(true)}
+            className="text-xs text-amber-700 font-medium hover:underline flex-shrink-0">
+            Review
+          </button>
+        </div>
+      )}
+
+      {/* Dispute resolution slide-out panel */}
+      {showDisputePanel && (
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">Disputed Shifts</h2>
+              <button onClick={() => setShowDisputePanel(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+              {disputedShifts.map((shift: any) => (
+                <div key={shift.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{shift.user?.full_name}</p>
+                      <p className="text-xs text-gray-500">{shift.gym?.name} · {shift.shift_date} · {shift.shift_start}–{shift.shift_end}</p>
+                      <p className="text-xs text-gray-500">{shift.hours_worked?.toFixed(1)}h · {formatSGD(shift.gross_pay)}</p>
+                    </div>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg p-2">
+                    <p className="text-xs text-amber-800"><strong>Reason:</strong> {shift.dispute_reason}</p>
+                    <p className="text-xs text-amber-600 mt-0.5">Raised: {new Date(shift.disputed_at).toLocaleDateString('en-SG')}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => resolveDispute(shift.id, 'approved')}
+                      disabled={resolvingDispute === shift.id}
+                      className="flex-1 text-xs py-1.5 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200 disabled:opacity-50">
+                      Approve — Mark Absent
+                    </button>
+                    <button onClick={() => resolveDispute(shift.id, 'rejected')}
+                      disabled={resolvingDispute === shift.id}
+                      className="flex-1 text-xs py-1.5 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200 disabled:opacity-50">
+                      Reject — Confirm Worked
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -546,6 +606,58 @@ function BizOpsGymTabs() {
 // ── BizOpsDashboard ───────────────────────────────────────────
 export default function BizOpsDashboard({ user }: BizOpsDashboardProps) {
   const todayStr = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+  const resolveDispute = async (shiftId: string, resolution: 'approved' | 'rejected') => {
+    setResolvingDispute(shiftId)
+    const shift = disputedShifts.find((s: any) => s.id === shiftId)
+    if (!shift) return
+    const newStatus = resolution === 'approved' ? 'absent' : 'completed'
+    const resolvedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
+
+    const { error } = await supabase.from('duty_roster').update({
+      status: newStatus,
+      dispute_resolved_at: resolvedAt,
+      dispute_resolved_by: user?.id,
+      dispute_resolution: resolution,
+    }).eq('id', shiftId)
+    if (error) { setResolvingDispute(null); return }
+
+    // If dispute approved (absent confirmed) — check if payslip already paid
+    // If paid, create a pending deduction for next month's payslip
+    if (resolution === 'approved') {
+      const shiftMonth = parseInt(shift.shift_date.split('-')[1])
+      const shiftYear = parseInt(shift.shift_date.split('-')[0])
+      const { data: existingPayslip } = await supabase.from('payslips')
+        .select('id, status').eq('user_id', shift.user_id)
+        .eq('gym_id', shift.gym_id).eq('month', shiftMonth).eq('year', shiftYear)
+        .in('status', ['approved', 'paid']).maybeSingle()
+      if (existingPayslip) {
+        // Payslip already approved/paid — create pending deduction for next month
+        await supabase.from('pending_deductions').insert({
+          user_id: shift.user_id,
+          gym_id: shift.gym_id,
+          amount: shift.gross_pay,
+          reason: `Overpayment recovery — absent shift on ${shift.shift_date} (dispute approved)`,
+          shift_id: shiftId,
+          shift_date: shift.shift_date,
+        })
+      }
+      // If payslip is still draft — Biz Ops should regenerate it (no auto-action)
+    }
+
+    // Notify part-timer
+    const message = resolution === 'approved'
+      ? `Your shift on ${shift.shift_date} at ${shift.gym?.name} has been marked absent after dispute review. Any overpayment will be recovered in your next payslip.`
+      : `Your shift on ${shift.shift_date} at ${shift.gym?.name} has been confirmed as worked after dispute review.`
+    await supabase.from('shift_dispute_notif').insert({
+      user_id: shift.user_id, shift_id: shiftId,
+      shift_date: shift.shift_date, gym_id: shift.gym_id,
+      resolution, message,
+    })
+    setDisputedShifts((prev: any[]) => prev.filter((s: any) => s.id !== shiftId))
+    setResolvingDispute(null)
+    if (disputedShifts.length <= 1) setShowDisputePanel(false)
+  }
 
   return (
     <div className="space-y-5">

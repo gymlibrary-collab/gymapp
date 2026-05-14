@@ -154,6 +154,10 @@ export default function PayrollPage() {
       .eq('status', 'completed')
     const bonusRes = await supabase.from('staff_bonuses').select('user_id, amount')
       .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
+    // Load pending deductions (overpayment recovery from dispute approvals)
+    const deductionRes = await supabase.from('pending_deductions')
+      .select('user_id, gym_id, amount, reason, id')
+      .in('user_id', allUserIds).is('applied_at', null)
     // Load gym info for logo on payslips
     const { data: gymsData } = await supabase.from('gyms').select('id, name, logo_url')
 
@@ -178,6 +182,16 @@ export default function PayrollPage() {
     bonusRes.data?.forEach((b: any) => {
       bonusByUser[b.user_id] = (bonusByUser[b.user_id] || 0) + (b.amount || 0)
     })
+    // Pending deductions keyed by userId:gymId
+    const deductionByUserGym: Record<string, { amount: number, reason: string, ids: string[] }> = {}
+    deductionRes.data?.forEach((d: any) => {
+      const key = `${d.user_id}:${d.gym_id || 'null'}`
+      if (!deductionByUserGym[key]) deductionByUserGym[key] = { amount: 0, reason: '', ids: [] }
+      deductionByUserGym[key].amount += d.amount || 0
+      deductionByUserGym[key].reason = d.reason // use last reason (typically one per month)
+      deductionByUserGym[key].ids.push(d.id)
+    })
+    const appliedDeductionIds: string[] = []
 
     let generated = 0; let skipped = 0
     const noSalaryNames: string[] = []
@@ -199,6 +213,9 @@ export default function PayrollPage() {
           const existKey = `${member.id}:${gymId}`
           if (existingApproved.has(existKey)) { skipped++; continue } // skip approved/paid only
           const actualGymId = gymId === 'null' ? null : gymId
+          const deductKey = `${member.id}:${gymId}`
+          const deduction = deductionByUserGym[deductKey]
+          if (deduction) deduction.ids.forEach(id => appliedDeductionIds.push(id))
           toInsert.push({
             user_id: member.id, month: bulkMonth, year: bulkYear,
             gym_id: actualGymId,
@@ -209,6 +226,8 @@ export default function PayrollPage() {
             is_cpf_liable: isCpf,
             employee_cpf_rate: isCpf ? rates.employee_rate : 0,
             employer_cpf_rate: isCpf ? rates.employer_rate : 0,
+            deduction_amount: deduction?.amount || 0,
+            deduction_reason: deduction?.reason || null,
             status: 'draft', generated_by: user?.id, generated_at: new Date().toISOString(),
           })
           generated++; anyGenerated = true
@@ -240,7 +259,13 @@ export default function PayrollPage() {
     }
 
     if (toInsert.length > 0) {
-      await supabase.from('payslips').insert(toInsert)
+      const { data: inserted } = await supabase.from('payslips').insert(toInsert).select('id, user_id, gym_id')
+      // Mark pending deductions as applied
+      if (appliedDeductionIds.length > 0) {
+        await supabase.from('pending_deductions')
+          .update({ applied_at: new Date().toISOString() })
+          .in('id', appliedDeductionIds)
+      }
     }
 
     setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: [] })
@@ -283,7 +308,7 @@ export default function PayrollPage() {
       const { default: autoTable } = await import('jspdf-autotable')
       const { addLogoHeader, PDF_TABLE_STYLE, renderPayslipPdf, renderCommissionPdf } = await import('@/lib/pdf')
 
-      const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', archiveGym).single()
+      const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', archiveGym).maybeSingle()
       const gymName = (gym as any)?.name || 'Gym'
       const logoUrl = (gym as any)?.logo_url || ''
 

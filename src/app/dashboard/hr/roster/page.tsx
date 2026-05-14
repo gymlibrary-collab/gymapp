@@ -1,20 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { getGymStaffIds } from '@/lib/dashboard'
-import { createClient } from '@/lib/supabase-browser'
-import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD, todaySGT} from '@/lib/utils'
-import { validateHourlyRate } from '@/lib/validators'
-import {
+import { AlertTriangle, useEffect, useState } from 'react'
+import { AlertTriangle, useRouter } from 'next/navigation'
+import { AlertTriangle, getGymStaffIds } from '@/lib/dashboard'
+import { AlertTriangle, createClient } from '@/lib/supabase-browser'
+import { AlertTriangle, useActivityLog } from '@/hooks/useActivityLog'
+import { AlertTriangle, formatDate, formatSGD, todaySGT, withinWorkingDays } from '@/lib/utils'
+import { AlertTriangle, validateHourlyRate } from '@/lib/validators'
+import { AlertTriangle,
   Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
   ChevronLeft, ChevronRight, Settings, Clock, Users, AlertTriangle
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { useToast } from '@/hooks/useToast'
-import { StatusBanner } from '@/components/StatusBanner'
-import { useCurrentUser } from '@/hooks/useCurrentUser'
+import { AlertTriangle, cn } from '@/lib/utils'
+import { AlertTriangle, useToast } from '@/hooks/useToast'
+import { AlertTriangle, StatusBanner } from '@/components/StatusBanner'
+import { AlertTriangle, useCurrentUser } from '@/hooks/useCurrentUser'
 
 const DEFAULT_PRESETS = [
   { label: 'Morning', shift_start: '08:00', shift_end: '13:00' },
@@ -55,6 +55,10 @@ export default function RosterPage() {
   const [presetForm, setPresetForm] = useState({ label: '', shift_start: '', shift_end: '' })
 
   const [saving, setSaving] = useState(false)
+  const [disputeEntry, setDisputeEntry] = useState<any>(null)
+  const [disputeReason, setDisputeReason] = useState('')
+  const [publicHolidays, setPublicHolidays] = useState<string[]>([])
+  const [paidPayslipKeys, setPaidPayslipKeys] = useState<Set<string>>(new Set())
   const [overlapWarning, setOverlapWarning] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -115,6 +119,23 @@ export default function RosterPage() {
     if (gId) rQ = rQ.eq('gym_id', gId)
     const { data: rData } = await rQ
     setRoster(rData || [])
+
+    // Load public holidays for dispute grace period calculation
+    const { data: phData } = await supabase.from('public_holidays')
+      .select('holiday_date').gte('holiday_date', todaySGT())
+    setPublicHolidays((phData || []).map((h: any) => h.holiday_date))
+
+    // Load approved/paid payslip keys to block disputes on already-paid shifts
+    // Key format: userId:gymId:month:year
+    if (gId) {
+      const { data: paidPs } = await supabase.from('payslips')
+        .select('user_id, gym_id, month, year')
+        .eq('gym_id', gId).in('status', ['approved', 'paid'])
+      const keys = new Set<string>(
+        (paidPs || []).map((p: any) => `${p.user_id}:${p.gym_id}:${p.month}:${p.year}`)
+      )
+      setPaidPayslipKeys(keys)
+    }
   }
 
   useEffect(() => { if (user) loadData(true) }, [weekStart, viewMode, monthOffset, user])
@@ -209,6 +230,22 @@ export default function RosterPage() {
     logActivity('create', 'Duty Roster', `Added ${rows.length} roster shift(s)`)
     showMsg(`${rows.length} shift${rows.length !== 1 ? 's' : ''} added`)
     await loadData()
+  }
+
+  const handleDispute = async () => {
+    if (!disputeEntry || !disputeReason.trim()) return
+    setSaving(true)
+    const { error } = await supabase.from('duty_roster').update({
+      status: 'disputed',
+      disputed_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      disputed_by: user?.id,
+      dispute_reason: disputeReason.trim(),
+    }).eq('id', disputeEntry.id)
+    if (error) { setError(error.message); setSaving(false); return }
+    logActivity('update', 'Duty Roster', `Disputed shift for ${disputeEntry.user?.full_name} on ${disputeEntry.shift_date}`)
+    showMsg('Dispute raised — Biz Ops will review')
+    setDisputeEntry(null); setDisputeReason('')
+    setSaving(false); await loadData()
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -536,14 +573,35 @@ export default function RosterPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* Status badge for locked shifts */}
+                      {entry.is_locked && entry.status === 'disputed' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Disputed</span>
+                      )}
+                      {entry.is_locked && entry.status === 'absent' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Absent</span>
+                      )}
+                      {/* Lock button — only on unlocked shifts */}
                       {!isBizOps && !entry.is_locked && (
                         <button onClick={() => handleLock(entry)} title="Lock" className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg">
                           <Lock className="w-3.5 h-3.5" />
                         </button>
                       )}
+                      {/* Delete button — only on unlocked shifts */}
                       {!isBizOps && !entry.is_locked && (
                         <button onClick={() => handleDelete(entry)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
                           <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {/* Dispute button — blocked if payslip already approved/paid */}
+                      {!isBizOps && entry.is_locked && entry.status === 'completed' && !entry.disputed_at &&
+                        withinWorkingDays(entry.shift_date, 3, publicHolidays) && (() => {
+                          const [sy, sm] = entry.shift_date.split('-')
+                          const psKey = `${entry.user_id}:${gymId}:${parseInt(sm)}:${parseInt(sy)}`
+                          return !paidPayslipKeys.has(psKey)
+                        })() && (
+                        <button onClick={() => { setDisputeEntry(entry); setDisputeReason('') }}
+                          title="Raise dispute" className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg">
+                          <AlertTriangle className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -554,6 +612,36 @@ export default function RosterPage() {
           </div>
         )
       })}
+
+
+      {/* Dispute modal */}
+      {disputeEntry && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-5 max-w-md w-full space-y-4">
+            <div>
+              <h2 className="font-semibold text-gray-900">Raise Dispute</h2>
+              <p className="text-xs text-gray-500 mt-0.5">{disputeEntry.user?.full_name} · {disputeEntry.shift_date} · {disputeEntry.shift_start}–{disputeEntry.shift_end}</p>
+            </div>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+              ⚠ This shift was auto-locked and marked as worked. Raise a dispute if the part-timer did not show up. Business Operations will review and resolve.
+            </div>
+            <div>
+              <label className="label">Reason for dispute *</label>
+              <textarea className="input min-h-[80px] resize-none" required
+                placeholder="e.g. Part-timer did not show up for this shift"
+                value={disputeReason} onChange={e => setDisputeReason(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleDispute} disabled={saving || !disputeReason.trim()}
+                className="btn-primary flex-1 disabled:opacity-50">
+                {saving ? 'Submitting...' : 'Submit Dispute'}
+              </button>
+              <button onClick={() => { setDisputeEntry(null); setDisputeReason('') }}
+                className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
