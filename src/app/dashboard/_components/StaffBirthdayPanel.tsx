@@ -21,6 +21,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Gift, ChevronRight, X } from 'lucide-react'
+import { nowSGT } from '@/lib/utils'
 
 export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string | null, isBizOps?: boolean }) {
   const [birthdays, setBirthdays] = useState<any[]>([])
