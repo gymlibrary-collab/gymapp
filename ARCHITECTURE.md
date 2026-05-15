@@ -40,7 +40,7 @@ admin → business_ops → manager → trainer / staff (full-time or part-time)
 - **Date/time**: always use SGT. Use `nowSGT()` from `@/lib/utils` for current time. Use `getTodayStart()`, `getTodayEnd()`, `getMonthStart()`, `getDaysFromToday()` from `@/lib/dashboard` for query ranges.
 - **Users table**: RLS enabled. Client queries use `users_safe` (non-sensitive) or direct `users` for own row. Sensitive data (salary, NRIC, commission rates) only via `adminClient` in API routes.
 - **useCurrentUser hook must be the FIRST hook** in every component.
-- **Set deduplication**: `Array.from(new Set([...a, ...b]))`.
+- **Set deduplication**: `Array.from(new Set([...a, ...b]))` — never `[...new Set()]`. `tsconfig.json` targets ES5 which does not support Set spread; the spread inside `Array.from` works because it spreads an array literal, not the Set itself.
 
 ---
 
