@@ -61,11 +61,12 @@ export default function RosterPage() {
   const supabase = createClient()
 
   const { success, error, showMsg, showError, setError } = useToast()
+  const gymStaticLoadedRef = useRef(false)
 
 
   const loadData = async (isInitial = false) => {
     if (!user) return
-    if (isInitial) logActivity('page_view', 'Duty Roster', 'Viewed duty roster')
+    if (isInitial) { logActivity('page_view', 'Duty Roster', 'Viewed duty roster'); gymStaticLoadedRef.current = false }
     // Biz Ops has no assigned gym — default to first active gym for roster view
     let gId = user.manager_gym_id || null
     if (user!.role === 'business_ops' && !gId) {
@@ -74,34 +75,7 @@ export default function RosterPage() {
     }
     setGymId(gId)
 
-    if (gId) {
-      const { data: gym } = await supabase.from('gyms').select('name').eq('id', gId).maybeSingle()
-      setGymName(gym?.name || '')
-
-      // Load presets for this gym
-      const { data: presetsData } = await supabase.from('roster_shift_presets')
-        .select('*').eq('gym_id', gId).eq('is_active', true).order('sort_order')
-      setPresets(presetsData?.length ? presetsData : DEFAULT_PRESETS)
-
-      // Load part-timers assigned to this gym only (via trainer_gyms)
-      const { data: ptGymRows } = await supabase.from('trainer_gyms')
-        .select('trainer_id').eq('gym_id', gId)
-      const ptIds = (ptGymRows || []).map((r: any) => r.trainer_id)
-      let pt: any[] = []
-      if (ptIds.length > 0) {
-        const { data: ptData } = await supabase.from('users_safe')
-          .select('*').eq('employment_type', 'part_time').eq('is_archived', false)
-          .in('id', ptIds).order('full_name')
-        // Fetch hourly_rate via API — excluded from users_safe for security
-        const ratesRes = await fetch(`/api/staff-rates?ids=${ptIds.join(',')}`)
-        const rates: {id: string, hourly_rate: number | null}[] = ratesRes.ok ? await ratesRes.json() : []
-        const rateMap = Object.fromEntries(rates.map(r => [r.id, r.hourly_rate]))
-        pt = (ptData || []).map((p: any) => ({ ...p, hourly_rate: rateMap[p.id] ?? null }))
-      }
-      setPartTimers(pt)
-    }
-
-    // Load roster — week or month range
+    // Compute roster date range (no async needed)
     let rangeStart: string, rangeEnd: string
     if (viewMode === 'month') {
       const now = nowSGT() // SGT
@@ -115,24 +89,55 @@ export default function RosterPage() {
       rangeStart = weekStart
       rangeEnd = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
     }
-    let rQ = supabase.from('duty_roster')
-      .select('*, user:users!duty_roster_user_id_fkey(full_name, phone, hourly_rate)') // users direct — hourly_rate needed for shift card display
-      .gte('shift_date', rangeStart).lte('shift_date', rangeEnd)
-      .order('shift_date').order('shift_start')
-    if (gId) rQ = rQ.eq('gym_id', gId)
-    const { data: rData } = await rQ
-    setRoster(rData || [])
 
-    // Load approved/paid payslip keys to block disputes on already-paid shifts
-    // Key format: userId:gymId:month:year
     if (gId) {
+      // Run all independent queries in parallel
+      let rQ = supabase.from('duty_roster')
+        .select('*, user:users!duty_roster_user_id_fkey(full_name, phone, hourly_rate)') // users direct — hourly_rate needed for shift card display
+        .gte('shift_date', rangeStart).lte('shift_date', rangeEnd)
+        .order('shift_date').order('shift_start')
+        .eq('gym_id', gId)
+
+      // Gym name + presets are static — only fetch on initial load or forced refresh
+      if (!gymStaticLoadedRef.current) {
+        const { data: gym } = await supabase.from('gyms').select('name').eq('id', gId).maybeSingle()
+        setGymName(gym?.name || '')
+        const { data: presetsData } = await supabase.from('roster_shift_presets')
+          .select('*').eq('gym_id', gId).eq('is_active', true).order('sort_order')
+        setPresets(presetsData?.length ? presetsData : DEFAULT_PRESETS)
+        gymStaticLoadedRef.current = true
+      }
+
+      const { data: rData } = await rQ
+      setRoster(rData || [])
+
       const { data: paidPs } = await supabase.from('payslips')
-        .select('user_id, gym_id, month, year')
-        .eq('gym_id', gId).in('status', ['approved', 'paid'])
-      const keys = new Set<string>(
+        .select('user_id, gym_id, month, year').eq('gym_id', gId).in('status', ['approved', 'paid'])
+      setPaidPayslipKeys(new Set<string>(
         (paidPs || []).map((p: any) => `${p.user_id}:${p.gym_id}:${p.month}:${p.year}`)
-      )
-      setPaidPayslipKeys(keys)
+      ))
+
+      const { data: ptGymRows } = await supabase.from('trainer_gyms')
+        .select('trainer_id').eq('gym_id', gId)
+
+      // hourly_rate is in users_safe — part-timer rates are not sensitive
+      const ptIds = (ptGymRows || []).map((r: any) => r.trainer_id)
+      if (ptIds.length > 0) {
+        const { data: ptData } = await supabase.from('users_safe')
+          .select('*').eq('employment_type', 'part_time').eq('is_archived', false)
+          .in('id', ptIds).order('full_name')
+        setPartTimers(ptData || [])
+      } else {
+        setPartTimers([])
+      }
+    } else {
+      // No gym — still load roster (biz ops fallback)
+      let rQ = supabase.from('duty_roster')
+        .select('*, user:users!duty_roster_user_id_fkey(full_name, phone, hourly_rate)')
+        .gte('shift_date', rangeStart).lte('shift_date', rangeEnd)
+        .order('shift_date').order('shift_start')
+      const { data: rData } = await rQ
+      setRoster(rData || [])
     }
   }
 
