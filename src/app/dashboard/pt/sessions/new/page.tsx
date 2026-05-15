@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, cn, todaySGT, nowSGT} from '@/lib/utils'
-import { renderWhatsAppTemplate, isWhatsAppEnabled } from '@/lib/whatsapp'
+import { queueWhatsApp, isWhatsAppEnabled } from '@/lib/whatsapp'
 import { ArrowLeft, Calendar, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -170,18 +170,25 @@ export default function NewPtSessionPage() {
 
     if (err) { setError(err.message); setSaving(false); return }
 
-    // Queue WhatsApp reminder 24h before
+    // Queue WhatsApp reminder to trainer 24h before session
     const reminderAt = new Date(scheduledAt.getTime() - 24 * 60 * 60 * 1000)
     if (reminderAt > nowSGT()) {
       const member = members.find(m => m.id === form.member_id)
+      const sessionDateStr = scheduledAt.toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+      const sessionTimeStr = scheduledAt.toLocaleTimeString('en-SG', { timeZone: 'Asia/Singapore', hour: '2-digit', minute: '2-digit', hour12: true })
       if (user!.phone && await isWhatsAppEnabled(supabase, 'pt_reminder_trainer_24h')) {
-        await supabase.from('whatsapp_queue').insert({
-          notification_type: 'pt_reminder_24h',
-          recipient_phone: user!.phone,
-          recipient_name: user!.full_name,
-          message: `Reminder: PT session tomorrow at ${scheduledAt.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} with ${member?.full_name}`,
-          scheduled_for: reminderAt.toISOString(),
-          status: 'pending',
+        await queueWhatsApp(supabase, {
+          notificationType: 'pt_reminder_trainer_24h',
+          phone: user!.phone,
+          name: user!.full_name,
+          placeholders: {
+            trainer_name: user!.full_name,
+            member_name: member?.full_name || '',
+            session_date: sessionDateStr,
+            session_time: sessionTimeStr,
+          },
+          fallbackMessage: `Reminder: PT session tomorrow at ${sessionTimeStr} with ${member?.full_name || 'your client'}`,
+          scheduledFor: reminderAt.toISOString(),
         })
       }
     }
