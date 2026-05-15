@@ -38,7 +38,7 @@ export default function PtOnboardPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) { router.replace('/dashboard'); return }
 
-    const { data: me } = await supabase.from('users_own')
+    const { data: me } = await supabase.from('users')
       .select('*, gyms:manager_gym_id(name)')
       .eq('id', authUser.id).maybeSingle()
     if (!me || !['trainer', 'manager', 'staff'].includes(me.role)) {
