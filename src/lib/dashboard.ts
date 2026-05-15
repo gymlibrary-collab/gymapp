@@ -1,4 +1,4 @@
-import { todaySGT } from '@/lib/utils'
+import { todaySGT, nowSGT} from '@/lib/utils'
 // ============================================================
 // src/lib/dashboard.ts — Shared dashboard query functions
 //
@@ -48,19 +48,19 @@ import { todaySGT } from '@/lib/utils'
 /** Returns ISO datetime string for start of today (00:00:00 local time) */
 export function getTodayStart(): string {
   // SGT — Singapore timezone (UTC+8)
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const now = nowSGT()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
 }
 
 /** Returns ISO datetime string for end of today (23:59:59 SGT = 15:59:59 UTC) */
 export function getTodayEnd(): string {
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const now = nowSGT()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 59, 59)).toISOString()
 }
 
 /** Returns ISO datetime string for the first day of the current month (00:00:00 SGT) */
 export function getMonthStart(): string {
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const now = nowSGT()
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
 }
 
@@ -70,7 +70,7 @@ export function getMonthStart(): string {
  * @param days - Number of days offset from today (positive = future, negative = past)
  */
 export function getDaysFromToday(days: number): string {
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const now = nowSGT()
   const result = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days))
   return `${result.getUTCFullYear()}-${String(result.getUTCMonth()+1).padStart(2,'0')}-${String(result.getUTCDate()).padStart(2,'0')}`
 }

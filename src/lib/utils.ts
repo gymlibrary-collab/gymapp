@@ -27,18 +27,26 @@ export function withinWorkingDays(shiftDateStr: string, days: number, publicHoli
 // Singapore is UTC+8 — all date/time comparisons in the app
 // should use SGT to avoid off-by-one day errors near midnight.
 
+/**
+ * Returns a Date object representing the current time in SGT (UTC+8).
+ * Uses reliable UTC offset arithmetic — not locale-dependent.
+ * The returned Date's UTC methods (getUTCFullYear, getUTCMonth, getUTCDate etc)
+ * reflect the correct SGT date/time values.
+ */
 export function nowSGT(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+  return new Date(Date.now() + 8 * 60 * 60 * 1000)
 }
 
+/** Returns today's date as YYYY-MM-DD string in SGT */
 export function todaySGT(): string {
   const d = nowSGT()
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`
 }
 
+/** Returns current time as HH:MM string in SGT */
 export function currentTimeSGT(): string {
   const d = nowSGT()
-  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`
 }
 
 import { type ClassValue, clsx } from 'clsx'
