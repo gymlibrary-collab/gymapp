@@ -77,7 +77,7 @@ export function useCurrentUser(options: UseCurrentUserOptions = {}): UseCurrentU
 
         // Step 2: Load user profile and role from DB
         const { data: profile, error: profileError } = await supabase
-          .from('users')
+          .from('users_own')
           .select('*, trainer_gyms(gym_id, gyms(name))')
           .eq('id', authUser.id)
           .maybeSingle()
