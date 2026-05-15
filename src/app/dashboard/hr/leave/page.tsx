@@ -307,7 +307,7 @@ export default function LeaveManagementPage() {
     for (const s of staff || []) {
       const total = (s.leave_entitlement_days || 0) + (s.leave_carry_forward_days || 0)
       const carryFwd = Math.min(Math.max(0, total - (daysTakenMap[s.id] || 0)), maxCarryFwd)
-      await supabase.from('users_safe').update({
+      await supabase.from('users').update({
         leave_entitlement_days: annualDays, leave_carry_forward_days: carryFwd,
         medical_leave_entitlement_days: medicalDays, hospitalisation_leave_entitlement_days: hospDays,
       }).eq('id', s.id)
