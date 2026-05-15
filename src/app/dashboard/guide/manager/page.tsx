@@ -2,7 +2,7 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect } from 'react'
-import { BookOpen, Users, DollarSign, Calendar, Bell, ChevronRight } from 'lucide-react'
+import { BookOpen, Users, DollarSign, Calendar, Bell, FileText, ChevronRight } from 'lucide-react'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function GuidePage() {
@@ -11,9 +11,7 @@ export default function GuidePage() {
 
   useEffect(() => { if (!user) return; logActivity('page_view', 'User Guide', 'Viewed Manager user guide') }, [user])
 
-  if (loading || !user) return (
-    <PageSpinner />
-  )
+  if (loading || !user) return (<PageSpinner />)
 
   const sections = [
     {
@@ -27,19 +25,28 @@ export default function GuidePage() {
       ]
     },
     {
-      icon: DollarSign, heading: 'PT Package Sales & Reassignment',
+      icon: DollarSign, heading: 'PT Package Sales & Sessions',
       items: [
         'Confirm or reject pending PT package sales from trainers under PT Package Sales',
         'To reassign a package to a different trainer: click Reassign, select the new trainer and confirm',
-        'Reassignment works on both pending and confirmed packages',
-        'Before archiving a trainer: reassign all their active/pending packages here first',
+        'Confirm completed session notes under PT Schedule — this unlocks the trainer\'s commission',
+        'Sessions with submitted notes appear as pending confirmation on your dashboard',
       ]
     },
     {
-      icon: Calendar, heading: 'Sessions & Leave',
+      icon: FileText, heading: 'Duty Roster (Part-Timers)',
       items: [
-        'Confirm completed session notes under PT > PT Schedule — this unlocks the trainer\'s commission',
-        'Approve or reject staff and trainer leave under Leave Management',
+        'Add, edit and manage part-timer shifts under HR > Duty Roster',
+        'Add shifts for one or multiple part-timers at once using the bulk add form',
+        'Part-timers can dispute a shift — disputed shifts show as orange and are excluded from payroll until resolved',
+        'Lock a shift early to prevent changes (shifts auto-lock after 3 calendar days)',
+        'Use month view to see the full payroll period at a glance',
+      ]
+    },
+    {
+      icon: Calendar, heading: 'Leave Management',
+      items: [
+        'Approve or reject trainer and staff leave under Leave Management',
         'Your own leave goes to Business Operations for approval — it does not appear in your own pending count',
         'Dashboard shows: at-risk members (no sessions in 30 days), expiring memberships and expiring packages',
       ]
@@ -50,17 +57,17 @@ export default function GuidePage() {
         'View your gym\'s details and upload a gym logo under My Gym',
         'See all trainers\' session capacity and targets under Trainer Capacity',
         'Add or edit Trainer and Operations Staff accounts under My Staff',
-        'Probation End Date is visible during staff onboarding',
+        'Part-time staff show their assigned gyms and hourly rate on their profile card',
       ]
     },
     {
       icon: Bell, heading: 'Dashboard Notifications',
       items: [
         'Red banner: pending membership cancellation requests awaiting your approval',
-        'Amber banner: your own pending membership sales awaiting Biz Ops confirmation',
-        'Staff birthday panel: staff with birthdays in the next 7 days (Manager only)',
-        'Member birthday tile: members with birthdays today — click to see the full panel',
-        'Dashboard loads in two phases — key data appears first, schedule and alerts load shortly after',
+        'Amber banner: pending membership sales or PT package sales awaiting your confirmation',
+        'Staff birthday panel: staff with birthdays in the next 7 days',
+        'Member birthday tile: members with birthdays today',
+        'Dispute resolution banners: green (resolved) or red (rejected) after Biz Ops acts on a dispute',
       ]
     },
   ]
@@ -74,11 +81,9 @@ export default function GuidePage() {
           <p className="text-xs text-gray-500">Quick reference for your role</p>
         </div>
       </div>
-
       <div className="card p-4 bg-blue-50 border-blue-100">
-        <p className="text-sm text-blue-800">As Manager, you oversee your gym's daily operations — confirming sales, approving leave, managing PT sessions and keeping your team on track.</p>
+        <p className="text-sm text-blue-800">As Manager, you oversee your gym\'s daily operations — confirming sales, approving leave, managing PT sessions, scheduling part-timer shifts and keeping your team on track.</p>
       </div>
-
       {sections.map((s, si) => {
         const Icon = s.icon
         return (
@@ -98,11 +103,8 @@ export default function GuidePage() {
           </div>
         )
       })}
-
       <div className="card p-4 bg-gray-50 border-gray-100">
-        <p className="text-xs text-gray-500 text-center">
-          Questions? Contact your Business Operations team or system administrator.
-        </p>
+        <p className="text-xs text-gray-500 text-center">Questions? Contact your Business Operations team or system administrator.</p>
       </div>
     </div>
   )

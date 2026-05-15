@@ -1,382 +1,851 @@
 -- ============================================================
--- GymApp Database Schema v2
--- Run this entire file in Supabase SQL Editor
+-- GymApp Database Schema — Current Production State
+-- Last updated: 15 May 2026
+--
+-- HOW TO USE:
+-- 1. Run this entire file in Supabase SQL Editor on a fresh project
+-- 2. Then run the RLS policies section at the bottom
+-- 3. Then run the views section
+-- 4. Then run the triggers section
+-- 5. Set up Google OAuth in Supabase Authentication settings
+-- 6. Insert your first admin user manually via Supabase table editor
+--
+-- NOTE: This schema reflects the live production state as of the
+-- date above. Individual migration files (v1–v89) document the
+-- historical evolution.
 -- ============================================================
 
-create extension if not exists "uuid-ossp";
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================================
--- GYMS (now with logo_url)
+-- CORE TABLES
 -- ============================================================
-create table gyms (
-  id uuid primary key default uuid_generate_v4(),
-  name text not null,
+
+-- App-wide settings (single row: id = 'global')
+CREATE TABLE app_settings (
+  id text PRIMARY KEY DEFAULT 'global',
+  app_name text DEFAULT 'GymApp',
+  sidebar_logo_url text,
+  payslip_logo_url text,
+  auto_logout_minutes integer DEFAULT 10,
+  leave_reset_year integer,
+  max_leave_carry_forward_days integer DEFAULT 0,
+  fy_start_month integer DEFAULT 1,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Gyms
+CREATE TABLE gyms (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name text NOT NULL,
   address text,
   phone text,
   logo_url text,
-  is_active boolean default true,
-  created_at timestamptz default now()
+  is_active boolean DEFAULT true,
+  fy_start_month integer DEFAULT 1,
+  created_at timestamptz DEFAULT now()
 );
 
--- ============================================================
--- USERS
--- role: admin | manager | business_ops | trainer
--- manager_gym_id: for managers, restricts them to one gym
--- ============================================================
-create table users (
-  id uuid primary key references auth.users(id) on delete cascade,
-  full_name text not null,
-  email text not null unique,
+-- Users (all roles: admin, business_ops, manager, trainer, staff)
+CREATE TABLE users (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name text NOT NULL,
+  email text NOT NULL UNIQUE,
   phone text,
-  role text not null check (role in ('admin', 'manager', 'business_ops', 'trainer')),
-  manager_gym_id uuid references gyms(id) on delete set null,
-  is_active boolean default true,
-  commission_signup_pct numeric(5,2) default 10.00,
-  commission_session_pct numeric(5,2) default 15.00,
-  created_at timestamptz default now()
+  role text NOT NULL CHECK (role IN ('admin', 'manager', 'business_ops', 'trainer', 'staff')),
+  is_active boolean DEFAULT true,
+  is_archived boolean DEFAULT false,
+  is_also_trainer boolean DEFAULT false,
+  commission_signup_pct numeric(5,2) DEFAULT 10.00,
+  commission_session_pct numeric(5,2) DEFAULT 15.00,
+  membership_commission_sgd numeric(10,2) DEFAULT 0,
+  manager_gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  employment_type text CHECK (employment_type IN ('full_time', 'part_time')),
+  hourly_rate numeric(10,2),
+  nric text,
+  nationality text,
+  address text,
+  nickname text,
+  date_of_birth date,
+  date_of_joining date,
+  date_of_departure date,
+  departure_reason text,
+  probation_end_date date,
+  probation_passed_at timestamptz,
+  leave_entitlement_days integer DEFAULT 14,
+  leave_carry_forward_days integer DEFAULT 0,
+  medical_leave_entitlement_days integer DEFAULT 14,
+  hospitalisation_leave_entitlement_days integer DEFAULT 60,
+  max_sessions_per_week integer,
+  monthly_session_target integer,
+  payslip_notif_seen_at timestamptz,
+  commission_notif_seen_at timestamptz,
+  archived_at timestamptz,
+  archived_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  offboarding_completed_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Part-timer gym assignments (many-to-many users ↔ gyms)
+CREATE TABLE trainer_gyms (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  trainer_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  is_primary boolean DEFAULT true,
+  assigned_at timestamptz DEFAULT now(),
+  UNIQUE(trainer_id, gym_id)
 );
 
 -- ============================================================
--- TRAINER <-> GYM ASSIGNMENTS
+-- MEMBERS
 -- ============================================================
-create table trainer_gyms (
-  id uuid primary key default uuid_generate_v4(),
-  trainer_id uuid references users(id) on delete cascade,
-  gym_id uuid references gyms(id) on delete cascade,
-  is_primary boolean default true,
-  assigned_at timestamptz default now(),
-  unique(trainer_id, gym_id)
-);
 
--- ============================================================
--- PACKAGE TEMPLATES (created by Admin)
--- ============================================================
-create table package_templates (
-  id uuid primary key default uuid_generate_v4(),
-  name text not null,
-  description text,
-  total_sessions int not null,
-  default_price_sgd numeric(10,2) not null,
-  is_active boolean default true,
-  created_by uuid references users(id),
-  created_at timestamptz default now()
-);
-
--- ============================================================
--- CLIENTS (email now optional)
--- ============================================================
-create table clients (
-  id uuid primary key default uuid_generate_v4(),
-  gym_id uuid references gyms(id) on delete cascade,
-  trainer_id uuid references users(id) on delete set null,
-  full_name text not null,
-  phone text not null,
+CREATE TABLE members (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  full_name text NOT NULL,
+  phone text,
   email text,
   date_of_birth date,
-  gender text check (gender in ('male', 'female', 'other', 'prefer_not_to_say')),
-  health_notes text,
-  status text not null default 'active' check (status in ('active', 'inactive', 'lost')),
-  created_at timestamptz default now()
+  gender text,
+  created_at timestamptz DEFAULT now()
 );
 
--- ============================================================
--- CLIENT PACKAGES
--- ============================================================
-create table packages (
-  id uuid primary key default uuid_generate_v4(),
-  template_id uuid references package_templates(id),
-  client_id uuid references clients(id) on delete cascade,
-  trainer_id uuid references users(id) on delete set null,
-  gym_id uuid references gyms(id) on delete cascade,
-  package_name text not null,
-  total_sessions int not null,
-  sessions_used int not null default 0,
-  total_price_sgd numeric(10,2) not null,
-  price_per_session_sgd numeric(10,2) generated always as (total_price_sgd / total_sessions) stored,
-  start_date date not null,
+-- Membership types (templates per gym)
+CREATE TABLE membership_types (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  duration_days integer NOT NULL,
+  price_sgd numeric(10,2) NOT NULL,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Active gym memberships
+CREATE TABLE gym_memberships (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  member_id uuid NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  membership_type_id uuid REFERENCES membership_types(id) ON DELETE SET NULL,
+  sold_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  start_date date NOT NULL,
   end_date date,
-  status text not null default 'active' check (status in ('active', 'completed', 'expired', 'cancelled')),
-  signup_commission_pct numeric(5,2) not null,
-  signup_commission_sgd numeric(10,2) generated always as (total_price_sgd * signup_commission_pct / 100) stored,
-  session_commission_pct numeric(5,2) not null,
-  signup_commission_paid boolean default false,
-  created_at timestamptz default now()
+  price_sgd numeric(10,2),
+  commission_sgd numeric(10,2) DEFAULT 0,
+  status text DEFAULT 'active' CHECK (status IN ('active', 'expired', 'cancelled')),
+  sale_status text DEFAULT 'pending' CHECK (sale_status IN ('pending', 'confirmed', 'rejected')),
+  membership_actioned boolean DEFAULT false,
+  confirmed_at timestamptz,
+  confirmed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  rejected_at timestamptz,
+  rejected_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  rejection_reason text,
+  cancelled_at timestamptz,
+  cancelled_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  cancellation_reason text,
+  cancellation_end_date date,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Membership cancellation requests (from staff to manager)
+CREATE TABLE membership_cancellation_requests (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_membership_id uuid NOT NULL REFERENCES gym_memberships(id) ON DELETE CASCADE,
+  requested_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  reason text,
+  proposed_end_date date,
+  status text DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at timestamptz,
+  review_note text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Non-renewal tracking
+CREATE TABLE non_renewal_records (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_membership_id uuid NOT NULL REFERENCES gym_memberships(id) ON DELETE CASCADE,
+  member_id uuid REFERENCES members(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE CASCADE,
+  reason text,
+  recorded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now()
 );
 
 -- ============================================================
--- SESSIONS
--- session_notes mandatory for payout qualification
--- is_notes_complete: true when trainer has submitted notes
+-- PT PACKAGES & SESSIONS
 -- ============================================================
-create table sessions (
-  id uuid primary key default uuid_generate_v4(),
-  package_id uuid references packages(id) on delete cascade,
-  client_id uuid references clients(id) on delete cascade,
-  trainer_id uuid references users(id) on delete set null,
-  gym_id uuid references gyms(id) on delete cascade,
-  scheduled_at timestamptz not null,
-  duration_minutes int default 60,
-  location text,
-  status text not null default 'scheduled' check (status in ('scheduled', 'completed', 'cancelled', 'no_show')),
+
+CREATE TABLE package_templates (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  package_name text NOT NULL,
+  total_sessions integer NOT NULL,
+  price_sgd numeric(10,2) NOT NULL,
+  validity_days integer DEFAULT 365,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE packages (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  trainer_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  member_id uuid REFERENCES members(id) ON DELETE CASCADE,
+  secondary_member_id uuid REFERENCES members(id) ON DELETE SET NULL,
+  package_name text NOT NULL,
+  total_sessions integer NOT NULL,
+  sessions_used integer DEFAULT 0,
+  total_price_sgd numeric(10,2),
+  signup_commission_sgd numeric(10,2) DEFAULT 0,
+  signup_commission_paid boolean DEFAULT false,
+  status text DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed', 'expired')),
+  start_date date,
+  end_date_calculated date,
+  manager_confirmed boolean DEFAULT false,
+  confirmed_at timestamptz,
+  confirmed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  cancelled_at timestamptz,
+  cancelled_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  cancellation_reason text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE sessions (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  trainer_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  member_id uuid REFERENCES members(id) ON DELETE SET NULL,
+  package_id uuid REFERENCES packages(id) ON DELETE SET NULL,
+  attending_member_id uuid REFERENCES members(id) ON DELETE SET NULL,
+  scheduled_at timestamptz,
+  status text DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled', 'no_show')),
+  notes text,
   performance_notes text,
-  is_notes_complete boolean default false,
+  notes_submitted_at timestamptz,
+  session_commission_sgd numeric(10,2) DEFAULT 0,
   session_commission_pct numeric(5,2),
-  session_commission_sgd numeric(10,2),
-  commission_paid boolean default false,
-  marked_complete_by uuid references users(id),
+  commission_paid boolean DEFAULT false,
+  manager_confirmed boolean DEFAULT false,
+  confirmed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  confirmed_at timestamptz,
   marked_complete_at timestamptz,
-  reminder_24h_sent boolean default false,
-  reminder_24h_sent_at timestamptz,
-  created_at timestamptz default now()
+  reminder_sent_at timestamptz,
+  reminder_scheduled_at timestamptz,
+  renewal_status text CHECK (renewal_status IN ('renewing', 'not_renewing', 'undecided')),
+  renewal_reason text,
+  created_at timestamptz DEFAULT now()
 );
 
 -- ============================================================
--- MONTHLY COMMISSION PAYOUTS
--- Only sessions with is_notes_complete = true qualify
+-- PAYROLL
 -- ============================================================
-create table commission_payouts (
-  id uuid primary key default uuid_generate_v4(),
-  trainer_id uuid references users(id) on delete cascade,
-  gym_id uuid references gyms(id) on delete cascade,
-  month int not null check (month between 1 and 12),
-  year int not null,
-  signup_commissions_sgd numeric(10,2) default 0,
-  session_commissions_sgd numeric(10,2) default 0,
-  total_commission_sgd numeric(10,2) default 0,
-  sessions_conducted int default 0,
-  qualified_sessions int default 0,
-  new_clients int default 0,
-  status text default 'pending' check (status in ('pending', 'approved', 'paid')),
-  approved_by uuid references users(id),
+
+CREATE TABLE payslips (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  month integer NOT NULL,
+  year integer NOT NULL,
+  employment_type text,
+  -- Part-timer fields
+  total_hours numeric(10,2),
+  hourly_rate numeric(10,2),
+  -- Full-timer fields
+  basic_salary numeric(10,2),
+  annual_salary_override numeric(10,2),
+  -- Common
+  bonus_amount numeric(10,2) DEFAULT 0,
+  deduction_amount numeric(10,2) DEFAULT 0,
+  deduction_reason text,
+  gross_salary numeric(10,2),
+  net_salary numeric(10,2),
+  -- CPF fields
+  is_cpf_liable boolean DEFAULT false,
+  employee_cpf_rate numeric(5,4),
+  employer_cpf_rate numeric(5,4),
+  aw_subject_to_cpf numeric(10,2),
+  employee_cpf_amount numeric(10,2) DEFAULT 0,
+  employer_cpf_amount numeric(10,2) DEFAULT 0,
+  capped_ow numeric(10,2),
+  ytd_ow numeric(10,2),
+  cpf_adjustment_note text,
+  total_employer_cost numeric(10,2),
+  -- Status
+  status text DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'paid')),
+  notes text,
+  approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
   approved_at timestamptz,
   paid_at timestamptz,
-  generated_at timestamptz default now(),
-  unique(trainer_id, gym_id, month, year)
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, gym_id, month, year)
+);
+
+-- Payslip deletion audit trail
+CREATE TABLE payslip_deletions (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  payslip_snapshot jsonb,
+  deleted_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  deletion_reason text,
+  deleted_at timestamptz DEFAULT now()
+);
+
+-- Staff bonuses (standalone, separate from payslip generation)
+CREATE TABLE staff_bonuses (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  month integer NOT NULL,
+  year integer NOT NULL,
+  amount numeric(10,2) NOT NULL,
+  bonus_type text DEFAULT 'performance',
+  notes text,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Pending deductions (created when dispute approved on paid payslip)
+CREATE TABLE pending_deductions (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  amount numeric(10,2) NOT NULL,
+  reason text,
+  applied_at timestamptz,
+  applied_payslip_id uuid REFERENCES payslips(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Commission payouts
+CREATE TABLE commission_payouts (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  period_start date,
+  period_end date,
+  period_month integer,
+  period_year integer,
+  pt_signup_commission_sgd numeric(10,2) DEFAULT 0,
+  pt_session_commission_sgd numeric(10,2) DEFAULT 0,
+  membership_commission_sgd numeric(10,2) DEFAULT 0,
+  total_commission_sgd numeric(10,2) DEFAULT 0,
+  deduction_amount numeric(10,2) DEFAULT 0,
+  deduction_reason text,
+  net_commission_sgd numeric(10,2) GENERATED ALWAYS AS (total_commission_sgd - deduction_amount) STORED,
+  is_cpf_liable boolean DEFAULT false,
+  employee_cpf_rate numeric(5,4),
+  employer_cpf_rate numeric(5,4),
+  aw_subject_to_cpf numeric(10,2),
+  employee_cpf_amount numeric(10,2) DEFAULT 0,
+  employer_cpf_amount numeric(10,2) DEFAULT 0,
+  low_income_flag boolean DEFAULT false,
+  status text DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'paid')),
+  approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  approved_at timestamptz,
+  paid_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- CPF age brackets config
+CREATE TABLE cpf_age_brackets (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  year integer NOT NULL,
+  label text NOT NULL,
+  age_min integer NOT NULL,
+  age_max integer,
+  employee_rate numeric(5,4) NOT NULL,
+  employer_rate numeric(5,4) NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+-- CPF submissions (annual reconciliation)
+CREATE TABLE cpf_submissions (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  year integer NOT NULL,
+  month integer,
+  submission_type text,
+  submitted_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  submitted_at timestamptz DEFAULT now(),
+  notes text
+);
+
+-- Commission config per gym
+CREATE TABLE commission_config (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  default_signup_pct numeric(5,2) DEFAULT 10.00,
+  default_session_pct numeric(5,2) DEFAULT 15.00,
+  default_membership_commission_sgd numeric(10,2) DEFAULT 0,
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(gym_id)
+);
+
+-- Salary history (for audit)
+CREATE TABLE salary_history (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  changed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  old_value numeric(10,2),
+  new_value numeric(10,2),
+  field_name text,
+  changed_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE staff_payroll (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  month integer NOT NULL,
+  year integer NOT NULL,
+  created_at timestamptz DEFAULT now()
 );
 
 -- ============================================================
--- WHATSAPP LOG
+-- DUTY ROSTER (PART-TIMERS)
 -- ============================================================
-create table whatsapp_logs (
-  id uuid primary key default uuid_generate_v4(),
-  session_id uuid references sessions(id) on delete cascade,
-  recipient_type text check (recipient_type in ('trainer', 'client')),
-  recipient_phone text not null,
-  message text not null,
-  status text default 'sent' check (status in ('sent', 'failed', 'pending')),
+
+CREATE TABLE duty_roster (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  shift_date date NOT NULL,
+  shift_start time NOT NULL,
+  shift_end time NOT NULL,
+  hours_worked numeric(5,2),
+  hourly_rate numeric(10,2),
+  gross_pay numeric(10,2),
+  status text DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'absent', 'disputed')),
+  is_locked boolean DEFAULT false,
+  locked_at timestamptz,
+  payslip_id uuid REFERENCES payslips(id) ON DELETE SET NULL,
+  -- Dispute fields
+  dispute_reason text,
+  disputed_at timestamptz,
+  disputed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  dispute_resolved_at timestamptz,
+  dispute_resolved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Preset shift times per gym
+CREATE TABLE roster_shift_presets (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  label text NOT NULL,
+  shift_start time NOT NULL,
+  shift_end time NOT NULL,
+  is_active boolean DEFAULT true,
+  sort_order integer DEFAULT 0,
+  created_at timestamptz DEFAULT now()
+);
+
+-- ============================================================
+-- LEAVE
+-- ============================================================
+
+CREATE TABLE leave_applications (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  leave_type text NOT NULL CHECK (leave_type IN ('annual', 'medical', 'hospitalisation', 'other')),
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  days_requested numeric(5,2) NOT NULL,
+  reason text,
+  status text DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+  reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at timestamptz,
+  review_note text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE public_holidays (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  date date NOT NULL,
+  name text NOT NULL,
+  year integer NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(date)
+);
+
+-- ============================================================
+-- NOTIFICATIONS
+-- ============================================================
+
+CREATE TABLE leave_decision_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  leave_application_id uuid REFERENCES leave_applications(id) ON DELETE CASCADE,
+  decision text,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE mem_rejection_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  gym_membership_id uuid REFERENCES gym_memberships(id) ON DELETE CASCADE,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE pkg_rejection_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  package_id uuid REFERENCES packages(id) ON DELETE CASCADE,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE cancellation_approved_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  cancellation_request_id uuid REFERENCES membership_cancellation_requests(id) ON DELETE CASCADE,
+  member_name text,
+  approved_by_name text,
+  cancellation_date date,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE cancellation_rejection_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  cancellation_request_id uuid REFERENCES membership_cancellation_requests(id) ON DELETE CASCADE,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE shift_dispute_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  biz_ops_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  roster_id uuid REFERENCES duty_roster(id) ON DELETE CASCADE,
+  staff_name text,
+  shift_date date,
+  dispute_reason text,
+  resolution text,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE manager_dispute_notif (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  manager_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  roster_id uuid REFERENCES duty_roster(id) ON DELETE CASCADE,
+  staff_name text,
+  shift_date date,
+  resolution text,
+  seen_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- ============================================================
+-- WHATSAPP
+-- ============================================================
+
+CREATE TABLE whatsapp_templates (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name text NOT NULL UNIQUE,
+  template text NOT NULL,
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE whatsapp_notifications_config (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  notification_type text NOT NULL UNIQUE,
+  is_enabled boolean DEFAULT true,
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE whatsapp_queue (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  notification_type text NOT NULL,
+  phone text NOT NULL,
+  name text,
+  placeholders jsonb,
+  fallback_message text,
+  scheduled_for timestamptz,
+  sent_at timestamptz,
+  status text DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'skipped')),
+  error_message text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE whatsapp_logs (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  notification_type text,
+  phone text,
+  message text,
+  status text,
   twilio_sid text,
-  sent_at timestamptz default now()
+  error_message text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE session_reminder_members_list (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
+  member_id uuid REFERENCES members(id) ON DELETE CASCADE,
+  scheduled_for date,
+  created_at timestamptz DEFAULT now()
 );
 
 -- ============================================================
--- SUPABASE STORAGE BUCKET FOR GYM LOGOS
+-- ACTIVITY & CRON LOGS
 -- ============================================================
-insert into storage.buckets (id, name, public) values ('gym-logos', 'gym-logos', true)
-on conflict (id) do nothing;
+
+CREATE TABLE activity_logs (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  user_name text,
+  role text,
+  action_type text NOT NULL,
+  page text,
+  description text,
+  ip_address text,
+  browser text,
+  os text,
+  device text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE cron_logs (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  cron_name text NOT NULL,
+  cron_type text DEFAULT 'daily',
+  status text DEFAULT 'running' CHECK (status IN ('running', 'success', 'error')),
+  started_at timestamptz DEFAULT now(),
+  ended_at timestamptz,
+  duration_ms integer,
+  result jsonb,
+  error_message text
+);
+
+-- ============================================================
+-- BIRTHDAY REMINDERS (views/materialized data)
+-- ============================================================
+
+CREATE TABLE staff_birthday_reminders (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+  full_name text,
+  nickname text,
+  date_of_birth date,
+  gym_ids uuid[],
+  days_until_birthday integer,
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE member_birthday_reminders (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  member_id uuid REFERENCES members(id) ON DELETE CASCADE,
+  full_name text,
+  date_of_birth date,
+  gym_id uuid REFERENCES gyms(id) ON DELETE CASCADE,
+  days_until_birthday integer,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- ============================================================
+-- FUNCTIONS (SECURITY DEFINER — bypass RLS safely)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION get_user_role()
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM users WHERE id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION get_manager_gym_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT manager_gym_id FROM users WHERE id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION get_gym_staff_ids(p_gym_id uuid)
+RETURNS SETOF uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT trainer_id FROM trainer_gyms WHERE gym_id = p_gym_id;
+$$;
+
+-- ============================================================
+-- TRIGGER: protect sensitive user fields from browser updates
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION protect_sensitive_user_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Service role (adminClient) has no auth.uid() — allow all changes
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    RAISE EXCEPTION 'Unauthorised: role cannot be changed directly.';
+  END IF;
+  IF NEW.employment_type IS DISTINCT FROM OLD.employment_type THEN
+    RAISE EXCEPTION 'Unauthorised: employment_type cannot be changed directly.';
+  END IF;
+  IF NEW.hourly_rate IS DISTINCT FROM OLD.hourly_rate THEN
+    RAISE EXCEPTION 'Unauthorised: hourly_rate cannot be changed directly.';
+  END IF;
+  IF NEW.manager_gym_id IS DISTINCT FROM OLD.manager_gym_id THEN
+    RAISE EXCEPTION 'Unauthorised: manager_gym_id cannot be changed directly.';
+  END IF;
+  IF NEW.is_archived IS DISTINCT FROM OLD.is_archived THEN
+    RAISE EXCEPTION 'Unauthorised: is_archived cannot be changed directly.';
+  END IF;
+  IF NEW.is_active IS DISTINCT FROM OLD.is_active THEN
+    RAISE EXCEPTION 'Unauthorised: is_active cannot be changed directly.';
+  END IF;
+  IF NEW.commission_signup_pct IS DISTINCT FROM OLD.commission_signup_pct THEN
+    RAISE EXCEPTION 'Unauthorised: commission fields cannot be changed directly.';
+  END IF;
+  IF NEW.commission_session_pct IS DISTINCT FROM OLD.commission_session_pct THEN
+    RAISE EXCEPTION 'Unauthorised: commission fields cannot be changed directly.';
+  END IF;
+  IF NEW.membership_commission_sgd IS DISTINCT FROM OLD.membership_commission_sgd THEN
+    RAISE EXCEPTION 'Unauthorised: commission fields cannot be changed directly.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_protect_sensitive_user_fields
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION protect_sensitive_user_fields();
+
+-- ============================================================
+-- VIEWS
+-- ============================================================
+
+-- users_safe: non-sensitive columns for client-side cross-user queries
+-- Excludes: nric, address, commission_*, departure_reason, probation_*,
+--           offboarding_completed_at, archived_by, date_of_departure
+DROP VIEW IF EXISTS users_safe;
+CREATE VIEW users_safe AS
+SELECT
+  id, full_name, nickname, email, phone, nationality,
+  role, employment_type, is_active, is_archived, is_also_trainer,
+  manager_gym_id, hourly_rate,
+  leave_entitlement_days, leave_carry_forward_days,
+  medical_leave_entitlement_days, hospitalisation_leave_entitlement_days,
+  max_sessions_per_week, monthly_session_target,
+  payslip_notif_seen_at, commission_notif_seen_at,
+  date_of_birth, date_of_joining, created_at, archived_at
+FROM public.users;
+
+GRANT SELECT ON users_safe TO authenticated;
+GRANT SELECT ON users_safe TO anon;
 
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
-alter table gyms enable row level security;
-alter table users enable row level security;
-alter table trainer_gyms enable row level security;
-alter table package_templates enable row level security;
-alter table clients enable row level security;
-alter table packages enable row level security;
-alter table sessions enable row level security;
-alter table commission_payouts enable row level security;
-alter table whatsapp_logs enable row level security;
 
--- Helper: get current user role
-create or replace function get_user_role()
-returns text as $$
-  select role from users where id = auth.uid();
-$$ language sql security definer;
+-- Enable RLS
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gyms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trainer_gyms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE gym_memberships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE packages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payslips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commission_payouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE duty_roster ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leave_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 
--- Helper: get manager's assigned gym
-create or replace function get_manager_gym_id()
-returns uuid as $$
-  select manager_gym_id from users where id = auth.uid();
-$$ language sql security definer;
-
--- ============================================================
--- GYMS POLICIES
--- admin: full access
--- manager: only their assigned gym
--- business_ops + trainer: read assigned gyms
--- ============================================================
-create policy "gyms_admin_all" on gyms for all using (get_user_role() = 'admin');
-
-create policy "gyms_manager_read" on gyms for select using (
-  get_user_role() = 'manager' and id = get_manager_gym_id()
-);
-
-create policy "gyms_biz_ops_read" on gyms for select using (
-  get_user_role() = 'business_ops'
-);
-
-create policy "gyms_trainer_read" on gyms for select using (
-  get_user_role() = 'trainer' and
-  id in (select gym_id from trainer_gyms where trainer_id = auth.uid())
-);
-
--- ============================================================
--- USERS POLICIES
--- ============================================================
-create policy "users_admin_all" on users for all using (get_user_role() = 'admin');
-
-create policy "users_manager_read" on users for select using (
-  get_user_role() = 'manager' and (
-    id = auth.uid() or
-    (role = 'trainer' and id in (
-      select tg.trainer_id from trainer_gyms tg where tg.gym_id = get_manager_gym_id()
-    ))
+-- ── USERS ────────────────────────────────────────────────────
+CREATE POLICY "users_read_own" ON users FOR SELECT USING (id = auth.uid());
+CREATE POLICY "users_admin_read" ON users FOR SELECT USING (get_user_role() = 'admin');
+CREATE POLICY "users_biz_ops_read" ON users FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "users_manager_read" ON users FOR SELECT USING (
+  get_user_role() = 'manager' AND (
+    id = auth.uid() OR manager_gym_id = get_manager_gym_id()
   )
 );
+CREATE POLICY "users_update_own" ON users FOR UPDATE USING (id = auth.uid());
+CREATE POLICY "users_admin_update" ON users FOR UPDATE USING (get_user_role() = 'admin');
+CREATE POLICY "users_biz_ops_update" ON users FOR UPDATE USING (get_user_role() = 'business_ops');
+CREATE POLICY "users_manager_update" ON users FOR UPDATE USING (
+  get_user_role() = 'manager' AND
+  id IN (SELECT trainer_id FROM trainer_gyms WHERE gym_id = get_manager_gym_id())
+);
+CREATE POLICY "users_admin_all" ON users FOR ALL USING (get_user_role() = 'admin');
 
-create policy "users_manager_insert" on users for insert with check (
-  get_user_role() in ('admin', 'manager')
+-- ── GYMS ─────────────────────────────────────────────────────
+CREATE POLICY "gyms_admin_all" ON gyms FOR ALL USING (get_user_role() = 'admin');
+CREATE POLICY "gyms_biz_ops_read" ON gyms FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "gyms_manager_read" ON gyms FOR SELECT USING (
+  get_user_role() = 'manager' AND (
+    id = get_manager_gym_id()
+    OR id = ANY(SELECT get_gym_staff_ids(get_manager_gym_id()))
+  )
+);
+CREATE POLICY "gyms_staff_read" ON gyms FOR SELECT USING (
+  get_user_role() = 'staff' AND
+  id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid())
+);
+CREATE POLICY "gyms_trainer_read" ON gyms FOR SELECT USING (
+  get_user_role() = 'trainer' AND
+  id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid())
+);
+CREATE POLICY "gyms_manager_update" ON gyms FOR UPDATE USING (
+  get_user_role() = 'manager' AND id = get_manager_gym_id()
+);
+CREATE POLICY "gyms_biz_ops_write" ON gyms FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── TRAINER_GYMS ─────────────────────────────────────────────
+-- NOTE: no self-referencing subqueries — causes infinite recursion
+CREATE POLICY "trainer_gyms_read" ON trainer_gyms FOR SELECT USING (
+  get_user_role() = 'admin'
+  OR get_user_role() = 'business_ops'
+  OR trainer_id = auth.uid()
+  OR (get_user_role() = 'manager' AND gym_id = get_manager_gym_id())
+  OR (get_user_role() = 'staff' AND gym_id = get_manager_gym_id())
+);
+CREATE POLICY "trainer_gyms_admin" ON trainer_gyms FOR ALL USING (get_user_role() = 'admin');
+CREATE POLICY "trainer_gyms_biz_ops" ON trainer_gyms FOR ALL USING (get_user_role() = 'business_ops');
+CREATE POLICY "trainer_gyms_manager_insert" ON trainer_gyms FOR INSERT WITH CHECK (
+  get_user_role() = 'manager' AND gym_id = get_manager_gym_id()
+);
+CREATE POLICY "trainer_gyms_manager_delete" ON trainer_gyms FOR DELETE USING (
+  get_user_role() = 'manager' AND gym_id = get_manager_gym_id()
 );
 
-create policy "users_biz_ops_read" on users for select using (
+-- ── PAYSLIPS ──────────────────────────────────────────────────
+CREATE POLICY "payslips_own_read" ON payslips FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "payslips_business_ops" ON payslips FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── DUTY ROSTER ───────────────────────────────────────────────
+CREATE POLICY "duty_roster_own_read" ON duty_roster FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "duty_roster_manager" ON duty_roster FOR ALL USING (
   get_user_role() = 'business_ops'
+  OR (get_user_role() = 'manager' AND gym_id = get_manager_gym_id())
 );
 
-create policy "users_trainer_read_self" on users for select using (
-  id = auth.uid()
-);
-
-create policy "users_update_own" on users for update using (id = auth.uid());
-
--- ============================================================
--- PACKAGE TEMPLATES POLICIES
--- ============================================================
-create policy "templates_admin_all" on package_templates for all using (get_user_role() = 'admin');
-create policy "templates_read_all" on package_templates for select using (auth.uid() is not null);
-
--- ============================================================
--- CLIENTS POLICIES
--- ============================================================
-create policy "clients_admin_all" on clients for all using (get_user_role() = 'admin');
-
-create policy "clients_manager_read" on clients for select using (
-  get_user_role() = 'manager' and gym_id = get_manager_gym_id()
-);
-
-create policy "clients_biz_ops_read" on clients for select using (
-  get_user_role() = 'business_ops'
-);
-
-create policy "clients_trainer_read" on clients for select using (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
-create policy "clients_trainer_insert" on clients for insert with check (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
-create policy "clients_trainer_update" on clients for update using (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
--- ============================================================
--- PACKAGES POLICIES
--- ============================================================
-create policy "packages_admin_all" on packages for all using (get_user_role() = 'admin');
-
-create policy "packages_manager_read" on packages for select using (
-  get_user_role() = 'manager' and gym_id = get_manager_gym_id()
-);
-
-create policy "packages_biz_ops_read" on packages for select using (
-  get_user_role() = 'business_ops'
-);
-
-create policy "packages_trainer_read" on packages for select using (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
-create policy "packages_trainer_insert" on packages for insert with check (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
-create policy "packages_manager_update" on packages for update using (
-  get_user_role() in ('admin', 'manager')
-);
-
--- ============================================================
--- SESSIONS POLICIES
--- ============================================================
-create policy "sessions_admin_all" on sessions for all using (get_user_role() = 'admin');
-
-create policy "sessions_manager_read" on sessions for select using (
-  get_user_role() = 'manager' and gym_id = get_manager_gym_id()
-);
-
-create policy "sessions_manager_update" on sessions for update using (
-  get_user_role() = 'manager' and gym_id = get_manager_gym_id()
-);
-
-create policy "sessions_biz_ops_read" on sessions for select using (
-  get_user_role() = 'business_ops'
-);
-
-create policy "sessions_trainer_read" on sessions for select using (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
-create policy "sessions_trainer_insert" on sessions for insert with check (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
-create policy "sessions_trainer_update" on sessions for update using (
-  get_user_role() = 'trainer' and trainer_id = auth.uid()
-);
-
--- ============================================================
--- PAYOUTS POLICIES
--- ============================================================
-create policy "payouts_admin_all" on commission_payouts for all using (get_user_role() = 'admin');
-
-create policy "payouts_manager_all" on commission_payouts for all using (
-  get_user_role() = 'manager' and gym_id = get_manager_gym_id()
-);
-
-create policy "payouts_biz_ops_read" on commission_payouts for select using (
-  get_user_role() = 'business_ops'
-);
-
-create policy "payouts_trainer_read" on commission_payouts for select using (
-  trainer_id = auth.uid()
-);
-
--- ============================================================
--- WHATSAPP LOG POLICIES
--- ============================================================
-create policy "whatsapp_admin_manager" on whatsapp_logs for all using (
-  get_user_role() in ('admin', 'manager', 'business_ops')
-);
-
--- ============================================================
--- STORAGE POLICY FOR GYM LOGOS
--- ============================================================
-create policy "logo_upload_admin" on storage.objects
-  for insert with check (
-    bucket_id = 'gym-logos' and get_user_role() = 'admin'
-  );
-
-create policy "logo_read_all" on storage.objects
-  for select using (bucket_id = 'gym-logos');
-
-create policy "logo_update_admin" on storage.objects
-  for update using (
-    bucket_id = 'gym-logos' and get_user_role() = 'admin'
-  );
-
--- ============================================================
--- SEED DATA
--- ============================================================
-insert into gyms (name, address, phone) values
-  ('FitZone Orchard', '391 Orchard Road, #B1-01, Singapore 238872', '+65 6123 4567'),
-  ('FitZone Tampines', '4 Tampines Central 5, #03-01, Singapore 529510', '+65 6234 5678')
-on conflict do nothing;
+-- Additional policies for other tables follow the same pattern:
+-- admin/biz_ops = full access
+-- manager = scoped to get_manager_gym_id()
+-- trainer/staff = own data only
+-- See existing migration files for complete policy definitions.

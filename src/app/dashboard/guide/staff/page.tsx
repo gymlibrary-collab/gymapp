@@ -2,7 +2,7 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect } from 'react'
-import { BookOpen, Users, Calendar, FileText, Bell, ChevronRight } from 'lucide-react'
+import { BookOpen, Users, Calendar, FileText, Bell, Clock, ChevronRight } from 'lucide-react'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function GuidePage() {
@@ -11,9 +11,7 @@ export default function GuidePage() {
 
   useEffect(() => { if (!user) return; logActivity('page_view', 'User Guide', 'Viewed Operations Staff user guide') }, [user])
 
-  if (loading || !user) return (
-    <PageSpinner />
-  )
+  if (loading || !user) return (<PageSpinner />)
 
   const sections = [
     {
@@ -31,6 +29,7 @@ export default function GuidePage() {
         'View the full gym schedule for the next 7 days on your dashboard and under Gym Schedule',
         'The schedule shows all PT sessions colour-coded by trainer',
         'You can see the schedule but client details are visible to trainers and managers only',
+        'The Gym Schedule page is only accessible during your active shift (part-time staff)',
       ]
     },
     {
@@ -42,9 +41,20 @@ export default function GuidePage() {
       ]
     },
     {
+      icon: Clock, heading: 'My Roster (Part-Time Staff)',
+      items: [
+        'View your upcoming and past shifts under My Account > My Roster',
+        'Shifts are grouped by week — upcoming shifts show in the current week view',
+        'If a shift status is incorrect, use the Dispute button to raise it with the manager',
+        'Disputes must be raised within 3 calendar days of the shift date',
+        'You will be notified on your dashboard when your dispute is resolved',
+      ]
+    },
+    {
       icon: FileText, heading: 'My Account',
       items: [
         'Update your phone number, address and nickname under My Particulars',
+        'Your assigned gym(s) are shown on My Particulars (part-time staff)',
         'Apply for leave under My Leave',
         'Leave cannot cross the year boundary — apply up to 31 Dec only',
         'New year leave is unavailable until Business Operations runs the year-end reset in January',
@@ -58,7 +68,8 @@ export default function GuidePage() {
         'Red banner: membership sale rejected — dismiss once acknowledged',
         'Red banner: membership cancellation request rejected — dismiss once acknowledged',
         'Green banner: leave approved or leave decision notified — dismiss once acknowledged',
-        'Member birthday tile: members with birthdays today — click to see the full panel',
+        'Green/Red banner: shift dispute resolved — dismiss once acknowledged',
+        'Member birthday tile: members with birthdays today',
       ]
     },
   ]
@@ -72,11 +83,9 @@ export default function GuidePage() {
           <p className="text-xs text-gray-500">Quick reference for your role</p>
         </div>
       </div>
-
       <div className="card p-4 bg-blue-50 border-blue-100">
-        <p className="text-sm text-blue-800">As Operations Staff, you handle member registration, membership sales, cancellation requests and day-to-day gym operations.</p>
+        <p className="text-sm text-blue-800">As Operations Staff, you handle member registration, membership sales, cancellation requests and day-to-day gym operations. Part-time staff also manage their own shift roster.</p>
       </div>
-
       {sections.map((s, si) => {
         const Icon = s.icon
         return (
@@ -96,11 +105,8 @@ export default function GuidePage() {
           </div>
         )
       })}
-
       <div className="card p-4 bg-gray-50 border-gray-100">
-        <p className="text-xs text-gray-500 text-center">
-          Questions? Contact your Business Operations team or system administrator.
-        </p>
+        <p className="text-xs text-gray-500 text-center">Questions? Contact your Business Operations team or system administrator.</p>
       </div>
     </div>
   )

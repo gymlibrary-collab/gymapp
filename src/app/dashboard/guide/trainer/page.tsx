@@ -11,9 +11,7 @@ export default function GuidePage() {
 
   useEffect(() => { if (!user) return; logActivity('page_view', 'User Guide', 'Viewed Trainer user guide') }, [user])
 
-  if (loading || !user) return (
-    <PageSpinner />
-  )
+  if (loading || !user) return (<PageSpinner />)
 
   const sections = [
     {
@@ -41,8 +39,8 @@ export default function GuidePage() {
       items: [
         'Your dashboard shows: session commission, signup commission and total earned this month',
         'Session commission: unlocked when session completed + notes submitted + manager confirmed',
-        'Signup commission: credited when a new package is created (not gated on confirmation)',
-        'View payslips under My Account > My Payslips',
+        'Signup commission: credited when a new package is created',
+        'View commission payouts and payslips under My Account > My Payslips',
       ]
     },
     {
@@ -61,7 +59,7 @@ export default function GuidePage() {
         'Red banner: PT package rejected by manager — dismiss once acknowledged',
         'Red banner: membership sale rejected — dismiss once acknowledged',
         'Green banner: leave approved or leave decision notified — dismiss once acknowledged',
-        'Member birthday tile: shows members with birthdays today — click to see the full panel',
+        'Member birthday tile: shows members with birthdays today',
       ]
     },
   ]
@@ -75,11 +73,9 @@ export default function GuidePage() {
           <p className="text-xs text-gray-500">Quick reference for your role</p>
         </div>
       </div>
-
       <div className="card p-4 bg-blue-50 border-blue-100">
         <p className="text-sm text-blue-800">As a Trainer, you manage your PT clients, schedule and conduct sessions, submit session notes and track your commission.</p>
       </div>
-
       {sections.map((s, si) => {
         const Icon = s.icon
         return (
@@ -99,11 +95,8 @@ export default function GuidePage() {
           </div>
         )
       })}
-
       <div className="card p-4 bg-gray-50 border-gray-100">
-        <p className="text-xs text-gray-500 text-center">
-          Questions? Contact your Business Operations team or system administrator.
-        </p>
+        <p className="text-xs text-gray-500 text-center">Questions? Contact your Business Operations team or system administrator.</p>
       </div>
     </div>
   )

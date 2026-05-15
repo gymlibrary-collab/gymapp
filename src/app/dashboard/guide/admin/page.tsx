@@ -2,7 +2,7 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect } from 'react'
-import { BookOpen, Users, FileText, Settings, Calendar, ChevronRight } from 'lucide-react'
+import { BookOpen, Users, FileText, Settings, Calendar, Shield, ChevronRight } from 'lucide-react'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function GuidePage() {
@@ -11,18 +11,17 @@ export default function GuidePage() {
 
   useEffect(() => { if (!user) return; logActivity('page_view', 'User Guide', 'Viewed Admin user guide') }, [user])
 
-  if (loading || !user) return (
-    <PageSpinner />
-  )
+  if (loading || !user) return (<PageSpinner />)
 
   const sections = [
     {
       icon: Users, heading: 'Business Ops Staff',
       items: [
-        'Create and manage Business Operations accounts from Business Ops Staff in the sidebar',
+        'Create and manage Business Operations accounts under Business Ops Staff',
         'Fill in Full Name, Nickname, NRIC, Address, Phone, Email, Nationality and DOB during onboarding',
         'Nickname is mandatory — used in the dashboard greeting and birthday notifications',
         'Each Biz Ops account has full access to all gyms and HR functions',
+        'Biz Ops accounts can be archived — this disables login without deleting data',
       ]
     },
     {
@@ -31,16 +30,19 @@ export default function GuidePage() {
         'Set the app name and sidebar logo under App Settings',
         'Configure the auto-logout timeout (in minutes) for all users',
         'Upload a company logo used on payslip PDF headers',
+        'Set the fiscal year start month for annual payroll reports',
       ]
     },
     {
       icon: FileText, heading: 'Activity Logs',
       items: [
         'View all staff actions across the system — rolling 14-day window',
-        'Logs include: logins, page views, creates, updates, deletes, confirmations, rejections and exports',
+        'Filter by date range (Today, Yesterday, Last 3/7/14 days), staff member or action type',
+        'Logs include: logins, page views, creates, updates, deletes, approvals, rejections and exports',
         'No sensitive data is logged — only what action was taken and on which page',
-        'Export as CSV with a custom date range',
+        'Export as CSV with full audit trail',
         'Auto-refreshes every 30 seconds',
+        'Logs older than 14 days are automatically purged nightly',
       ]
     },
     {
@@ -48,16 +50,28 @@ export default function GuidePage() {
       items: [
         'Monitor all automated cron job runs under Cron Logs',
         'Use the All / Daily / Reminders filter tabs',
-        'Daily cron runs 9 jobs at 0001 SGT — expire memberships, packages, escalations, birthday refreshes',
-        'Reminder cron: 0600 SGT prepares WhatsApp queue, 0800 SGT sends reminders',
-        'Each run shows: start time, duration, status (success/error) and result summary',
+        'Each run shows: started at, duration, status (success/error) and result summary',
+        'Daily cron runs at midnight SGT — handles expiry, payroll locks, birthday checks and escalations',
+        'Reminder cron runs at 6am and 8am SGT for WhatsApp session reminders',
       ]
     },
     {
-      icon: FileText, heading: 'Leave Approvals',
+      icon: Settings, heading: 'Gym Management',
       items: [
-        'You can view and approve leave applications from the Leave Approvals page',
-        'Covers all roles — useful if Business Ops is unavailable',
+        'Create and manage all gyms under Gym Management',
+        'Each gym has a name, address, phone, logo and active status',
+        'Deactivating a gym hides it from dropdowns but preserves all historical data',
+        'Gym logos appear on payslip PDF headers for that gym',
+      ]
+    },
+    {
+      icon: Shield, heading: 'Security',
+      items: [
+        'All staff authenticate via Google OAuth — no passwords stored',
+        'Role-based access control: admin > business_ops > manager > trainer/staff',
+        'Users table RLS enabled — staff cannot access other staff salary or NRIC from DevTools',
+        'Sensitive field updates (role, salary, commission) blocked by database trigger for browser sessions',
+        'Auto-logout applies to all roles after the configured idle period',
       ]
     },
   ]
@@ -67,15 +81,13 @@ export default function GuidePage() {
       <div className="flex items-center gap-3">
         <div className="p-2 bg-red-50 rounded-xl"><BookOpen className="w-5 h-5 text-red-600" /></div>
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Admin Portal Guide</h1>
+          <h1 className="text-lg font-bold text-gray-900">Admin Guide</h1>
           <p className="text-xs text-gray-500">Quick reference for your role</p>
         </div>
       </div>
-
       <div className="card p-4 bg-blue-50 border-blue-100">
-        <p className="text-sm text-blue-800">As Admin, you manage system-wide configuration, Business Ops accounts, and have full visibility of all activity and cron job health across the system.</p>
+        <p className="text-sm text-blue-800">As Admin, you manage the system configuration, Business Ops accounts, gym setup and have full visibility of all activity logs and cron jobs.</p>
       </div>
-
       {sections.map((s, si) => {
         const Icon = s.icon
         return (
@@ -95,11 +107,8 @@ export default function GuidePage() {
           </div>
         )
       })}
-
       <div className="card p-4 bg-gray-50 border-gray-100">
-        <p className="text-xs text-gray-500 text-center">
-          Questions? Contact your Business Operations team or system administrator.
-        </p>
+        <p className="text-xs text-gray-500 text-center">Questions? Contact your system administrator.</p>
       </div>
     </div>
   )

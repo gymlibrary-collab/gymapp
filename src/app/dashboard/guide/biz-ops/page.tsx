@@ -2,7 +2,7 @@
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect } from 'react'
-import { BookOpen, Users, DollarSign, Calendar, Settings, Bell, ChevronRight } from 'lucide-react'
+import { BookOpen, Users, DollarSign, Calendar, Settings, Bell, FileText, ChevronRight } from 'lucide-react'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function GuidePage() {
@@ -11,9 +11,7 @@ export default function GuidePage() {
 
   useEffect(() => { if (!user) return; logActivity('page_view', 'User Guide', 'Viewed Business Operations user guide') }, [user])
 
-  if (loading || !user) return (
-    <PageSpinner />
-  )
+  if (loading || !user) return (<PageSpinner />)
 
   const sections = [
     {
@@ -22,19 +20,41 @@ export default function GuidePage() {
         'Onboard new staff under HR > Staff Management',
         'Fill in Full Name, Nickname, NRIC, Address, Phone, Email, Nationality, DOB, Joining Date, Probation End Date and Annual Leave Entitlement',
         'Nickname is mandatory — appears in the greeting and birthday notifications',
-        'Annual Leave Entitlement is set during onboarding by Biz Ops only',
-        'Leave Carry-Forward Days is only in the edit form — new staff always start at 0',
+        'Set Employment Type (Full-Time or Part-Time) during onboarding',
+        'Part-time staff are assigned to one or more gyms via Trainer Gyms',
+        'Annual Leave Entitlement is set by Biz Ops only — leave carry-forward is set in the edit form',
         'To archive a trainer: all active/pending PT packages must be reassigned first via PT > Package Sales',
       ]
     },
     {
-      icon: DollarSign, heading: 'Payroll & Commission',
+      icon: DollarSign, heading: 'Payroll',
       items: [
         'Generate monthly payslips under Payroll — one per staff member per gym',
-        'Commission Payouts is listed above Annual Statements in the sidebar',
+        'Part-timer payslips are based on duty roster hours × hourly rate',
+        'Full-timer payslips are based on basic salary + bonus',
         'CPF is calculated automatically from age brackets — ensure staff Date of Birth is set',
-        'Approved (unpaid) payslips can be deleted with a mandatory reason — paid payslips are permanent',
-        'Correct errors via next-month adjustment — no reversals',
+        'Add deductions before approving (e.g. overpayment recovery from approved disputes)',
+        'Approve draft payslips → Mark Paid to complete the cycle',
+        'Paid payslips are permanent — correct errors via next-month adjustment',
+      ]
+    },
+    {
+      icon: DollarSign, heading: 'Commission Payouts',
+      items: [
+        'Generate commission payouts under Payroll > Commission Payouts',
+        'Add deductions before approving (e.g. advance recovery)',
+        'Commission is calculated from confirmed sessions and package signups',
+        'Approve → Mark Paid to release commission',
+      ]
+    },
+    {
+      icon: FileText, heading: 'Duty Roster & Disputes',
+      items: [
+        'View and manage part-timer duty roster shifts under HR > Duty Roster',
+        'Part-timers can dispute a shift status — disputes appear as amber banners on your dashboard',
+        'Approve a dispute (marks shift as absent, creates pending deduction for next payslip)',
+        'Reject a dispute (returns shift to completed, included in next payslip run)',
+        'Shifts are auto-locked 3 calendar days after the shift date to prevent changes',
       ]
     },
     {
@@ -44,25 +64,25 @@ export default function GuidePage() {
         'Year-End Leave Reset is at the bottom of Leave Management — available in January only',
         'Before running: resolve all pending December leave first (system blocks if unresolved)',
         'Closing year is auto-detected as current year minus 1',
-        'After reset: all staff can apply for new year leave',
-        'A reminder banner appears on your dashboard from 28 Dec — session-only dismiss until 1 Jan, then permanent',
+        'A reminder banner appears on your dashboard from 28 Dec until reset is run',
       ]
     },
     {
       icon: Settings, heading: 'Configuration',
       items: [
         'Leave Policy: set the global maximum carry-forward days cap',
-        'WhatsApp Templates: configure the session reminder message using {{member_name}}, {{trainer_nickname}}, {{session_date}}, {{session_time}}, {{gym_name}}',
-        'WhatsApp Notifications: toggle which notifications are active',
+        'WhatsApp Templates: configure reminder messages using {{member_name}}, {{trainer_nickname}}, {{session_date}}, {{session_time}}, {{gym_name}}',
+        'WhatsApp Notifications: toggle which notification types are active',
         'Commission Rates: set default signup and session commission percentages per gym',
         'Public Holidays: add holidays to exclude from leave calculations',
+        'CPF Brackets: configure CPF age bracket rates for each year',
       ]
     },
     {
       icon: Bell, heading: 'Dashboard Notifications',
       items: [
-        'Red banner: membership cancellation approved — dismiss when acknowledged',
-        'Blue banner: manager leave pending your approval — goes away when resolved',
+        'Red banner: shift dispute pending your review — click to open the dispute panel',
+        'Blue banner: manager leave pending your approval',
         'Amber banner (28 Dec to 1 Jan): reminder to run year-end leave reset in January',
         'All notifications are cross-device — dismissing on one device dismisses on all',
       ]
@@ -78,11 +98,9 @@ export default function GuidePage() {
           <p className="text-xs text-gray-500">Quick reference for your role</p>
         </div>
       </div>
-
       <div className="card p-4 bg-blue-50 border-blue-100">
-        <p className="text-sm text-blue-800">As Business Operations, you oversee all gyms — managing HR, payroll, commissions, leave, configuration and year-end processes.</p>
+        <p className="text-sm text-blue-800">As Business Operations, you oversee all gyms — managing HR, payroll, commissions, duty roster disputes, leave, configuration and year-end processes.</p>
       </div>
-
       {sections.map((s, si) => {
         const Icon = s.icon
         return (
@@ -102,11 +120,8 @@ export default function GuidePage() {
           </div>
         )
       })}
-
       <div className="card p-4 bg-gray-50 border-gray-100">
-        <p className="text-xs text-gray-500 text-center">
-          Questions? Contact your Business Operations team or system administrator.
-        </p>
+        <p className="text-xs text-gray-500 text-center">Questions? Contact your system administrator.</p>
       </div>
     </div>
   )
