@@ -156,9 +156,9 @@ export default function ActivityLogsPage() {
   const [loading, setLoading] = useState(true)
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const { error, showError, setError } = useToast()
-  const [filterDateFrom, setFilterDateFrom] = useState(() => offsetDate(1))
+  const [filterDateFrom, setFilterDateFrom] = useState(() => offsetDate(0))
   const [filterDateTo, setFilterDateTo] = useState(() => offsetDate(0))
-  const [activePreset, setActivePreset] = useState('Yesterday')
+  const [activePreset, setActivePreset] = useState('Today')
   const [showCalendar, setShowCalendar] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStaff, setFilterStaff] = useState('all')
@@ -186,7 +186,7 @@ export default function ActivityLogsPage() {
       .gte('created_at', filterDateFrom + 'T00:00:00+08:00')
       .lte('created_at', filterDateTo + 'T23:59:59+08:00')
       .order('created_at', { ascending: false })
-      .limit(500)
+      .limit(5000)  // high limit — date filter is the primary constraint; 5000 covers months of activity
     if (filterStaff !== 'all') q = q.eq('user_name', filterStaff)
     if (filterAction !== 'all') q = q.eq('action_type', filterAction)
 
@@ -206,7 +206,7 @@ export default function ActivityLogsPage() {
   // so dropdown always shows all staff regardless of selected period
   useEffect(() => {
     const loadAllStaff = async () => {
-      const since14 = new Date(); since14.setDate(since14.getDate() - 13)
+      const since14 = new Date(Date.now() + 8 * 60 * 60 * 1000); since14.setUTCDate(since14.getUTCDate() - 13)
       const { data } = await supabase.from('activity_logs')
         .select('user_name').gte('created_at', since14.toISOString())
       const names = Array.from(new Set((data || []).map((l: any) => l.user_name))).sort()

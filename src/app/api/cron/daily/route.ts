@@ -33,6 +33,7 @@ import { housekeepCronLogs } from '@/lib/cron'
 //   7. escalate-pt-session-notes
 //   8. check-staff-birthdays
 //   9. check-member-birthdays
+//  10. lock-roster-shifts (now job 3 — runs after expiry, before escalation)
 //
 // NOT INCLUDED:
 //   /api/cron/reminders — runs at 0800 SGT, separate schedule
@@ -43,15 +44,17 @@ import { housekeepCronLogs } from '@/lib/cron'
 // ============================================================
 
 const JOBS = [
-  'expire-memberships',
-  'expire-pt-packages',
-  'escalate-leave',
-  'escalate-expiring-memberships',
-  'escalate-membership-sales',
-  'escalate-pt-package-sales',
-  'escalate-pt-session-notes',
-  'check-staff-birthdays',
-  'check-member-birthdays',
+  'expire-memberships',           // mark expired gym memberships as expired
+  'expire-pt-packages',           // mark expired PT packages as expired
+  'lock-roster-shifts',           // auto-lock past part-timer shifts for payroll finality
+  'purge-activity-logs',          // delete activity logs older than 14 days
+  'escalate-leave',               // escalate pending leave applications to Biz Ops
+  'escalate-expiring-memberships',// notify managers of memberships expiring soon
+  'escalate-membership-sales',    // escalate pending membership sales confirmations
+  'escalate-pt-package-sales',    // escalate pending PT package sales confirmations
+  'escalate-pt-session-notes',    // escalate PT sessions with missing notes
+  'check-staff-birthdays',        // send birthday notifications for staff
+  'check-member-birthdays',       // send birthday notifications for members
 ]
 
 export async function GET(request: NextRequest) {
@@ -101,7 +104,7 @@ export async function GET(request: NextRequest) {
         status: 'running',
       })
       .select('id')
-      .single()
+      .maybeSingle()
 
     if (insertErr || !logRow) {
       console.error(`[cron/daily] Failed to insert log for ${jobName}:`, insertErr?.message)
