@@ -89,7 +89,7 @@ export default function RosterPage() {
       const ptIds = (ptGymRows || []).map((r: any) => r.trainer_id)
       let pt: any[] = []
       if (ptIds.length > 0) {
-        const { data: ptData } = await supabase.from('users')
+        const { data: ptData } = await supabase.from('users_safe')
           .select('*').eq('employment_type', 'part_time').eq('is_archived', false)
           .in('id', ptIds).order('full_name')
         pt = ptData || []

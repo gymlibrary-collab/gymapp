@@ -72,12 +72,12 @@ export default function LeaveManagementPage() {
       //   2. Trainer + staff leave escalated after 48h without manager action
       // staffIds must cover all three groups — the pending filter then applies
       // escalated_to_biz_ops=true to show only what needs biz-ops attention
-      const { data: allStaff } = await supabase.from('users')
+      const { data: allStaff } = await supabase.from('users_safe')
         .select('id').in('role', ['manager', 'trainer', 'staff']).eq('is_archived', false)
       staffIds = allStaff?.map((m: any) => m.id) || []
     } else if (user!.role === 'admin') {
       // Admin approves Business Ops leave
-      const { data: bizOps } = await supabase.from('users')
+      const { data: bizOps } = await supabase.from('users_safe')
         .select('id').eq('role', 'business_ops')
       staffIds = bizOps?.map((b: any) => b.id) || []
     }
@@ -103,7 +103,7 @@ export default function LeaveManagementPage() {
     setApplications(data || [])
 
     // Staff leave balances
-    const { data: staff } = await supabase.from('users')
+    const { data: staff } = await supabase.from('users_safe')
       .select('id, full_name, role, leave_entitlement_days')
       .in('id', staffIds).eq('is_archived', false)
 
@@ -197,7 +197,7 @@ export default function LeaveManagementPage() {
     }).eq('id', id)
     // WhatsApp to applicant (app already declared above)
     if (app) {
-      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).maybeSingle()
+      const { data: applicant } = await supabase.from('users_safe').select('phone, full_name').eq('id', app.user_id).maybeSingle()
       await queueWhatsApp(supabase, {
         notificationType: 'leave_approved',
         phone: applicant?.phone,
@@ -233,7 +233,7 @@ export default function LeaveManagementPage() {
     const { data: rejectedApp } = await supabase.from('leave_applications')
       .select('user_id, leave_type, start_date, end_date, days_applied').eq('id', rejectId).maybeSingle()
     const { data: { user: authUser3 } } = await supabase.auth.getUser()
-    const { data: me3 } = await supabase.from('users').select('full_name').eq('id', authUser3!.id).maybeSingle()
+    const { data: me3 } = await supabase.from('users_safe').select('full_name').eq('id', authUser3!.id).maybeSingle()
     await supabase.from('leave_applications').update({
       status: 'rejected', rejection_reason: rejectReason,
       rejected_at: new Date().toISOString(),
@@ -241,7 +241,7 @@ export default function LeaveManagementPage() {
     // WhatsApp to applicant
     const app = applications.find(a => a.id === rejectId)
     if (app) {
-      const { data: applicant } = await supabase.from('users').select('phone, full_name').eq('id', app.user_id).maybeSingle()
+      const { data: applicant } = await supabase.from('users_safe').select('phone, full_name').eq('id', app.user_id).maybeSingle()
       await queueWhatsApp(supabase, {
         notificationType: 'leave_rejected',
         phone: applicant?.phone,
@@ -291,7 +291,7 @@ export default function LeaveManagementPage() {
     const medicalDays = parseInt(bulkMedical) || 14
     const hospDays = parseInt(bulkHosp) || 60
     const maxCarryFwd = parseInt(maxCarryForward) || 0
-    const { data: staff } = await supabase.from('users')
+    const { data: staff } = await supabase.from('users_safe')
       .select('id, leave_entitlement_days, leave_carry_forward_days')
       .in('role', ['trainer', 'staff', 'manager']).eq('employment_type', 'full_time')
       .is('date_of_departure', null).eq('is_archived', false)
@@ -307,7 +307,7 @@ export default function LeaveManagementPage() {
     for (const s of staff || []) {
       const total = (s.leave_entitlement_days || 0) + (s.leave_carry_forward_days || 0)
       const carryFwd = Math.min(Math.max(0, total - (daysTakenMap[s.id] || 0)), maxCarryFwd)
-      await supabase.from('users').update({
+      await supabase.from('users_safe').update({
         leave_entitlement_days: annualDays, leave_carry_forward_days: carryFwd,
         medical_leave_entitlement_days: medicalDays, hospitalisation_leave_entitlement_days: hospDays,
       }).eq('id', s.id)
