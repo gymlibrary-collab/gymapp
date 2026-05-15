@@ -36,7 +36,8 @@ export default function PtSessionsPage() {
   const { partTimerActiveGymId } = usePartTimerContext()
   const isPartTime = user?.employment_type === 'part_time'
 
-  const loadSessions = async () => {    // detail is reviewed in person with each gym manager.
+  const loadSessions = async () => {
+    if (!user) return
     logActivity('page_view', 'PT Sessions', 'Viewed pt sessions')
     // Block roles that should not access session list
     
@@ -77,7 +78,7 @@ export default function PtSessionsPage() {
     setSessions(data || [])
   }
 
-  useEffect(() => { loadSessions() }, [filter, isActingAsTrainer])
+  useEffect(() => { loadSessions() }, [filter, isActingAsTrainer, user])
 
   if (loading) return <PageSpinner />
   if (!user) return null
