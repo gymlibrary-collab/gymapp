@@ -525,7 +525,7 @@ export default function LeaveManagementPage() {
 
       {/* Leave balances */}
       <div className="card">
-        <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-red-600" /> Staff Leave Balances ({new Date().getFullYear()})</h2></div>
+        <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-red-600" /> Staff Leave Balances ({new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear()})</h2></div>
         {staffBalances.length === 0 ? <p className="p-4 text-sm text-gray-400 text-center">No staff found</p> : (
           <div className="divide-y divide-gray-100">
             {staffBalances.map(s => (
@@ -646,7 +646,7 @@ export default function LeaveManagementPage() {
           <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
             <p className="font-medium">What this does:</p>
             <p>1. Sets the new annual entitlement for ALL active full-time staff</p>
-            <p>2. Calculates carry-forward from unused leave in {new Date().getFullYear() - 1} (capped at {maxCarryForward} days max)</p>
+            <p>2. Calculates carry-forward from unused leave in {new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - 1} (capped at {maxCarryForward} days max)</p>
             <p>3. Resets medical and hospitalisation to default entitlements</p>
             <p className="text-amber-600 font-medium mt-1">⚠ This action cannot be undone. Run in January only.</p>
           </div>
@@ -654,7 +654,7 @@ export default function LeaveManagementPage() {
           {/* Pending leave blocking warning */}
           {pendingBlockingStaff.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
-              <p className="text-sm font-medium text-red-700">⚠ Cannot run reset — {pendingBlockingStaff.length} staff have pending leave from {new Date().getFullYear() - 1} that must be resolved first:</p>
+              <p className="text-sm font-medium text-red-700">⚠ Cannot run reset — {pendingBlockingStaff.length} staff have pending leave from {new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - 1} that must be resolved first:</p>
               <ul className="text-xs text-red-600 space-y-1">
                 {pendingBlockingStaff.map((l: any) => (
                   <li key={l.id}>• {(l.user as any)?.full_name} — {l.start_date} to {l.end_date}</li>

@@ -25,7 +25,7 @@ export default function MyRosterPage() {
       logActivity('page_view', 'My Roster', 'Viewed own duty roster')
 
       const today = todaySGT()
-      const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const in30Days = getDaysFromToday(30)
 
       const { data } = await supabase.from('duty_roster')
         .select('*, gym:gyms(name)')
@@ -49,9 +49,10 @@ export default function MyRosterPage() {
   // Group by week
   const grouped: Record<string, any[]> = {}
   shifts.forEach(shift => {
-    const d = new Date(shift.shift_date)
-    const mon = new Date(d); mon.setDate(d.getDate() - (d.getDay() || 7) + 1)
-    const key = mon.toISOString().split('T')[0]
+    const [sy, sm, sd] = shift.shift_date.split('-').map(Number)
+    const d = new Date(sy, sm - 1, sd)
+    const mon = new Date(sy, sm - 1, sd - (d.getDay() || 7) + 1)
+    const key = `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`
     if (!grouped[key]) grouped[key] = []
     grouped[key].push(shift)
   })
@@ -92,7 +93,7 @@ export default function MyRosterPage() {
         <div className="space-y-4">
           {Object.entries(grouped).map(([weekMon, weekShifts]) => {
             const weekEnd = new Date(weekMon); weekEnd.setDate(weekEnd.getDate() + 6)
-            const weekLabel = `${formatDate(weekMon)} — ${formatDate(weekEnd.toISOString().split('T')[0])}`
+            const weekLabel = `${formatDate(weekMon)} — ${formatDate(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`)}`
             const weekHours = weekShifts.reduce((s, r) => s + r.hours_worked, 0)
             const weekPay = weekShifts.reduce((s, r) => s + r.gross_pay, 0)
             return (

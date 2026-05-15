@@ -55,7 +55,7 @@ export default function MembershipSalesPage() {
         .eq('sale_status', 'pending')
         .order('created_at', { ascending: false })
       // Recent confirmed/rejected for audit trail (last 90 days)
-      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const ninetyDaysAgo = getDaysFromToday(-90) + 'T00:00:00+08:00'
       const { data: recentSales } = await supabase.from('gym_memberships')
         .select(baseSelect)
         .neq('sale_status', 'pending')

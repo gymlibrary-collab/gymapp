@@ -384,7 +384,7 @@ export default function RegisterMemberPage() {
             {selectedType && (
               <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 space-y-1">
                 <div className="flex justify-between"><span>Starts</span><span className="font-medium">{formatDate(new Date().toISOString().split('T')[0])}</span></div>
-                <div className="flex justify-between"><span>Expires</span><span className="font-medium">{formatDate(new Date(Date.now() + selectedType.duration_days * 86400000).toISOString().split('T')[0])}</span></div>
+                <div className="flex justify-between"><span>Expires</span><span className="font-medium">{formatDate(getDaysFromToday(selectedType.duration_days))}</span></div>
                 <div className="flex justify-between font-medium text-gray-900"><span>Price</span><span>{formatSGD(selectedType.price_sgd)}</span></div>
               </div>
             )}

@@ -209,7 +209,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
-      const now = new Date()
+      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
 
       // ── Escalation checks ────────────────────────────────
       // Membership sales + expiry escalation now handled by daily cron jobs:
@@ -278,7 +278,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
 
       // ── Gym schedule ───────────────────────────────────────
-      const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
       const { data: schedData } = await supabase.from('sessions')
         .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
         .in('status', ['scheduled', 'completed']).eq('gym_id', gymId)

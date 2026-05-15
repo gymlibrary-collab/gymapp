@@ -36,7 +36,7 @@ import MemberBirthdayCard from './MemberBirthdayCard'
 import SessionSchedule from './SessionSchedule'
 import QuickActions from './QuickActions'
 import {
-  getTodayStart, getTodayEnd, getMonthStart,
+  getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr,
   fetchPayslipNotifications, dismissPayslipNotifications, fetchNotifications, dismissNotifications, fetchUpcomingSessions,
 } from '@/lib/dashboard'
 import { PageSpinner } from '@/components/PageSpinner'
@@ -75,8 +75,8 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   // ── Commission period loader ───────────────────────────────
   const loadCommissionStats = useCallback(async (offset: number) => {
     setCommissionLoading(true)
-    const now = new Date()
-    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const d = new Date(now.getUTCFullYear(), now.getUTCMonth() + offset, 1)
     const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
     setCommissionPeriodLabel(`${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`)
@@ -104,7 +104,7 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
-      const now = new Date()
+      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
 
       // Membership sales escalation is now handled by the daily cron
       // at /api/cron/escalate-membership-sales (runs at 0103 SGT).
@@ -120,11 +120,11 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
         setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
 
         // ── Gym schedule ───────────────────────────────────
-        const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
         const { data: schedData } = await supabase.from('sessions')
           .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
           .in('status', ['scheduled', 'completed'])
-          .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
+          .gte('scheduled_at', getTodayStr() + 'T00:00:00+08:00')
           .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
           .eq('gym_id', gymId)
         setGymScheduleSessions(schedData || [])

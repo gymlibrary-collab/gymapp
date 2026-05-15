@@ -28,6 +28,7 @@ import { Calendar, AlertCircle, AlertTriangle, Bell, X, XCircle } from 'lucide-r
 import Link from 'next/link'
 import { cn, formatSGD, formatDate, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
+import { getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr } from '@/lib/dashboard'
 
 interface BizOpsDashboardProps {
   user: any
@@ -124,7 +125,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
       setEscalatedLeave(escalatedCount || 0)
 
       // Year-end reminders (December only)
-      const now = new Date()
+      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
       // Approved cancellation notifications
       const { data: cancelNotifs } = await supabase
         .from('cancellation_approved_notif')
@@ -140,8 +141,8 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
         .order('disputed_at', { ascending: true })
       setDisputedShifts(disputed || [])
 
-      if (now.getMonth() === 11) {
-        const nextYear = now.getFullYear() + 1
+      if (now.getUTCMonth() === 11) {
+        const nextYear = now.getUTCFullYear() + 1
         const { count } = await supabase.from('public_holidays')
           .select('id', { count: 'exact', head: true }).eq('year', nextYear)
         setHolidaysSetUp((count || 0) > 0)
@@ -153,8 +154,8 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
       }
 
       // Year-end leave reset reminder: 25 Dec to 2 Jan
-      const month = now.getMonth()
-      const day = now.getDate()
+      const month = now.getUTCMonth()
+      const day = now.getUTCDate()
       const isInWindow = (month === 11 && day >= 28) || (month === 0 && day === 1)
       if (isInWindow) {
         const { data: appSettings } = await supabase
@@ -163,13 +164,13 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
           .eq('id', 'global').maybeSingle()
         const resetYear = appSettings?.leave_reset_year || 2026
         setLeaveResetYear(resetYear)
-        const resetAlreadyRun = resetYear === now.getFullYear()
+        const resetAlreadyRun = resetYear === now.getUTCFullYear()
         if (!resetAlreadyRun) {
           const seenAt = appSettings?.leave_reset_reminder_seen_at
           const isJan1 = month === 0 && day === 1
           if (isJan1) {
             // On 1 Jan: only show if not yet permanently dismissed this year
-            const windowStart = new Date(now.getFullYear(), 0, 1) // 1 Jan
+            const windowStart = new Date(now.getUTCFullYear(), 0, 1) // 1 Jan
             if (!seenAt || new Date(seenAt) < windowStart) {
               setLeaveResetReminder(true)
             }
@@ -365,15 +366,15 @@ function BizOpsGymTabs() {
   const [bizDrillData, setBizDrillData] = useState<any[]>([])
   const [bizDrillLoading, setBizDrillLoading] = useState(false)
   const supabase = createClient()
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
-  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+  const monthStart = getMonthStart()
+  const todayStart = getTodayStart()
+  const todayEnd = getTodayEnd()
+  const in7Days = getDaysFromToday(7)
 
-  const bizCommPeriodDate = new Date(now.getFullYear(), now.getMonth() + bizCommOffset, 1)
+  const bizCommPeriodDate = new Date(now.getUTCFullYear(), now.getUTCMonth() + bizCommOffset, 1)
   const bizCommPeriodStart = bizCommPeriodDate.toISOString()
-  const bizCommPeriodEnd = new Date(now.getFullYear(), now.getMonth() + bizCommOffset + 1, 0, 23, 59, 59).toISOString()
+  const bizCommPeriodEnd = new Date(now.getUTCFullYear(), now.getUTCMonth() + bizCommOffset + 1, 0, 23, 59, 59).toISOString()
   const bizCommPeriodLabel = bizCommPeriodDate.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
 
   useEffect(() => {
@@ -381,8 +382,8 @@ function BizOpsGymTabs() {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
       const gymIds = (gymsData || []).map((g: any) => g.id)
-      const todayStr = now.toISOString().split('T')[0]
-      const in30DaysBizOps = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      const todayStr = getTodayStr()
+      const in30DaysBizOps = getDaysFromToday(30)
 
       // 10 bulk queries — all pure reads, safe for Promise.all
       const [

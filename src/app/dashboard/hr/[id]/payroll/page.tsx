@@ -48,8 +48,8 @@ export default function StaffPayrollDetailPage() {
 
   const [salaryForm, setSalaryForm] = useState({ current_salary: '', is_cpf_liable: 'true' })
   const [incrementForm, setIncrementForm] = useState({ change_amount: '', effective_from: '', change_type: 'increment', notes: '' })
-  const [bonusForm, setBonusForm] = useState({ bonus_type: 'performance', amount: '', month: new Date().getMonth() + 1, year: new Date().getFullYear(), notes: '' })
-  const [payslipForm, setPayslipForm] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear(), notes: '' })
+  const [bonusForm, setBonusForm] = useState({ bonus_type: 'performance', amount: '', month: new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1, year: new Date(Date.now()+8*60*60*1000).getUTCFullYear(), notes: '' })
+  const [payslipForm, setPayslipForm] = useState({ month: new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1, year: new Date(Date.now()+8*60*60*1000).getUTCFullYear(), notes: '' })
   const [payslipPreview, setPayslipPreview] = useState<any>(null)
   const supabase = createClient()
 
@@ -60,7 +60,7 @@ export default function StaffPayrollDetailPage() {
   // so a person born 1 Aug 1970 is in Bracket 2 from 2 Aug 2025.
   // Reference date = last day of the payroll month.
   // getAgeAsOf and getCpfBracketRates are imported from @/lib/cpf
-  const getAge = (dob: string | null) => getAgeAsOf(dob, new Date())
+  const getAge = (dob: string | null) => getAgeAsOf(dob, new Date(Date.now() + 8 * 60 * 60 * 1000))
 
   // getBracketRates: alias of getCpfBracketRates from @/lib/cpf
   const getBracketRates = getCpfBracketRates
@@ -86,7 +86,7 @@ export default function StaffPayrollDetailPage() {
     const { data: slipData } = await supabase.from('payslips').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false }).limit(26)
     setPayslips(slipData || [])
 
-    const payoutYearFrom = `${(new Date().getFullYear() - 1)}-01-01`
+    const payoutYearFrom = `${(new Date(Date.now()+8*60*60*1000).getUTCFullYear() - 1)}-01-01`
     const { data: payoutData } = await supabase.from('commission_payouts').select('*').eq('user_id', id).gte('period_start', payoutYearFrom).order('period_start', { ascending: false })
     setCommissionPayouts(payoutData || [])
 
@@ -153,7 +153,7 @@ export default function StaffPayrollDetailPage() {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     await supabase.from('staff_bonuses').insert({ user_id: id, bonus_type: bonusForm.bonus_type, amount: parseFloat(bonusForm.amount), month: bonusForm.month, year: bonusForm.year, notes: bonusForm.notes || null, created_by: authUser?.id })
     await loadData(); setSaving(false); setShowBonusForm(false)
-    setBonusForm({ bonus_type: 'performance', amount: '', month: new Date().getMonth() + 1, year: new Date().getFullYear(), notes: '' })
+    setBonusForm({ bonus_type: 'performance', amount: '', month: new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1, year: new Date(Date.now()+8*60*60*1000).getUTCFullYear(), notes: '' })
     logActivity('create', 'Staff Payroll', 'Recorded staff bonus')
     showMsg('Bonus recorded')
   }
@@ -178,8 +178,8 @@ export default function StaffPayrollDetailPage() {
     const pMonth = payslipForm.month; const pYear = payslipForm.year
 
     // Block future months
-    const now = new Date()
-    if (pYear > now.getFullYear() || (pYear === now.getFullYear() && pMonth > now.getMonth() + 1)) {
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    if (pYear > now.getUTCFullYear() || (pYear === now.getUTCFullYear() && pMonth > now.getUTCMonth() + 1)) {
       setError(`Cannot generate a payslip for a future month.`); setSaving(false); return
     }
 
@@ -552,7 +552,7 @@ export default function StaffPayrollDetailPage() {
               <div className="bg-blue-50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold text-blue-700">
                   {payroll?.is_cpf_liable
-                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date().getFullYear(), new Date().getMonth() + 1).employee_rate}%`
+                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date(Date.now()+8*60*60*1000).getUTCFullYear(), new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1).employee_rate}%`
                     : 'N/A'}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">Employee CPF</p>
@@ -560,7 +560,7 @@ export default function StaffPayrollDetailPage() {
               <div className="bg-red-50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold text-red-700">
                   {payroll?.is_cpf_liable
-                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date().getFullYear(), new Date().getMonth() + 1).employer_rate}%`
+                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date(Date.now()+8*60*60*1000).getUTCFullYear(), new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1).employer_rate}%`
                     : 'N/A'}
                 </p>
                 <p className="text-xs text-red-600 mt-1">Employer CPF</p>
@@ -570,8 +570,8 @@ export default function StaffPayrollDetailPage() {
               <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
                 <div className="flex justify-between"><span>Gross Salary</span><span className="font-medium">{formatSGD(payroll.current_salary)}</span></div>
                 {(() => {
-                  const now = new Date()
-                  const r = getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, now.getFullYear(), now.getMonth() + 1)
+                  const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+                  const r = getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, now.getUTCFullYear(), now.getUTCMonth() + 1)
                   const sal = payroll.current_salary
                   const cappedSal = Math.min(sal, 8000)
                   const empCpfEst = Math.floor(cappedSal * r.employee_rate / 100)

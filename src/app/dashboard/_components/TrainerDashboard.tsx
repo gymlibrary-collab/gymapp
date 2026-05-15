@@ -82,8 +82,8 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
 
   // ── Commission period calculator ───────────────────────────
   const getCommissionPeriod = (offset: number) => {
-    const now = new Date()
-    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const d = new Date(now.getUTCFullYear(), now.getUTCMonth() + offset, 1)
     const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
     const label = `${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`
@@ -120,7 +120,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
-      const now = new Date()
+      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
 
       // ── Trainer gym assignments ────────────────────────────
       const { data: tgRows } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', user.id)
@@ -137,11 +137,11 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       setUpcomingSessions(await fetchUpcomingSessions(supabase, { trainerId: user.id, todayEnd }))
 
       // ── Gym schedule ───────────────────────────────────────
-      const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+      const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
       let schedQ = supabase.from('sessions')
         .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
         .in('status', ['scheduled', 'completed'])
-        .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
+        .gte('scheduled_at', getTodayStr() + 'T00:00:00+08:00')
         .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
       if (gymIds.length > 0) schedQ = schedQ.in('gym_id', gymIds)
       const { data: schedData } = await schedQ
