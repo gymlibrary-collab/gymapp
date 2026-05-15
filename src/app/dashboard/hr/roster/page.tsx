@@ -116,7 +116,7 @@ export default function RosterPage() {
       rangeEnd = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
     }
     let rQ = supabase.from('duty_roster')
-      .select('*, user:users!duty_roster_user_id_fkey(full_name, phone, hourly_rate)')
+      .select('*, user:users!duty_roster_user_id_fkey(full_name, phone, hourly_rate)') // users direct — hourly_rate needed for shift card display
       .gte('shift_date', rangeStart).lte('shift_date', rangeEnd)
       .order('shift_date').order('shift_start')
     if (gId) rQ = rQ.eq('gym_id', gId)

@@ -26,7 +26,7 @@ export default function AdminGymsPage() {
         .from('gyms').select('*').order('name')
 
       const { data: allStaff } = await supabase
-        .from('users')
+        .from('users_safe')
         .select('id, role, manager_gym_id, trainer_gyms(gym_id)')
         .eq('is_archived', false)
 

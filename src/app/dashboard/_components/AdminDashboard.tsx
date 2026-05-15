@@ -70,7 +70,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       // Query 2: all non-archived staff for role counts and gym mapping
       // trainer_gyms join needed to count trainers per gym
       const { data: allStaff } = await supabase
-        .from('users')
+        .from('users_safe')
         .select('id, role, manager_gym_id, trainer_gyms(gym_id)')
         .eq('is_archived', false)
 

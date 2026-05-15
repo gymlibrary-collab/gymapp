@@ -717,7 +717,7 @@ export async function getGymStaffIds(
 ): Promise<string[]> {
   const [{ data: tgRows }, { data: staffRows }] = await Promise.all([
     supabase.from('trainer_gyms').select('trainer_id').eq('gym_id', gymId),
-    supabase.from('users').select('id').eq('manager_gym_id', gymId).eq('is_archived', false),
+    supabase.from('users_safe').select('id').eq('manager_gym_id', gymId).eq('is_archived', false),
   ])
   const trainerIds = (tgRows || []).map((r: any) => r.trainer_id)
   const staffIds   = (staffRows || []).map((r: any) => r.id)
