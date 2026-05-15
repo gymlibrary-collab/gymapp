@@ -105,7 +105,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
   useEffect(() => {
     const load = async () => {
       // Banner 1: Manager leave — always goes direct to biz-ops (no escalation)
-      const { data: mgrIds } = await supabase.from('users')
+      const { data: mgrIds } = await supabase.from('users_safe')
         .select('id').eq('role', 'manager')
       const managerUserIds = mgrIds?.map((m: any) => m.id) || []
       if (managerUserIds.length > 0) {

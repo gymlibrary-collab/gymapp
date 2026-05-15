@@ -167,7 +167,7 @@ export default function ActivityLogsPage() {
       hasLoggedPageView.current = true
       logActivity('page_view', 'Activity Logs', 'Viewed activity logs')
     }
-    const { data: me } = await supabase.from('users').select('role').eq('id', authUser.id).single()
+    const { data: me } = await supabase.from('users_safe').select('role').eq('id', authUser.id).maybeSingle()
     if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
 
     let q = supabase.from('activity_logs')

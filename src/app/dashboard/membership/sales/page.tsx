@@ -116,7 +116,7 @@ export default function MembershipSalesPage() {
     if (!sale) return
 
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const { data: me } = await supabase.from('users').select('full_name').eq('id', authUser!.id).single()
+    const { data: me } = await supabase.from('users_safe').select('full_name').eq('id', authUser!.id).maybeSingle()
 
     // Check if this is the member's only ever membership (new member scenario)
     const { data: otherMems } = await supabase.from('gym_memberships')

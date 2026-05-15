@@ -415,7 +415,7 @@ export default function StaffPayrollDetailPage() {
     }
     setDeleting(true)
     const { data: { user: authUser } } = await supabase.auth.getUser()
-    const { data: adminUser } = await supabase.from('users').select('full_name').eq('id', authUser?.id).maybeSingle()
+    const { data: adminUser } = await supabase.from('users_safe').select('full_name').eq('id', authUser?.id).maybeSingle()
     const ps = deleteModal.payslip
 
     // Write audit record before deleting
