@@ -1,13 +1,14 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
 export async function GET(request: NextRequest) {
   return runCron(request, 'prepare-reminders', 'reminder', async (supabase) => {
-    const nowUtc = new Date()
+    const nowUtc = nowSGT() // SGT — renamed for backwards compat
     const nowSgt = new Date(nowUtc.getTime() + 8 * 60 * 60 * 1000)
     const tomorrowSgt = new Date(nowSgt)
-    tomorrowSgt.setDate(tomorrowSgt.getDate() + 1)
-    const tomorrowStr = tomorrowSgt.toISOString().split('T')[0]
+    tomorrowSgt.setUTCDate(tomorrowSgt.getUTCDate() + 1)
+    const tomorrowStr = `${tomorrowSgt.getUTCFullYear()}-${String(tomorrowSgt.getUTCMonth()+1).padStart(2,'0')}-${String(tomorrowSgt.getUTCDate()).padStart(2,'0')}`
     const tomorrowStart = `${tomorrowStr}T00:00:00+08:00`
     const tomorrowEnd = `${tomorrowStr}T23:59:59+08:00`
 

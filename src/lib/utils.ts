@@ -82,10 +82,10 @@ export function getMonthName(month: number): string {
 }
 
 export function calculateAge(dob: string): number {
-  const today = new Date()
+  const today = nowSGT()
   const birthDate = new Date(dob)
-  let age = today.getFullYear() - birthDate.getFullYear()
-  const m = today.getMonth() - birthDate.getMonth()
+  let age = today.getUTCFullYear() - birthDate.getFullYear()
+  const m = today.getUTCMonth() - birthDate.getMonth()
   if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--
   return age
 }
@@ -196,7 +196,7 @@ export async function uploadToStorage(
  * 18:00+      → Good evening
  */
 export function getGreeting(nickname: string): string {
-  const hour = new Date().getHours()
+  const hour = nowSGT().getUTCHours()
   if (hour < 12) return `Good morning, ${nickname}`
   if (hour < 18) return `Good afternoon, ${nickname}`
   return `Good evening, ${nickname}`

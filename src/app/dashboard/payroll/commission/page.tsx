@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, formatDate, getMonthName , getRoleLabel } from '@/lib/utils'
+import { formatSGD, formatDate, getMonthName , getRoleLabel, nowSGT} from '@/lib/utils'
 import { getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import {
   TrendingUp, Plus, CheckCircle, AlertCircle, X,
@@ -31,7 +31,7 @@ export default function CommissionPayoutsPage() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [showGenerateForm, setShowGenerateForm] = useState(false)
   const [genForm, setGenForm] = useState({
-    period_month: new Date().getMonth() === 0 ? 12 : new Date().getMonth(), // previous month
+    period_month: nowSGT().getUTCMonth() === 0 ? 12 : nowSGT().getUTCMonth(), // previous month
     period_year: new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear(),
     user_ids: [] as string[], gym_id: '',
   })

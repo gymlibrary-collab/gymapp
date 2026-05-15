@@ -1,3 +1,4 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     if (queueErr) throw new Error(`Queue fetch error: ${queueErr.message}`)
     if (!queue || queue.length === 0) return { sent: 0, message: 'No reminders in queue' }
 
-    const nowSgt = new Date(new Date().getTime() + 8 * 60 * 60 * 1000)
+    const nowSgt = nowSGT()
     const todayStr = nowSgt.toISOString().split('T')[0]
 
     const twilioClient = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)

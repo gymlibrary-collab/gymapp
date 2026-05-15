@@ -4,7 +4,7 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
-import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass } from '@/lib/utils'
+import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass, nowSGT} from '@/lib/utils'
 import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle, Trash2, Download, FileText } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
@@ -21,11 +21,11 @@ export default function PayrollPage() {
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('all')
   const { logActivity } = useActivityLog()
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedMonth, setSelectedMonth] = useState(nowSGT().getUTCMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [rosterTotals, setRosterTotals] = useState<Record<string, any>>({})
   const [ytdOW, setYtdOW] = useState<Record<string, number>>({}) // user_id -> YTD ordinary wages
-  const [bulkMonth, setBulkMonth] = useState(new Date().getMonth() + 1)
+  const [bulkMonth, setBulkMonth] = useState(nowSGT().getUTCMonth() + 1)
   const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
   const [bulkGenerating, setBulkGenerating] = useState(false)
   const [bulkDraftWarning, setBulkDraftWarning] = useState<string[]>([]) // names with existing drafts
@@ -118,9 +118,9 @@ export default function PayrollPage() {
 
   const handleBulkGenerate = async () => {
     // Issue 5: Hard block future month
-    const now = new Date()
-    const isFuture = bulkYear > now.getFullYear() ||
-      (bulkYear === now.getFullYear() && bulkMonth > now.getMonth() + 1)
+    const now = nowSGT()
+    const isFuture = bulkYear > now.getUTCFullYear() ||
+      (bulkYear === now.getUTCFullYear() && bulkMonth > now.getUTCMonth() + 1)
     if (isFuture) {
       alert(`Cannot generate payslips for a future month (${bulkMonth}/${bulkYear}). Wait until the month has ended.`)
       return

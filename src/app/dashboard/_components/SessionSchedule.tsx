@@ -22,7 +22,7 @@
 
 import { Calendar, Clock, X } from 'lucide-react'
 import Link from 'next/link'
-import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { cn, formatDate, formatDateTime, nowSGT} from '@/lib/utils'
 
 interface SessionScheduleProps {
   /** Today's sessions (from fetchTodaySessions) */
@@ -70,7 +70,8 @@ export default function SessionSchedule({
 
   // Calendar days — 7 from today + offset
   const safeOffset = isManager ? calendarOffset : Math.max(0, calendarOffset)
-  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const sgNow = nowSGT()
+  const today = new Date(sgNow.getUTCFullYear(), sgNow.getUTCMonth(), sgNow.getUTCDate())
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today); d.setDate(d.getDate() + safeOffset + i); return d
   })
@@ -222,7 +223,7 @@ export default function SessionSchedule({
 
               {/* Day columns */}
               {days.map(day => {
-                const isToday = day.toDateString() === new Date().toDateString()
+                const sgN = nowSGT(); const todayD = new Date(sgN.getUTCFullYear(), sgN.getUTCMonth(), sgN.getUTCDate()); const isToday = day.toDateString() === todayD.toDateString()
                 const daySessions = byDay[day.toDateString()] || []
                 const byHour: Record<number, any[]> = {}
                 daySessions.forEach((s: any) => {

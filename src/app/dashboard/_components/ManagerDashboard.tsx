@@ -192,8 +192,8 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
 
   // ── Commission offset reload ───────────────────────────────
   useEffect(() => {
-    const d = new Date()
-    const periodDate = new Date(d.getFullYear(), d.getMonth() + commissionOffset, 1)
+    const d = nowSGT()
+    const periodDate = new Date(d.getUTCFullYear(), d.getUTCMonth() + commissionOffset, 1)
     const periodStart = periodDate.toISOString()
     const periodEnd = new Date(d.getFullYear(), d.getMonth() + commissionOffset + 1, 0, 23, 59, 59).toISOString()
     loadCommissionStats(periodStart, periodEnd)

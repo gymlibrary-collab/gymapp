@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, getMonthName } from '@/lib/utils'
+import { formatSGD, getMonthName, nowSGT} from '@/lib/utils'
 import { getGymStaffIds } from '@/lib/dashboard'
 import { CreditCard, Package, Banknote, Download, Users, Building2 } from 'lucide-react'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -39,9 +39,9 @@ export default function ReportsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['manager', 'business_ops'] })
   const { logActivity } = useActivityLog()
   const supabase = createClient()
-  const now = new Date()
-  const [month, setMonth] = useState(now.getMonth() + 1)
-  const [year, setYear]   = useState(now.getFullYear())
+  const now = nowSGT()
+  const [month, setMonth] = useState(now.getUTCMonth() + 1)
+  const [year, setYear]   = useState(now.getUTCFullYear())
   const [gyms, setGyms]   = useState<any[]>([])
   const [selectedGym, setSelectedGym] = useState<string>('all')
   const [stats, setStats]     = useState<Stats>(EMPTY)

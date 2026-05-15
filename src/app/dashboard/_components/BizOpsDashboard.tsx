@@ -215,10 +215,10 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-amber-800">
-              Action required — {new Date().getFullYear() + 1} CPF age bracket rates not yet configured
+              Action required — {nowSGT().getUTCFullYear() + 1} CPF age bracket rates not yet configured
             </p>
             <p className="text-xs text-amber-600 mt-0.5">
-              Update CPF rates effective from 1 Jan {new Date().getFullYear() + 1} before processing payroll.
+              Update CPF rates effective from 1 Jan {nowSGT().getUTCFullYear() + 1} before processing payroll.
             </p>
           </div>
           <Link href="/dashboard/payroll/cpf" className="btn-primary text-xs py-1.5 flex-shrink-0">Update</Link>
@@ -229,7 +229,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
           <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-amber-800">
-              Action required — {new Date().getFullYear() + 1} public holidays not yet configured
+              Action required — {nowSGT().getUTCFullYear() + 1} public holidays not yet configured
             </p>
             <p className="text-xs text-amber-600 mt-0.5">
               Set up next year's public holidays so leave calculations remain accurate.
@@ -240,8 +240,8 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
       )}
 
       {leaveResetReminder && (() => {
-        const today = new Date()
-        const isJan1 = today.getMonth() === 0 && today.getDate() === 1
+        const today = nowSGT()
+        const isJan1 = today.getUTCMonth() === 0 && today.getUTCDate() === 1
         return (
           <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />

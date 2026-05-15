@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, formatDate, cn, todaySGT, currentTimeSGT } from '@/lib/utils'
+import { formatSGD, formatDate, cn, todaySGT, currentTimeSGT, nowSGT} from '@/lib/utils'
 import { getDaysFromToday } from '@/lib/dashboard'
 import { ArrowLeft, User, CreditCard, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -194,9 +194,9 @@ export default function RegisterMemberPage() {
     const type = membershipTypes.find(t => t.id === membershipForm.membership_type_id)
     if (!type) { setError('Please select a membership type'); return }
 
-    const startDate = new Date()
+    const startDate = nowSGT()
     const endDate = new Date(startDate)
-    endDate.setDate(endDate.getDate() + type.duration_days)
+    endDate.setUTCDate(endDate.getUTCDate() + type.duration_days)
 
     const { error: insertErr } = await supabase.from('gym_memberships').insert({
       member_id: createdMemberId,
@@ -205,8 +205,8 @@ export default function RegisterMemberPage() {
       membership_type_name: type.name,
       membership_number: memberForm.membership_number || null,
       price_sgd: type.price_sgd,
-      start_date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
+      start_date: `${startDate.getUTCFullYear()}-${String(startDate.getUTCMonth()+1).padStart(2,'0')}-${String(startDate.getUTCDate()).padStart(2,'0')}`,
+      end_date: `${endDate.getUTCFullYear()}-${String(endDate.getUTCMonth()+1).padStart(2,'0')}-${String(endDate.getUTCDate()).padStart(2,'0')}`,
       sold_by_user_id: authUser!.id,
       commission_pct: 0,
       commission_sgd: commissionPct,

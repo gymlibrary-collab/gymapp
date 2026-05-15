@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatDateTime, formatSGD, todaySGT} from '@/lib/utils'
+import { formatDateTime, formatSGD, todaySGT, nowSGT} from '@/lib/utils'
 import {
   Calendar, Clock, CheckCircle, XCircle, AlertCircle,
   Plus, X, Save, RotateCcw, ChevronDown, ChevronUp
@@ -299,7 +299,7 @@ export default function PtSessionsPage() {
                 {/* Action buttons */}
                 <div className="flex gap-2 flex-wrap pt-1">
                   {/* Trainer: mark outcome when session date has passed */}
-                  {isOwnSession && isScheduled && new Date(session.scheduled_at) <= new Date() && (
+                  {isOwnSession && isScheduled && new Date(session.scheduled_at) <= nowSGT() && (
                     <button onClick={() => openAction(session, 'complete')} className="btn-primary text-xs py-1.5">Mark Outcome</button>
                   )}
                   {/* Trainer: notes */}

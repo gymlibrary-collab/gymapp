@@ -32,7 +32,7 @@
 
 import { AlertCircle, FileText, DollarSign, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, nowSGT} from '@/lib/utils'
 import { formatSGD, formatDate, getMonthName } from '@/lib/utils'
 
 interface NotificationBannersProps {
@@ -172,8 +172,8 @@ export default function NotificationBanners({
 
       {/* ── Annual payroll archive reminder (biz-ops, Apr onwards) ── */}
       {isBizOps && (() => {
-        const now = new Date()
-        const isAprilOnwards = now.getMonth() >= 3
+        const now = nowSGT()
+        const isAprilOnwards = now.getUTCMonth() >= 3
         const dismissedYear = typeof window !== 'undefined'
           ? parseInt(localStorage.getItem('payroll_archive_dismissed') || '0')
           : 0

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate } from '@/lib/utils'
+import { formatDate, nowSGT} from '@/lib/utils'
 import { Plus, Trash2, CheckCircle, AlertCircle, Calendar, X, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -62,7 +62,7 @@ export default function PublicHolidaysPage() {
   const nextYear = new Date().getFullYear() + 1
   const hasNextYear = holidays.some(h => new Date(h.holiday_date).getFullYear() === nextYear) ||
     selectedYear !== nextYear
-  const needsNextYearSetup = new Date().getMonth() >= 10 && // November onwards
+  const needsNextYearSetup = nowSGT().getUTCMonth() >= 10 && // November onwards (SGT)
     !holidays.filter(h => h.year === nextYear).length
 
   return (

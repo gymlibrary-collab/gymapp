@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getGymStaffIds } from '@/lib/dashboard'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD } from '@/lib/utils'
+import { formatSGD, nowSGT} from '@/lib/utils'
 import { Dumbbell, TrendingUp, Clock, CheckCircle, XCircle, AlertTriangle, Save } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -32,9 +32,9 @@ export default function TrainerCapacityPage() {
   const load = async () => {
     logActivity('page_view', 'PT Capacity', 'Viewed pt capacity')
 
-    const now = new Date()
-    // Week bounds (Mon-Sun)
-    const weekStart = new Date(now); weekStart.setDate(now.getDate() - (now.getDay() || 7) + 1); weekStart.setHours(0,0,0,0)
+    const now = nowSGT()
+    // Week bounds (Mon-Sun) in SGT
+    const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (now.getUTCDay() || 7) + 1))
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
@@ -119,9 +119,10 @@ export default function TrainerCapacityPage() {
   const utilizationBg = (pct: number) =>
     pct >= 90 ? 'text-red-700 bg-red-50' : pct >= 70 ? 'text-amber-700 bg-amber-50' : 'text-green-700 bg-green-50'
 
-  const now = new Date()
-  const monthName = now.toLocaleString('default', { month: 'long' })
-  const weekLabel = `Week of ${new Date(now.getDate() - (now.getDay() || 7) + 1 + now.valueOf() - now.valueOf()).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}`
+  const now = nowSGT()
+  const monthName = new Date(now.getUTCFullYear(), now.getUTCMonth(), 1).toLocaleString('default', { month: 'long' })
+  const wkMon = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (now.getUTCDay() || 7) + 1))
+  const weekLabel = `Week of ${wkMon.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', timeZone: 'Asia/Singapore' })}`
 
 
   return (

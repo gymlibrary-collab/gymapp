@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, getMonthName } from '@/lib/utils'
+import { formatSGD, getMonthName, nowSGT} from '@/lib/utils'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -13,7 +13,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser'
 
 function getAge(dob: string) {
   if (!dob) return null
-  const today = new Date(); const birth = new Date(dob)
+  const today = nowSGT(); const birth = new Date(dob)
   let age = today.getFullYear() - birth.getFullYear()
   if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--
   return age
@@ -36,7 +36,7 @@ export default function CpfPage() {
   const [preview, setPreview] = useState<any>(null)
   const [editingBracket, setEditingBracket] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ employee_rate: 0, employer_rate: 0, effective_from: '' })
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedMonth, setSelectedMonth] = useState(nowSGT().getUTCMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)

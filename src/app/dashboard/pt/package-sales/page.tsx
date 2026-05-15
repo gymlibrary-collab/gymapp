@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD } from '@/lib/utils'
+import { formatDate, formatSGD, nowSGT} from '@/lib/utils'
 import { Package, CheckCircle, Clock, User, DollarSign, UserCheck, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -57,9 +57,7 @@ export default function PackageSalesPage() {
     setPending(pendingData || [])
 
     // Confirmed: packages confirmed this month (both roles see their gym's confirmed)
-    const monthStart = new Date()
-    monthStart.setDate(1)
-    monthStart.setHours(0, 0, 0, 0)
+    const monthStart = new Date(Date.UTC(nowSGT().getUTCFullYear(), nowSGT().getUTCMonth(), 1))
     let confirmedQ = supabase.from('packages')
       .select(`
         id, package_name, total_sessions, total_price_sgd,

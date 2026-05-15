@@ -160,9 +160,9 @@ export async function fetchGymSchedule(
   supabase: any,
   options: { gymId?: string; gymIds?: string[]; trainerId?: string }
 ): Promise<any[]> {
-  const now = new Date()
-  const schedStart = now.toISOString().split('T')[0] + 'T00:00:00'
-  const schedEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+  const now = nowSGT()
+  const schedStart = getTodayStr() + 'T00:00:00+08:00'
+  const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
 
   let q = supabase.from('sessions')
     .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')

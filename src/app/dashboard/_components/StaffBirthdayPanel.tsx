@@ -84,7 +84,7 @@ export default function StaffBirthdayPanel({ gymId, isBizOps }: { gymId?: string
             <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
               {birthdays.map((b: any) => {
                 const dob = new Date(b.date_of_birth)
-                const age = new Date().getFullYear() - dob.getUTCFullYear()
+                const age = nowSGT().getUTCFullYear() - dob.getUTCFullYear()
                 return (
                   <div key={b.id} className="p-4 flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0">
