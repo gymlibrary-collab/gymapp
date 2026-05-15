@@ -1,3 +1,4 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
@@ -5,7 +6,7 @@ import { runCron } from '@/lib/cron'
 export async function GET(request: NextRequest) {
   return runCron(request, 'escalate-expiring-memberships', 'daily', async (supabase) => {
 
-    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const now = nowSGT() // SGT
     const { data: settings } = await supabase.from('app_settings')
       .select('escalation_expiring_membership_days').eq('id', 'global').maybeSingle()
     const thresholdDays: number = settings?.escalation_expiring_membership_days ?? 30

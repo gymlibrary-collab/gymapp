@@ -29,7 +29,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { Clock, ChevronRight, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName, cn, getGreeting, getDisplayName} from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName, cn, getGreeting, getDisplayName, nowSGT} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import StatsRow from './StatsRow'
 import MemberBirthdayCard from './MemberBirthdayCard'
@@ -75,7 +75,7 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   // ── Commission period loader ───────────────────────────────
   const loadCommissionStats = useCallback(async (offset: number) => {
     setCommissionLoading(true)
-    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const now = nowSGT() // SGT
     const d = new Date(now.getUTCFullYear(), now.getUTCMonth() + offset, 1)
     const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
@@ -104,7 +104,7 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
-      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+      const now = nowSGT() // SGT
 
       // Membership sales escalation is now handled by the daily cron
       // at /api/cron/escalate-membership-sales (runs at 0103 SGT).

@@ -35,7 +35,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Clock, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { cn, formatSGD, formatDateTime, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
+import { cn, formatSGD, formatDateTime, getMonthName, getGreeting, getDisplayName, nowSGT} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import NonRenewalModal from './NonRenewalModal'
 import StatsRow from './StatsRow'
@@ -209,7 +209,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
-      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+      const now = nowSGT() // SGT
 
       // ── Escalation checks ────────────────────────────────
       // Membership sales + expiry escalation now handled by daily cron jobs:

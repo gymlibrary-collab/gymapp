@@ -1,9 +1,10 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
 export async function GET(request: NextRequest) {
   return runCron(request, 'expire-memberships', 'daily', async (supabase) => {
-    const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split('T')[0] // SGT
+    const today = nowSGT().toISOString().split('T')[0] // SGT
 
     // 1. Cancel mid-term cancellations
     const { data: cancelled, error: cancelErr } = await supabase

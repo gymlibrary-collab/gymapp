@@ -33,7 +33,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { Clock, Package, AlertCircle, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { formatSGD, formatDateTime, getMonthName, formatDate, getGreeting, getDisplayName} from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName, formatDate, getGreeting, getDisplayName, nowSGT} from '@/lib/utils'
 import NotificationBanners from './NotificationBanners'
 import StatsRow from './StatsRow'
 import MemberBirthdayCard from './MemberBirthdayCard'
@@ -82,7 +82,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
 
   // ── Commission period calculator ───────────────────────────
   const getCommissionPeriod = (offset: number) => {
-    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const now = nowSGT() // SGT
     const d = new Date(now.getUTCFullYear(), now.getUTCMonth() + offset, 1)
     const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
     const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
@@ -120,7 +120,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
-      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+      const now = nowSGT() // SGT
 
       // ── Trainer gym assignments ────────────────────────────
       const { data: tgRows } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', user.id)

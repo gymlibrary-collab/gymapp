@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getGymStaffIds } from '@/lib/dashboard'
 import { createClient } from '@/lib/supabase-browser'
-import { formatDate , getRoleLabel } from '@/lib/utils'
+import { formatDate , getRoleLabel, nowSGT} from '@/lib/utils'
 import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Users, Save } from 'lucide-react'
 import { queueWhatsApp } from '@/lib/whatsapp'
 import { cn } from '@/lib/utils'
@@ -55,7 +55,7 @@ export default function LeaveManagementPage() {
       setMaxCarryForward((settings as any).max_leave_carry_forward_days?.toString() || '5')
       const resetYear = (settings as any).leave_reset_year || 2026
       setLeaveResetYear(resetYear)
-      setResetAlreadyRun(resetYear === new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear())
+      setResetAlreadyRun(resetYear === nowSGT().getUTCFullYear())
     }
 
     // Get staff IDs this user can approve for
@@ -107,7 +107,7 @@ export default function LeaveManagementPage() {
       .select('id, full_name, role, leave_entitlement_days')
       .in('id', staffIds).eq('is_archived', false)
 
-    const currentYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear()
+    const currentYear = nowSGT().getUTCFullYear()
 
     // Count only days falling within the current calendar year
     // Handles cross-year leave (e.g. Dec 30 — Jan 3) by prorating days_applied
@@ -277,7 +277,7 @@ export default function LeaveManagementPage() {
 
 
   const handleBulkReset = async () => {
-    const closingYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - 1
+    const closingYear = nowSGT().getUTCFullYear() - 1
     const { data: blocking } = await supabase
       .from('leave_applications')
       .select('id, start_date, end_date, user:users!leave_applications_user_id_fkey(full_name)')
@@ -313,7 +313,7 @@ export default function LeaveManagementPage() {
       }).eq('id', s.id)
       count++
     }
-    const newResetYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear()
+    const newResetYear = nowSGT().getUTCFullYear()
     await supabase.from('app_settings').update({ leave_reset_year: newResetYear }).eq('id', 'global')
     setResetAlreadyRun(true); setLeaveResetYear(newResetYear)
     logActivity('update', 'Leave Management', `Year-end leave reset for ${closingYear} — ${count} staff updated`)
@@ -335,7 +335,7 @@ export default function LeaveManagementPage() {
     await load()
   }
 
-  const isJanuary = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCMonth() === 0
+  const isJanuary = nowSGT().getUTCMonth() === 0
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -383,7 +383,7 @@ export default function LeaveManagementPage() {
           other: { bg: '#F1EFE8', text: '#444441', label: 'Other' },
         }
         // Use SGT for correct date in Singapore timezone
-        const sgNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+        const sgNow = nowSGT()
         const todaySGT = new Date(sgNow.getUTCFullYear(), sgNow.getUTCMonth(), sgNow.getUTCDate())
         const days = Array.from({ length: 7 }, (_, i) => {
           const d = new Date(todaySGT); d.setDate(d.getDate() + calendarOffset + i); return d
@@ -419,7 +419,7 @@ export default function LeaveManagementPage() {
                   <tr style={{ background: 'var(--color-background-secondary)', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
                     <th style={{ width: 100, textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500, borderRight: '0.5px solid var(--color-border-tertiary)' }}>Staff</th>
                     {days.map(d => {
-                      const sgN = new Date(Date.now() + 8 * 60 * 60 * 1000); const todayD = new Date(sgN.getUTCFullYear(), sgN.getUTCMonth(), sgN.getUTCDate()); const isToday = d.toDateString() === todayD.toDateString()
+                      const sgN = nowSGT(); const todayD = new Date(sgN.getUTCFullYear(), sgN.getUTCMonth(), sgN.getUTCDate()); const isToday = d.toDateString() === todayD.toDateString()
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6
                       return (
                         <th key={d.toISOString()} style={{ padding: '6px 4px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: isToday ? '#E24B4A' : isWeekend ? '#E24B4A' : 'var(--color-text-secondary)', background: isToday ? '#E24B4A' : 'transparent', borderRight: '0.5px solid var(--color-border-tertiary)' }}>
@@ -525,7 +525,7 @@ export default function LeaveManagementPage() {
 
       {/* Leave balances */}
       <div className="card">
-        <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-red-600" /> Staff Leave Balances ({new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear()})</h2></div>
+        <div className="p-4 border-b border-gray-100"><h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-red-600" /> Staff Leave Balances ({nowSGT().getUTCFullYear()})</h2></div>
         {staffBalances.length === 0 ? <p className="p-4 text-sm text-gray-400 text-center">No staff found</p> : (
           <div className="divide-y divide-gray-100">
             {staffBalances.map(s => (
@@ -646,7 +646,7 @@ export default function LeaveManagementPage() {
           <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 space-y-1">
             <p className="font-medium">What this does:</p>
             <p>1. Sets the new annual entitlement for ALL active full-time staff</p>
-            <p>2. Calculates carry-forward from unused leave in {new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - 1} (capped at {maxCarryForward} days max)</p>
+            <p>2. Calculates carry-forward from unused leave in {nowSGT().getUTCFullYear() - 1} (capped at {maxCarryForward} days max)</p>
             <p>3. Resets medical and hospitalisation to default entitlements</p>
             <p className="text-amber-600 font-medium mt-1">⚠ This action cannot be undone. Run in January only.</p>
           </div>
@@ -654,7 +654,7 @@ export default function LeaveManagementPage() {
           {/* Pending leave blocking warning */}
           {pendingBlockingStaff.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
-              <p className="text-sm font-medium text-red-700">⚠ Cannot run reset — {pendingBlockingStaff.length} staff have pending leave from {new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - 1} that must be resolved first:</p>
+              <p className="text-sm font-medium text-red-700">⚠ Cannot run reset — {pendingBlockingStaff.length} staff have pending leave from {nowSGT().getUTCFullYear() - 1} that must be resolved first:</p>
               <ul className="text-xs text-red-600 space-y-1">
                 {pendingBlockingStaff.map((l: any) => (
                   <li key={l.id}>• {(l.user as any)?.full_name} — {l.start_date} to {l.end_date}</li>

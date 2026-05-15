@@ -1,3 +1,4 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
@@ -5,7 +6,7 @@ import { runCron } from '@/lib/cron'
 export async function GET(request: NextRequest) {
   return runCron(request, 'escalate-pt-session-notes', 'daily', async (supabase) => {
 
-    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const now = nowSGT() // SGT
     const { data: settings } = await supabase.from('app_settings')
       .select('escalation_session_notes_hours').eq('id', 'global').maybeSingle()
     const thresholdHours: number = settings?.escalation_session_notes_hours ?? 48

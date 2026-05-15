@@ -1,3 +1,4 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
@@ -19,7 +20,7 @@ const RETENTION_DAYS = 14
 
 export async function GET(request: NextRequest) {
   return runCron(request, 'purge-activity-logs', 'daily', async (supabase) => {
-    const cutoff = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const cutoff = nowSGT() // SGT
     cutoff.setUTCDate(cutoff.getUTCDate() - RETENTION_DAYS)
 
     const { data: deleted, error } = await supabase

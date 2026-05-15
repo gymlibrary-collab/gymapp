@@ -26,7 +26,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { Calendar, AlertCircle, AlertTriangle, Bell, X, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { cn, formatSGD, formatDate, getMonthName, getGreeting, getDisplayName} from '@/lib/utils'
+import { cn, formatSGD, formatDate, getMonthName, getGreeting, getDisplayName, nowSGT} from '@/lib/utils'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 import { getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr } from '@/lib/dashboard'
 
@@ -55,7 +55,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
     const shift = disputedShifts.find((s: any) => s.id === shiftId)
     if (!shift) return
     const newStatus = resolution === 'approved' ? 'absent' : 'completed'
-    const resolvedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
+    const resolvedAt = nowSGT().toISOString()
     const { error } = await supabase.from('duty_roster').update({
       status: newStatus, dispute_resolved_at: resolvedAt,
       dispute_resolved_by: user?.id, dispute_resolution: resolution,
@@ -125,7 +125,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
       setEscalatedLeave(escalatedCount || 0)
 
       // Year-end reminders (December only)
-      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+      const now = nowSGT() // SGT
       // Approved cancellation notifications
       const { data: cancelNotifs } = await supabase
         .from('cancellation_approved_notif')
@@ -366,7 +366,7 @@ function BizOpsGymTabs() {
   const [bizDrillData, setBizDrillData] = useState<any[]>([])
   const [bizDrillLoading, setBizDrillLoading] = useState(false)
   const supabase = createClient()
-  const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+  const now = nowSGT() // SGT
   const monthStart = getMonthStart()
   const todayStart = getTodayStart()
   const todayEnd = getTodayEnd()

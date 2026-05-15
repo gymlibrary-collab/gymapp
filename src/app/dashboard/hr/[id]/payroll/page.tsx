@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD, getMonthName, getRoleLabel, todaySGT} from '@/lib/utils'
+import { formatDate, formatSGD, getMonthName, getRoleLabel, todaySGT, nowSGT} from '@/lib/utils'
 import { addLogoHeader, PDF_TABLE_STYLE, resolvePayslipBranding, renderPayslipPdf } from '@/lib/pdf'
 import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import {
@@ -60,7 +60,7 @@ export default function StaffPayrollDetailPage() {
   // so a person born 1 Aug 1970 is in Bracket 2 from 2 Aug 2025.
   // Reference date = last day of the payroll month.
   // getAgeAsOf and getCpfBracketRates are imported from @/lib/cpf
-  const getAge = (dob: string | null) => getAgeAsOf(dob, new Date(Date.now() + 8 * 60 * 60 * 1000))
+  const getAge = (dob: string | null) => getAgeAsOf(dob, nowSGT())
 
   // getBracketRates: alias of getCpfBracketRates from @/lib/cpf
   const getBracketRates = getCpfBracketRates
@@ -178,7 +178,7 @@ export default function StaffPayrollDetailPage() {
     const pMonth = payslipForm.month; const pYear = payslipForm.year
 
     // Block future months
-    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const now = nowSGT() // SGT
     if (pYear > now.getUTCFullYear() || (pYear === now.getUTCFullYear() && pMonth > now.getUTCMonth() + 1)) {
       setError(`Cannot generate a payslip for a future month.`); setSaving(false); return
     }
@@ -570,7 +570,7 @@ export default function StaffPayrollDetailPage() {
               <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1">
                 <div className="flex justify-between"><span>Gross Salary</span><span className="font-medium">{formatSGD(payroll.current_salary)}</span></div>
                 {(() => {
-                  const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+                  const now = nowSGT() // SGT
                   const r = getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, now.getUTCFullYear(), now.getUTCMonth() + 1)
                   const sal = payroll.current_salary
                   const cappedSal = Math.min(sal, 8000)

@@ -9,7 +9,7 @@ import { validateHourlyRate } from '@/lib/validators'
 import { AlertTriangle, Plus, Lock, CheckCircle, AlertCircle, X, Trash2,
   ChevronLeft, ChevronRight, Settings, Clock, Users
 } from 'lucide-react'
-import { formatDate, formatSGD, todaySGT, cn } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT, cn, nowSGT} from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -33,7 +33,7 @@ export default function RosterPage() {
   const [presets, setPresets] = useState<any[]>([])
   const [weekStart, setWeekStart] = useState(() => {
     // Use SGT for correct week calculation in Singapore timezone
-    const sgNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+    const sgNow = nowSGT()
     const day = sgNow.getUTCDay() || 7  // 1=Mon ... 7=Sun
     sgNow.setUTCDate(sgNow.getUTCDate() - day + 1)
     return sgNow.toISOString().split('T')[0]
@@ -100,7 +100,7 @@ export default function RosterPage() {
     // Load roster — week or month range
     let rangeStart: string, rangeEnd: string
     if (viewMode === 'month') {
-      const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+      const now = nowSGT() // SGT
       const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + monthOffset, 1))
       rangeStart = d.toISOString().split('T')[0]
       const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
@@ -233,7 +233,7 @@ export default function RosterPage() {
     setSaving(true)
     const { error } = await supabase.from('duty_roster').update({
       status: 'disputed',
-      disputed_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      disputed_at: nowSGT().toISOString(),
       disputed_by: user?.id,
       dispute_reason: disputeReason.trim(),
     }).eq('id', disputeEntry.id)

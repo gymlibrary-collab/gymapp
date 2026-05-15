@@ -1,3 +1,4 @@
+import { nowSGT } from '@/lib/utils'
 import { NextRequest } from 'next/server'
 import { runCron } from '@/lib/cron'
 
@@ -5,7 +6,7 @@ import { runCron } from '@/lib/cron'
 export async function GET(request: NextRequest) {
   return runCron(request, 'check-member-birthdays', 'daily', async (supabase) => {
 
-    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const now = nowSGT() // SGT
     const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`
     const todayMMDD = `${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
     const { data: members } = await supabase.from('members')
