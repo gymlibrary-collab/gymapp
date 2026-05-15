@@ -29,7 +29,7 @@ const NON_RENEWAL_REASONS = [
 ]
 
 export default function PtSessionNotesPage() {
-  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager'] })
+  const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'manager', 'business_ops'] })
 
 
   const { id } = useParams()
