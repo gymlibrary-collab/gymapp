@@ -55,7 +55,7 @@ export default function LeaveManagementPage() {
       setMaxCarryForward((settings as any).max_leave_carry_forward_days?.toString() || '5')
       const resetYear = (settings as any).leave_reset_year || 2026
       setLeaveResetYear(resetYear)
-      setResetAlreadyRun(resetYear === new Date().getFullYear())
+      setResetAlreadyRun(resetYear === new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear())
     }
 
     // Get staff IDs this user can approve for
@@ -107,7 +107,7 @@ export default function LeaveManagementPage() {
       .select('id, full_name, role, leave_entitlement_days')
       .in('id', staffIds).eq('is_archived', false)
 
-    const currentYear = new Date().getFullYear()
+    const currentYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear()
 
     // Count only days falling within the current calendar year
     // Handles cross-year leave (e.g. Dec 30 — Jan 3) by prorating days_applied
@@ -277,7 +277,7 @@ export default function LeaveManagementPage() {
 
 
   const handleBulkReset = async () => {
-    const closingYear = new Date().getFullYear() - 1
+    const closingYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - 1
     const { data: blocking } = await supabase
       .from('leave_applications')
       .select('id, start_date, end_date, user:users!leave_applications_user_id_fkey(full_name)')
@@ -313,7 +313,7 @@ export default function LeaveManagementPage() {
       }).eq('id', s.id)
       count++
     }
-    const newResetYear = new Date().getFullYear()
+    const newResetYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear()
     await supabase.from('app_settings').update({ leave_reset_year: newResetYear }).eq('id', 'global')
     setResetAlreadyRun(true); setLeaveResetYear(newResetYear)
     logActivity('update', 'Leave Management', `Year-end leave reset for ${closingYear} — ${count} staff updated`)
@@ -335,7 +335,7 @@ export default function LeaveManagementPage() {
     await load()
   }
 
-  const isJanuary = new Date().getMonth() === 0
+  const isJanuary = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCMonth() === 0
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -382,12 +382,14 @@ export default function LeaveManagementPage() {
           hospitalisation: { bg: '#FAEEDA', text: '#633806', label: 'Hospitalisation' },
           other: { bg: '#F1EFE8', text: '#444441', label: 'Other' },
         }
-        const today = new Date(); today.setHours(0,0,0,0)
+        // Use SGT for correct date in Singapore timezone
+        const sgNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+        const todaySGT = new Date(sgNow.getUTCFullYear(), sgNow.getUTCMonth(), sgNow.getUTCDate())
         const days = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date(today); d.setDate(d.getDate() + calendarOffset + i); return d
+          const d = new Date(todaySGT); d.setDate(d.getDate() + calendarOffset + i); return d
         })
-        const startStr = days[0].toISOString().split('T')[0]
-        const endStr = days[6].toISOString().split('T')[0]
+        const startStr = `${days[0].getFullYear()}-${String(days[0].getMonth()+1).padStart(2,'0')}-${String(days[0].getDate()).padStart(2,'0')}`
+        const endStr = `${days[6].getFullYear()}-${String(days[6].getMonth()+1).padStart(2,'0')}-${String(days[6].getDate()).padStart(2,'0')}`
 
         return (
           <div className="card overflow-hidden">
@@ -417,7 +419,7 @@ export default function LeaveManagementPage() {
                   <tr style={{ background: 'var(--color-background-secondary)', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
                     <th style={{ width: 100, textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500, borderRight: '0.5px solid var(--color-border-tertiary)' }}>Staff</th>
                     {days.map(d => {
-                      const isToday = d.toDateString() === new Date().toDateString()
+                      const sgN = new Date(Date.now() + 8 * 60 * 60 * 1000); const todayD = new Date(sgN.getUTCFullYear(), sgN.getUTCMonth(), sgN.getUTCDate()); const isToday = d.toDateString() === todayD.toDateString()
                       const isWeekend = d.getDay() === 0 || d.getDay() === 6
                       return (
                         <th key={d.toISOString()} style={{ padding: '6px 4px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: isToday ? '#E24B4A' : isWeekend ? '#E24B4A' : 'var(--color-text-secondary)', background: isToday ? '#E24B4A' : 'transparent', borderRight: '0.5px solid var(--color-border-tertiary)' }}>
@@ -443,7 +445,7 @@ export default function LeaveManagementPage() {
                           {s.full_name.split(' ')[0]}
                         </td>
                         {days.map(d => {
-                          const dStr = d.toISOString().split('T')[0]
+                          const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
                           const isWeekend = d.getDay() === 0 || d.getDay() === 6
                           const onLeave = staffLeave.find(a => a.start_date <= dStr && a.end_date >= dStr)
                           const col = onLeave ? LEAVE_COLORS[onLeave.leave_type] || LEAVE_COLORS.other : null
@@ -467,7 +469,7 @@ export default function LeaveManagementPage() {
             {(() => {
               const conflicts: string[] = []
               days.forEach(d => {
-                const dStr = d.toISOString().split('T')[0]
+                const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
                 if (d.getDay() === 0 || d.getDay() === 6) return
                 const onLeave = staffBalances.filter(s =>
                   applications.some(a => a.user_id === s.id && a.status === 'approved' && a.start_date <= dStr && a.end_date >= dStr)

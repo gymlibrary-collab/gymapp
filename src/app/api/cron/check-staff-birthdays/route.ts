@@ -5,11 +5,11 @@ import { runCron } from '@/lib/cron'
 export async function GET(request: NextRequest) {
   return runCron(request, 'check-staff-birthdays', 'daily', async (supabase) => {
 
-    const now = new Date()
-    const todayStr = now.toISOString().split('T')[0]
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-    const todayMMDD = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    const in7DaysMMDD = `${String(in7Days.getMonth() + 1).padStart(2, '0')}-${String(in7Days.getDate()).padStart(2, '0')}`
+    const todayMMDD = `${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
+    const in7DaysMMDD = `${String(in7Days.getUTCMonth() + 1).padStart(2, '0')}-${String(in7Days.getUTCDate()).padStart(2, '0')}`
     const { data: staff } = await supabase.from('users')
       .select('id, full_name, nickname, role, date_of_birth, is_archived, manager_gym_id, trainer_gyms(gym_id), gym:gyms!users_manager_gym_id_fkey(name)')
       .in('role', ['trainer', 'staff', 'manager', 'business_ops']).eq('is_archived', false)
@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
     if (birthdayStaff.length > 0) {
       const rows = birthdayStaff.map((s: any) => {
         const mmdd = s.date_of_birth.substring(5)
-        const year = now.getMonth() + 1 > parseInt(mmdd.split('-')[0])
-          ? now.getFullYear() + 1 : now.getFullYear()
+        const year = now.getUTCMonth() + 1 > parseInt(mmdd.split('-')[0])
+          ? now.getUTCFullYear() + 1 : now.getUTCFullYear()
         const birthdayDate = `${year}-${mmdd}`
         const daysUntil = Math.round((new Date(birthdayDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         const gymId = s.role === 'manager' ? s.manager_gym_id : (s.trainer_gyms?.[0]?.gym_id || null)

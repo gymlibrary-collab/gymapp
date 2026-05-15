@@ -106,8 +106,10 @@ export default function RosterPage() {
       const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0))
       rangeEnd = last.toISOString().split('T')[0]
     } else {
-      const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6)
-      rangeStart = weekStart; rangeEnd = weekEnd.toISOString().split('T')[0]
+      const [wy, wm, wd] = weekStart.split('-').map(Number)
+      const weekEnd = new Date(wy, wm - 1, wd + 6)
+      rangeStart = weekStart
+      rangeEnd = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth()+1).padStart(2,'0')}-${String(weekEnd.getDate()).padStart(2,'0')}`
     }
     let rQ = supabase.from('duty_roster')
       .select('*, user:users!duty_roster_user_id_fkey(full_name, phone, hourly_rate)')
@@ -134,13 +136,15 @@ export default function RosterPage() {
 
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart); d.setDate(d.getDate() + i)
-    return d.toISOString().split('T')[0]
+    const [y, m, d] = weekStart.split('-').map(Number)
+    const date = new Date(y, m - 1, d + i) // local date arithmetic, no UTC conversion
+    return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`
   })
 
   const shiftWeek = (dir: number) => {
-    const d = new Date(weekStart); d.setDate(d.getDate() + dir * 7)
-    setWeekStart(d.toISOString().split('T')[0])
+    const [y, m, d] = weekStart.split('-').map(Number)
+    const date = new Date(y, m - 1, d + dir * 7)
+    setWeekStart(`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`)
   }
 
   // Toggle a date in bulk selection

@@ -5,9 +5,9 @@ import { runCron } from '@/lib/cron'
 export async function GET(request: NextRequest) {
   return runCron(request, 'check-member-birthdays', 'daily', async (supabase) => {
 
-    const now = new Date()
-    const todayStr = now.toISOString().split('T')[0]
-    const todayMMDD = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000) // SGT
+    const todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}-${String(now.getUTCDate()).padStart(2,'0')}`
+    const todayMMDD = `${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`
     const { data: members } = await supabase.from('members')
       .select('id, full_name, date_of_birth, gym_id, gym:gyms(name), packages(trainer_id, status, manager_confirmed, trainer:users!packages_trainer_id_fkey(full_name, nickname))')
       .not('date_of_birth', 'is', null)
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       const rows: any[] = []
       for (const m of birthdayMembers) {
         const dob = new Date(m.date_of_birth)
-        const age = now.getFullYear() - dob.getFullYear()
+        const age = now.getUTCFullYear() - dob.getFullYear()
         const activePkgs = (m.packages || []).filter((p: any) => p.status === 'active' && p.manager_confirmed)
         if (activePkgs.length > 0) {
           for (const pkg of activePkgs) {
