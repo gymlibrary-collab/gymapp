@@ -36,14 +36,25 @@ const PRESETS = [
   { label: 'Last 14 days', from: 13, to: 0 },
 ]
 
-function toDateStr(d: Date) { return d.toISOString().split('T')[0] }
+function toDateStr(d: Date) {
+  // Use local date methods to avoid UTC offset issues
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 function offsetDate(daysAgo: number) {
-  const d = new Date(); d.setDate(d.getDate() - daysAgo); return toDateStr(d)
+  // Use SGT for correct date calculation
+  const sgNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const [y, m, d] = [sgNow.getUTCFullYear(), sgNow.getUTCMonth(), sgNow.getUTCDate() - daysAgo]
+  const date = new Date(Date.UTC(y, m, d))
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}-${String(date.getUTCDate()).padStart(2,'0')}`
 }
 
 function MiniCalendar({ from, to, onChange }: { from: string; to: string; onChange: (from: string, to: string) => void }) {
-  const today = new Date(); today.setHours(0,0,0,0)
+  const sgNow = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const today = new Date(sgNow.getUTCFullYear(), sgNow.getUTCMonth(), sgNow.getUTCDate())
   const minDate = new Date(today); minDate.setDate(minDate.getDate() - 13)
   const [calMonth, setCalMonth] = useState({ year: today.getFullYear(), month: today.getMonth() })
   const [selecting, setSelecting] = useState<'from' | 'to'>('from')
@@ -172,8 +183,8 @@ export default function ActivityLogsPage() {
 
     let q = supabase.from('activity_logs')
       .select('*')
-      .gte('created_at', filterDateFrom + 'T00:00:00')
-      .lte('created_at', filterDateTo + 'T23:59:59')
+      .gte('created_at', filterDateFrom + 'T00:00:00+08:00')
+      .lte('created_at', filterDateTo + 'T23:59:59+08:00')
       .order('created_at', { ascending: false })
       .limit(500)
     if (filterStaff !== 'all') q = q.eq('user_name', filterStaff)
