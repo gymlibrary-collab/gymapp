@@ -92,7 +92,11 @@ export default function RosterPage() {
         const { data: ptData } = await supabase.from('users_safe')
           .select('*').eq('employment_type', 'part_time').eq('is_archived', false)
           .in('id', ptIds).order('full_name')
-        pt = ptData || []
+        // Fetch hourly_rate via API — excluded from users_safe for security
+        const ratesRes = await fetch(`/api/staff-rates?ids=${ptIds.join(',')}`)
+        const rates: {id: string, hourly_rate: number | null}[] = ratesRes.ok ? await ratesRes.json() : []
+        const rateMap = Object.fromEntries(rates.map(r => [r.id, r.hourly_rate]))
+        pt = (ptData || []).map((p: any) => ({ ...p, hourly_rate: rateMap[p.id] ?? null }))
       }
       setPartTimers(pt)
     }
@@ -198,10 +202,14 @@ export default function RosterPage() {
     setSaving(true); setError(''); setOverlapWarning(null)
 
     const rows = []
+    const skippedStaff: string[] = []
     for (const date of bulkForm.dates) {
       for (const pt of staff) {
         const rate = parseFloat(bulkForm.hourly_rate) || pt.hourly_rate || 0
-        if (!rate) continue
+        if (!rate) {
+          if (!skippedStaff.includes(pt.full_name)) skippedStaff.push(pt.full_name)
+          continue
+        }
         const startParts = times.start.split(':').map(Number)
         const endParts = times.end.split(':').map(Number)
         const hours = (endParts[0] * 60 + endParts[1] - startParts[0] * 60 - startParts[1]) / 60
@@ -213,6 +221,13 @@ export default function RosterPage() {
           status: 'scheduled', created_by: user?.id,
         })
       }
+    }
+    // Log skipped staff silently — no hourly rate set
+    if (skippedStaff.length > 0) {
+      logActivity('error', 'Duty Roster',
+        `Shift creation skipped for ${skippedStaff.join(', ')} — no hourly rate set. ` +
+        `Set hourly rate in Staff Management before adding shifts.`
+      )
     }
 
     if (rows.length > 0) {

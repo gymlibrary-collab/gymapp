@@ -82,12 +82,16 @@ export default function TrainersPage() {
     // Using .in() with the allowed roles is more reliable than .not().in()
     const staffRoles = ['manager', 'trainer', 'staff']
 
-    let activeQ = supabase.from('users_safe')
+    // Biz Ops needs sensitive fields (salary, NRIC, commission) for staff editing
+    // Managers only need safe fields — users_safe is sufficient
+    const staffTable = isManager ? 'users_safe' : 'users'
+
+    let activeQ = supabase.from(staffTable)
       .select('*, trainer_gyms(gym_id, gyms(name), is_primary), manager_gym:gyms!users_manager_gym_id_fkey(name)')
       .eq('is_archived', false)
       .in('role', staffRoles)
 
-    let archQ = supabase.from('users_safe')
+    let archQ = supabase.from(staffTable)
       .select('*, trainer_gyms(gym_id, gyms(name), is_primary), manager_gym:gyms!users_manager_gym_id_fkey(name)')
       .eq('is_archived', true)
       .in('role', staffRoles)
