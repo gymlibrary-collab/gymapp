@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
-import { createAdminClient } from '@/lib/supabase-server'
+import { createSupabaseServerClient, createAdminClient } from '@/lib/supabase-server'
 
 // GET /api/staff-rates?ids=uuid1,uuid2
 // Returns { id, hourly_rate } for the given user IDs.
@@ -9,7 +8,7 @@ import { createAdminClient } from '@/lib/supabase-server'
 // Requires authenticated session — manager or biz_ops only.
 
 export async function GET(request: NextRequest) {
-  const serverClient = createServerClient()
+  const serverClient = await createSupabaseServerClient()
   const { data: { user }, error } = await serverClient.auth.getUser()
   if (error || !user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
 
