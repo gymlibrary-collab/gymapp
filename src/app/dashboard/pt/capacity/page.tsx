@@ -40,7 +40,7 @@ export default function TrainerCapacityPage() {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
     // Load trainers for this gym
-    let trainerQ = supabase.from('users').select('*').eq('role', 'trainer').eq('is_archived', false)
+    let trainerQ = supabase.from('users_safe').select('*').eq('role', 'trainer').eq('is_archived', false)
     if (user!.role === 'manager' && user!.manager_gym_id) {
       const staffIds = await getGymStaffIds(supabase, user!.manager_gym_id)
       if (staffIds.length > 0) trainerQ = trainerQ.in('id', staffIds)

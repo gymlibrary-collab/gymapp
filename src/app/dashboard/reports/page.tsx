@@ -141,7 +141,7 @@ export default function ReportsPage() {
     const { data: scheduled } = await schedQ
 
     // Trainers
-    let trainerQ = supabase.from('users').select('id,full_name,nickname').eq('role','trainer').eq('is_archived',false)
+    let trainerQ = supabase.from('users_safe').select('id,full_name,nickname').eq('role','trainer').eq('is_archived',false)
     if (gymId) {
       const { data: tgRows } = await supabase.from('trainer_gyms').select('trainer_id').eq('gym_id',gymId)
       const tIds = (tgRows||[]).map((r:any)=>r.trainer_id)

@@ -83,7 +83,7 @@ export default function PackageSalesPage() {
 
   const loadTrainers = async () => {
     if (!user) return
-    const { data } = await supabase.from('users')
+    const { data } = await supabase.from('users_safe')
       .select('id, full_name').eq('role', 'trainer').eq('is_archived', false)
     setTrainers(data || [])
   }

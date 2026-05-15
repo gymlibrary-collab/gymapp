@@ -647,7 +647,7 @@ export async function fetchPendingLeave(
   gymId: string,
   excludeUserId?: string
 ): Promise<number> {
-  const { data: opsStaffIds } = await supabase.from('users')
+  const { data: opsStaffIds } = await supabase.from('users_safe')
     .select('id').eq('manager_gym_id', gymId).eq('role', 'staff')
     .neq('id', excludeUserId || '')
 
@@ -657,7 +657,7 @@ export async function fetchPendingLeave(
     .filter((id: string) => id !== excludeUserId)
   let ftTrainerIds: string[] = []
   if (rawTrainerIds.length > 0) {
-    const { data: ftOnly } = await supabase.from('users')
+    const { data: ftOnly } = await supabase.from('users_safe')
       .select('id').in('id', rawTrainerIds).eq('role', 'trainer').eq('employment_type', 'full_time')
     ftTrainerIds = ftOnly?.map((t: any) => t.id) || []
   }
