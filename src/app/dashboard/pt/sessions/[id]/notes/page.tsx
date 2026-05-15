@@ -76,6 +76,7 @@ export default function PtSessionNotesPage() {
   // Read directly from the session row — is_last_session is written by
   // handleMarkComplete at completion time (before sessions_used is incremented
   // on the package), so it is always accurate with no timing ambiguity.
+  //
   const isLastSession = () => !!session?.is_last_session
 
   // ── Package / lock state ─────────────────────────────────
