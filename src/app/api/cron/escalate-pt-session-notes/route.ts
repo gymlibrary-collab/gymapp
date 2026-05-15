@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const cutoff = new Date(now.getTime() - thresholdHours * 60 * 60 * 1000).toISOString()
     const { data: escalated, error } = await supabase.from('sessions')
       .update({ escalated_to_manager: true, escalated_at: now.toISOString() })
-      .eq('status', 'completed').eq('is_notes_complete', false)
+      .eq('status', 'completed').is('notes_submitted_at', null)
       .eq('escalated_to_manager', false).lt('marked_complete_at', cutoff).select('id')
     if (error) throw new Error(error.message)
     return { threshold_hours: thresholdHours, escalated: escalated?.length || 0 }

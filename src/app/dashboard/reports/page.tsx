@@ -76,7 +76,7 @@ export default function ReportsPage() {
       for (const g of allGyms || []) {
         const { data: mem } = await supabase.from('gym_memberships').select('price_sgd,commission_sgd').eq('gym_id',g.id).eq('sale_status','confirmed').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
         const { data: pt }  = await supabase.from('packages').select('total_price_sgd,signup_commission_sgd').eq('gym_id',g.id).eq('manager_confirmed',true).neq('status','cancelled').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
-        const { data: sess }= await supabase.from('sessions').select('session_commission_sgd').eq('gym_id',g.id).eq('status','completed').eq('manager_confirmed',true).eq('is_notes_complete',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
+        const { data: sess }= await supabase.from('sessions').select('session_commission_sgd').eq('gym_id',g.id).eq('status','completed').eq('manager_confirmed',true).not('notes_submitted_at','is',null).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
         const { count: activeCnt } = await supabase.from('gym_memberships').select('id',{count:'exact',head:true}).eq('gym_id',g.id).eq('status','active').eq('sale_status','confirmed')
         const sIds = await getGymStaffIds(supabase, g.id)
         let payroll = 0
@@ -127,7 +127,7 @@ export default function ReportsPage() {
     const { data: ptSales } = await ptQ
 
     // Sessions completed
-    let sessQ = supabase.from('sessions').select('trainer_id,session_commission_sgd,commission_paid').eq('status','completed').eq('manager_confirmed',true).eq('is_notes_complete',true).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
+    let sessQ = supabase.from('sessions').select('trainer_id,session_commission_sgd,commission_paid').eq('status','completed').eq('manager_confirmed',true).not('notes_submitted_at','is',null).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
     if (gymId) sessQ = sessQ.eq('gym_id',gymId)
     const { data: ptSessions } = await sessQ
 

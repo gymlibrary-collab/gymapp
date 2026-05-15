@@ -108,7 +108,7 @@ export default function CommissionPayoutsPage() {
         .select('session_commission_sgd, gym_id')
         .eq('trainer_id', member.id)
         .eq('status', 'completed')
-        .eq('is_notes_complete', true)
+        .not('notes_submitted_at', 'is', null)
         .eq('manager_confirmed', true)
         .eq('commission_paid', false)
         .gte('marked_complete_at', period_start)
@@ -297,7 +297,7 @@ export default function CommissionPayoutsPage() {
       if (payout) {
         await supabase.from('sessions').update({ commission_paid: true })
           .eq('trainer_id', payout.user_id).eq('status', 'completed')
-          .eq('is_notes_complete', true)
+          .not('notes_submitted_at', 'is', null)
           .eq('manager_confirmed', true)
           .gte('marked_complete_at', payout.period_start)
           .lte('marked_complete_at', payout.period_end + 'T23:59:59')

@@ -66,7 +66,7 @@ export default function PtSessionsPage() {
     const now = new Date().toISOString()
     if (filter === 'upcoming') q = q.gte('scheduled_at', now).eq('status', 'scheduled')
     else if (filter === 'pending_confirm') {
-      q = q.eq('status', 'completed').eq('is_notes_complete', true).eq('manager_confirmed', false)
+      q = q.eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', false)
       const isBizOpsRole = user?.role === 'business_ops'
       q = q.eq('escalated_to_biz_ops', isBizOpsRole)
       if (!isBizOpsRole && user?.manager_gym_id) q = q.eq('gym_id', user!.manager_gym_id)
@@ -266,8 +266,8 @@ export default function PtSessionsPage() {
           {sessions.map(session => {
             const isOwnSession = session.trainer_id === user?.id
             const isScheduled = session.status === 'scheduled'
-            const needsNotes = session.status === 'completed' && !session.is_notes_complete && isOwnSession
-            const needsManagerConfirm = session.status === 'completed' && session.is_notes_complete && !session.manager_confirmed
+            const needsNotes = session.status === 'completed' && !(session.notes_submitted_at != null) && isOwnSession
+            const needsManagerConfirm = session.status === 'completed' && (session.notes_submitted_at != null) && !session.manager_confirmed
 
             return (
               <div key={session.id} className={cn('card p-4 space-y-2', needsManagerConfirm && 'border-amber-200', needsNotes && 'border-blue-200')}>
@@ -309,8 +309,8 @@ export default function PtSessionsPage() {
                     const pkgClosed = pkg && (pkg.status === 'expired' || pkg.status === 'completed' || pkg.status === 'cancelled')
                     return (
                       <Link href={`/dashboard/pt/sessions/${session.id}/notes`}
-                        className={cn('text-xs py-1.5 px-3 rounded-lg font-medium', session.is_notes_complete || pkgClosed ? 'btn-secondary' : 'btn-primary')}>
-                        {pkgClosed ? 'View Notes (package closed)' : session.is_notes_complete ? 'Edit Notes' : '⚠ Submit Notes'}
+                        className={cn('text-xs py-1.5 px-3 rounded-lg font-medium', (session.notes_submitted_at != null) || pkgClosed ? 'btn-secondary' : 'btn-primary')}>
+                        {pkgClosed ? 'View Notes (package closed)' : (session.notes_submitted_at != null) ? 'Edit Notes' : '⚠ Submit Notes'}
                       </Link>
                     )
                   })()}
