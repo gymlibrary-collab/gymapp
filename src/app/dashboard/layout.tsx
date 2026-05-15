@@ -223,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error || !session) { router.push('/'); return }
-        const { data: u } = await supabase.from('users').select('*').eq('id', session.user.id).maybeSingle()
+        const { data: u } = await supabase.from('users_safe').select('*').eq('id', session.user.id).maybeSingle()
         if (!u) { await supabase.auth.signOut(); router.push('/?error=not_authorised'); return }
         if (u.is_archived || !u.is_active) { await supabase.auth.signOut(); router.push('/?error=account_disabled'); return }
         setUser(u); isLoggedInRef.current = true
