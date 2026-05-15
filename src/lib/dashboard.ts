@@ -47,30 +47,32 @@ import { todaySGT } from '@/lib/utils'
 
 /** Returns ISO datetime string for start of today (00:00:00 local time) */
 export function getTodayStart(): string {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+  // SGT — Singapore timezone (UTC+8)
+  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString()
 }
 
-/** Returns ISO datetime string for end of today (23:59:59 local time) */
+/** Returns ISO datetime string for end of today (23:59:59 SGT = 15:59:59 UTC) */
 export function getTodayEnd(): string {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 15, 59, 59)).toISOString()
 }
 
-/** Returns ISO datetime string for the first day of the current month (00:00:00) */
+/** Returns ISO datetime string for the first day of the current month (00:00:00 SGT) */
 export function getMonthStart(): string {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString()
 }
 
 /**
- * Returns a YYYY-MM-DD string for N days from today.
+ * Returns a YYYY-MM-DD string for N days from today (SGT).
  * Use negative values for past dates (e.g. getDaysFromToday(-30) = 30 days ago).
  * @param days - Number of days offset from today (positive = future, negative = past)
  */
 export function getDaysFromToday(days: number): string {
-  const now = new Date()
-  return new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const now = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const result = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days))
+  return `${result.getUTCFullYear()}-${String(result.getUTCMonth()+1).padStart(2,'0')}-${String(result.getUTCDate()).padStart(2,'0')}`
 }
 
 /** Returns today's date as YYYY-MM-DD string */
