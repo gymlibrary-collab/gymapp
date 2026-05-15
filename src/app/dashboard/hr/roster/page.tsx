@@ -224,7 +224,7 @@ export default function RosterPage() {
     }
     // Log skipped staff silently — no hourly rate set
     if (skippedStaff.length > 0) {
-      logActivity('error', 'Duty Roster',
+      logActivity('other', 'Duty Roster',
         `Shift creation skipped for ${skippedStaff.join(', ')} — no hourly rate set. ` +
         `Set hourly rate in Staff Management before adding shifts.`
       )
