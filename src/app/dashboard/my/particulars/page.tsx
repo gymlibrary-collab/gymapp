@@ -54,7 +54,7 @@ export default function MyParticularsPage() {
     const res = await fetch('/api/staff', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user!.id, phone: form.phone, address: form.address || null, nickname: form.nickname.trim() }),
+      body: JSON.stringify({ userId: user!.id, phone: form.phone.trim(), address: form.address || null, nickname: form.nickname.trim() }),
     })
     const result = await res.json()
     if (!res.ok) { setError(result.error || 'Failed to save'); setSaving(false); return }
@@ -170,7 +170,7 @@ export default function MyParticularsPage() {
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
             <input className="input flex-1" required type="tel" value={form.phone}
-              onChange={set('phone')} placeholder="+65 9123 4567" />
+              onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))} placeholder="+6591234567" />
           </div>
         </div>
 

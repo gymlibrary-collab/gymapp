@@ -313,7 +313,7 @@ export default function RegisterMemberPage() {
             </div>
             <div>
               <label className="label">Phone *</label>
-              <input className="input" required type="tel" value={memberForm.phone} onChange={e => setMemberForm(f => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" />
+              <input className="input" required type="tel" value={memberForm.phone} onChange={e => setMemberForm(f => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))} placeholder="+6591234567" />
             </div>
           </div>
 

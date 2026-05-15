@@ -760,7 +760,7 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
         <input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value }))} placeholder="+65 9123 4567" /></div>
+        <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))} placeholder="+6591234567" /></div>
         <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3">

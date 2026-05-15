@@ -228,8 +228,8 @@ export default function AdminStaffPage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Phone *</label>
-              <input className="input" required type="tel" value={form.phone} onChange={set('phone')}
-                placeholder="+65 9123 4567" />
+              <input className="input" required type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))}
+                placeholder="+6591234567" />
             </div>
             <div>
               <label className="label">Email *</label>

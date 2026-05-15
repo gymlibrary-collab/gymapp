@@ -9,10 +9,11 @@
 // Total digits (excluding spaces) must be 7–15.
 export function validatePhone(value: string): string | null {
   if (!value) return 'Phone number is required'
-  if (!value.startsWith('+')) return 'Phone number must start with +'
-  const digitsOnly = value.replace(/[\s]/g, '').slice(1) // remove + and spaces
-  if (!/^\d+$/.test(digitsOnly)) return 'Phone number must contain only + and digits (spaces allowed between groups)'
-  if (digitsOnly.length < 7 || digitsOnly.length > 15) return 'Phone number must have 7–15 digits after the + prefix'
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('+')) return 'Phone number must start with +'
+  const afterPlus = trimmed.slice(1)
+  if (!/^\d+$/.test(afterPlus)) return 'Phone number must contain only digits after the + (no spaces)'
+  if (afterPlus.length < 7 || afterPlus.length > 15) return 'Phone number must have 7–15 digits after the +'
   return null
 }
 

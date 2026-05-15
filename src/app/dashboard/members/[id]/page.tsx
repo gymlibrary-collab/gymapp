@@ -488,7 +488,7 @@ export default function MemberProfilePage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Full Name *</label><input className="input" required value={editForm.full_name} onChange={e => setEditForm((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
-            <div><label className="label">Phone *</label><input className="input" required type="tel" value={editForm.phone} onChange={e => setEditForm((f: any) => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label className="label">Phone *</label><input className="input" required type="tel" value={editForm.phone} onChange={e => setEditForm((f: any) => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">Membership Card No</label><input className="input" value={editForm.membership_number} onChange={e => setEditForm((f: any) => ({ ...f, membership_number: e.target.value.toUpperCase() }))} /></div>
