@@ -28,7 +28,7 @@ const ALL_ROLES = [
 const emptyForm = {
   full_name: '', nickname: '', email: '', phone: '', role: 'trainer',
   employment_type: 'full_time', hourly_rate: '',
-  commission_signup_pct: '10', commission_session_pct: '15', membership_commission_sgd: '0',
+  commission_signup_pct: '10', commission_session_pct: '15', membership_commission_sgd: '10',
   // gym_id: single-gym dropdown for full-timers (all roles)
   // gym_ids: multi-select checkboxes for part-time ops staff (rostered at any gym)
   gym_id: '', gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false, // gym_ids retained for API compatibility
@@ -198,7 +198,7 @@ export default function TrainersPage() {
       hourly_rate: member.hourly_rate?.toString() || '',
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
-      membership_commission_sgd: member.membership_commission_sgd?.toString() || '0',
+      membership_commission_sgd: member.membership_commission_sgd?.toString() || '10',
       // Use gym assignments from API (bypasses RLS)
       gym_id: allGymIds[0] || member.manager_gym_id || '',
       gym_ids: allGymIds,
@@ -395,8 +395,8 @@ export default function TrainersPage() {
     <>
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-gray-900">Staff Management</h1><p className="text-sm text-gray-500">All staff across Gym Library · {staff.filter(s => (s.employment_type || 'full_time') === 'full_time').length} full-time · {staff.filter(s => s.employment_type === 'part_time').length} part-time</p></div>
-        {tab === 'active' && <button onClick={() => { setShowCreateForm(!showCreateForm); setEditingUser(null) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Staff</button>}
+        <div><h1 className="text-xl font-bold text-gray-900">Staff Management</h1><p className="text-sm text-gray-500">{isBizOps ? `All staff across Gym Library · ${staff.filter(s => (s.employment_type || 'full_time') === 'full_time').length} full-time · ${staff.filter(s => s.employment_type === 'part_time').length} part-time` : `Your gym staff · ${staff.length} member${staff.length !== 1 ? 's' : ''} · view only`}</p></div>
+        {tab === 'active' && isBizOps && <button onClick={() => { setShowCreateForm(!showCreateForm); setEditingUser(null) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Staff</button>}
       </div>
 
       <StatusBanner success={success} error={error} onDismissError={() => setError('')} />
@@ -417,7 +417,7 @@ export default function TrainersPage() {
       {tab === 'active' && (
         <>
           {/* Create form */}
-          {showCreateForm && (
+          {showCreateForm && isBizOps && (
             <form onSubmit={handleCreate} className="card p-4 space-y-4 border-red-200">
               <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Add New Staff Member</h2><button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
@@ -449,7 +449,23 @@ export default function TrainersPage() {
                     /* Full-timers, part-time trainers, and managers: single gym dropdown */
                     <div>
                       <label className="label">Assigned Gym {createForm.employment_type === 'full_time' ? '*' : ''}</label>
-                      <select className="input" value={createForm.gym_id} onChange={e => setCreateForm(f => ({ ...f, gym_id: e.target.value, manager_gym_id: e.target.value }))}><option value="">Select gym...</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
+                      <select className="input" value={createForm.gym_id} onChange={async e => {
+                        const gymId = e.target.value
+                        setCreateForm(f => ({ ...f, gym_id: gymId, manager_gym_id: gymId }))
+                        // Load commission defaults for this gym
+                        if (gymId) {
+                          const { data: cfg } = await supabase.from('commission_config')
+                            .select('default_signup_pct, default_session_pct, default_membership_commission_sgd, default_hourly_rate')
+                            .eq('gym_id', gymId).maybeSingle()
+                          if (cfg) setCreateForm(f => ({
+                            ...f, gym_id: gymId, manager_gym_id: gymId,
+                            commission_signup_pct: cfg.default_signup_pct?.toString() || f.commission_signup_pct,
+                            commission_session_pct: cfg.default_session_pct?.toString() || f.commission_session_pct,
+                            membership_commission_sgd: cfg.default_membership_commission_sgd?.toString() || f.membership_commission_sgd,
+                            hourly_rate: cfg.default_hourly_rate?.toString() || f.hourly_rate,
+                          }))
+                        }
+                      }}><option value="">Select gym...</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
                     </div>
                   )}
                   {createForm.role === 'manager' && isBizOps && <AlsoTrainerToggle value={createForm.is_also_trainer} onChange={v => setCreateForm(f => ({ ...f, is_also_trainer: v }))} />}
@@ -466,7 +482,7 @@ export default function TrainersPage() {
           )}
 
           {/* Edit form */}
-          {editingUser && (
+          {editingUser && isBizOps && (
             <form onSubmit={handleEdit} className="card p-4 space-y-4 border-blue-200">
               <div className="flex items-center justify-between">
                 <div><h2 className="font-semibold text-gray-900 text-sm">Edit: {editingUser.full_name}</h2>{isSelf(editingUser) && <p className="text-xs text-red-600 mt-0.5">Your own account</p>}</div>

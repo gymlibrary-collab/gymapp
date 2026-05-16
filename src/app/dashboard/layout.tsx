@@ -70,7 +70,7 @@ const managerNav: NavItem[] = [
   { href: '/dashboard/pt/package-sales', label: 'PT Package Sales', icon: Package },
   { label: 'Operations', header: true },
   { href: '/dashboard/my/gym', label: 'My Gym', icon: Building2 },
-  { href: '/dashboard/hr/staff', label: 'My Staff', icon: UserCheck },
+  { href: '/dashboard/hr/staff', label: 'Staff Directory', icon: UserCheck },
   { href: '/dashboard/hr/roster', label: 'Duty Roster', icon: CalendarDays },
   { href: '/dashboard/hr/leave', label: 'Leave Management', icon: CalendarDays },
   { href: '/dashboard/pt/capacity', label: 'Trainer Capacity', icon: TrendingUp },

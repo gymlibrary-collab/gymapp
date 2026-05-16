@@ -15,17 +15,14 @@ export async function POST(request: NextRequest) {
     const { data: currentUser } = await serverClient
       .from('users').select('role, manager_gym_id').eq('id', user.id).maybeSingle()
 
-    if (!currentUser || !['admin', 'manager', 'business_ops'].includes(currentUser.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!currentUser || !['admin', 'business_ops'].includes(currentUser.role)) {
+      return NextResponse.json({ error: 'Forbidden — staff creation is restricted to Business Operations' }, { status: 403 })
     }
 
     const body = await request.json()
     const { full_name, nickname, email, phone, role, commission_signup_pct, commission_session_pct,
       gym_ids, manager_gym_id, is_also_trainer } = body
 
-    if (currentUser.role === 'manager' && !['trainer', 'staff'].includes(role)) {
-      return NextResponse.json({ error: 'Managers can only create trainer or staff accounts' }, { status: 403 })
-    }
     // Trainers must be full-time
     if (role === 'trainer' && body.employment_type === 'part_time') {
       return NextResponse.json({ error: 'Trainers must be full-time employees' }, { status: 400 })
@@ -102,8 +99,7 @@ export async function POST(request: NextRequest) {
     if (role === 'manager' && manager_gym_id) userPayload.manager_gym_id = manager_gym_id
     if (role === 'manager') userPayload.is_also_trainer = !!is_also_trainer
 
-    const gymIdsToAssign = currentUser.role === 'manager' && currentUser.manager_gym_id
-      ? [currentUser.manager_gym_id] : gym_ids || []
+    const gymIdsToAssign = gym_ids || []
 
     const { error: userError } = await adminClient.from('users').insert(userPayload)
     if (userError) {
@@ -168,14 +164,8 @@ export async function PATCH(request: Request) {
     // Any user: can edit their own record (basic details only — see payload below).
     // Everyone else: forbidden.
     if (!isBizOps && !isSelf && !isAdmin) {
-      if (isManager) {
-        const { data: gymCheck } = await serverClient
-          .from('trainer_gyms').select('trainer_id')
-          .eq('trainer_id', userId).eq('gym_id', currentUser.manager_gym_id || '').maybeSingle()
-        if (!gymCheck) return NextResponse.json({ error: 'Forbidden — trainer not in your gym' }, { status: 403 })
-      } else {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+      // Option A: managers cannot edit other staff records
+      return NextResponse.json({ error: 'Forbidden — only Business Operations can edit staff records' }, { status: 403 })
     }
 
     // ── Auth update (email / display name) ───────────────────
@@ -273,11 +263,8 @@ export async function PATCH(request: Request) {
       if (body.leave_entitlement_days !== undefined) updatePayload.leave_entitlement_days = body.leave_entitlement_days ? parseInt(body.leave_entitlement_days) : null
     }
 
-    // Manager: can update commission rates for trainers in their gym
-    if (isManager) {
-      if (commission_signup_pct !== undefined)   updatePayload.commission_signup_pct = parseFloat(commission_signup_pct)
-      if (commission_session_pct !== undefined)  updatePayload.commission_session_pct = parseFloat(commission_session_pct)
-    }
+    // Manager: cannot edit staff records — view only (Option A decision)
+    // Commission and gym assignment changes are Business Ops only
 
     if (Object.keys(updatePayload).length > 0) {
       const { error } = await adminClient.from('users').update(updatePayload).eq('id', userId)
@@ -289,7 +276,7 @@ export async function PATCH(request: Request) {
     // Part-time ops staff: gym_ids multi-select → multiple trainer_gyms rows
     //   (they can be rostered at any gym and paid per gym per month).
     // Manager: can assign gym but only within their own gym.
-    if ((isBizOps || isManager) && (gym_id !== undefined || gym_ids !== undefined)) {
+    if (isBizOps && (gym_id !== undefined || gym_ids !== undefined)) {
       const targetEmployment = bodyEmploymentType
         ?? (await adminClient.from('users').select('employment_type').eq('id', userId).maybeSingle()).data?.employment_type
 
