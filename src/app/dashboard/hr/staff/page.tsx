@@ -17,6 +17,7 @@ import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import Link from 'next/link'
 import { PageSpinner } from '@/components/PageSpinner'
+import { RESIDENCY_STATUS_OPTIONS, residencyLabel } from '@/lib/cpf'
 
 const ALL_ROLES = [
   { value: 'admin', label: 'Admin', description: 'App settings only' },
@@ -546,6 +547,12 @@ export default function TrainersPage() {
                   <div><p className="text-xs text-gray-400 mb-0.5">Status</p><p className={editingUser.is_active ? 'text-green-700' : 'text-red-600'}>{editingUser.is_active ? 'Active' : 'Inactive'}</p></div>
                   {editingUser.employment_type === 'part_time' && editingUser.hourly_rate && (
                     <div><p className="text-xs text-gray-400 mb-0.5">Hourly Rate</p><p className="text-gray-700">{formatSGD(editingUser.hourly_rate)}/hr</p></div>
+                  )}
+                  {editingUser.nationality && (
+                    <div><p className="text-xs text-gray-400 mb-0.5">Nationality</p><p className="text-gray-700">{editingUser.nationality}</p></div>
+                  )}
+                  {editingUser.residency_status && (
+                    <div><p className="text-xs text-gray-400 mb-0.5">Residency Status</p><p className="text-gray-700">{residencyLabel(editingUser.residency_status)}</p></div>
                   )}
                 </div>
                 <div><p className="text-xs text-gray-400 mb-0.5">Gym(s)</p><p className="text-gray-700">{getGymLabel(editingUser)}</p></div>
