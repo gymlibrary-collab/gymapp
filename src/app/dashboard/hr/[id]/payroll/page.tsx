@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD, getMonthName, getRoleLabel, todaySGT, nowSGT} from '@/lib/utils'
-import { addLogoHeader, PDF_TABLE_STYLE, resolvePayslipBranding, renderPayslipPdf } from '@/lib/pdf'
+import { resolvePayslipBranding, renderUnifiedPayslipPdf } from '@/lib/pdf'
 import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import {
   ArrowLeft, DollarSign, Plus, TrendingUp, FileText,
