@@ -123,41 +123,52 @@ export default function StaffPayrollDetailPage() {
 
   const handleSavePayroll = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const newSalary = parseFloat(salaryForm.current_salary)
-    const isCpf = salaryForm.is_cpf_liable === 'true'
-
-    await supabase.from('staff_payroll').upsert({ user_id: id, current_salary: newSalary, is_cpf_liable: isCpf, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-
-    if (salaryHistory.length === 0 && newSalary > 0) {
-      await supabase.from('salary_history').insert({ user_id: id, salary_amount: newSalary, effective_from: staff?.date_of_joining || todaySGT(), change_type: 'initial', change_amount: newSalary, notes: 'Initial salary set', created_by: authUser?.id })
-    }
-
+    const res = await fetch('/api/update-staff-salary', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'set', userId: id,
+        current_salary: salaryForm.current_salary,
+        is_cpf_liable: salaryForm.is_cpf_liable,
+      }),
+    })
+    if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return }
     logActivity('update', 'Staff Payroll', 'Updated staff payroll profile')
     await loadData(); setSaving(false); setShowSalaryForm(false); showMsg('Payroll profile saved')
   }
 
   const handleAddIncrement = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const changeAmt = parseFloat(incrementForm.change_amount)
-    const newSalary = (payroll?.current_salary || 0) + changeAmt
-
-    await supabase.from('salary_history').insert({ user_id: id, salary_amount: newSalary, effective_from: incrementForm.effective_from, change_type: incrementForm.change_type, change_amount: changeAmt, notes: incrementForm.notes || null, created_by: authUser?.id })
-    await supabase.from('staff_payroll').update({ current_salary: newSalary, updated_at: new Date().toISOString() }).eq('user_id', id)
-
+    const res = await fetch('/api/update-staff-salary', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'increment', userId: id,
+        change_amount: incrementForm.change_amount,
+        effective_from: incrementForm.effective_from,
+        change_type: incrementForm.change_type,
+        notes: incrementForm.notes,
+      }),
+    })
+    if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return }
+    const d = await res.json()
     await loadData(); setSaving(false); setShowIncrementForm(false)
     setIncrementForm({ change_amount: '', effective_from: '', change_type: 'increment', notes: '' })
     logActivity('update', 'Staff Payroll', 'Updated staff salary')
-    showMsg(`Salary updated to ${formatSGD(newSalary)}`)
+    showMsg(`Salary updated to ${formatSGD(d.newSalary || 0)}`)
   }
 
   const handleAddBonus = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    await supabase.from('staff_bonuses').insert({ user_id: id, bonus_type: bonusForm.bonus_type, amount: parseFloat(bonusForm.amount), month: bonusForm.month, year: bonusForm.year, notes: bonusForm.notes || null, created_by: authUser?.id })
+    const res = await fetch('/api/update-staff-salary', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'bonus', userId: id,
+        bonus_type: bonusForm.bonus_type, amount: bonusForm.amount,
+        month: bonusForm.month, year: bonusForm.year, notes: bonusForm.notes,
+      }),
+    })
+    if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return }
     await loadData(); setSaving(false); setShowBonusForm(false)
-    setBonusForm({ bonus_type: 'performance', amount: '', month: new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1, year: new Date(Date.now()+8*60*60*1000).getUTCFullYear(), notes: '' })
+    setBonusForm({ bonus_type: 'performance', amount: '', month: nowSGT().getUTCMonth() + 1, year: nowSGT().getUTCFullYear(), notes: '' })
     logActivity('create', 'Staff Payroll', 'Recorded staff bonus')
     showMsg('Bonus recorded')
   }
@@ -177,242 +188,29 @@ export default function StaffPayrollDetailPage() {
 
   const handleGeneratePayslip = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const isPartTime = staff?.employment_type === 'part_time'
     const pMonth = payslipForm.month; const pYear = payslipForm.year
-
-    // Block future months
-    const now = nowSGT() // SGT
-    if (pYear > now.getUTCFullYear() || (pYear === now.getUTCFullYear() && pMonth > now.getUTCMonth() + 1)) {
-      setError(`Cannot generate a payslip for a future month.`); setSaving(false); return
-    }
-
-    // Block overwriting approved/paid payslips
-    const { data: existing } = await supabase.from('payslips')
-      .select('id, status').eq('user_id', id as string).eq('period_month', pMonth).eq('period_year', pYear).eq('payment_type', 'salary').maybeSingle()
-    if (existing && (existing.status === 'approved' || existing.status === 'paid')) {
-      setError(`A ${existing.status} payslip already exists for this month and cannot be overwritten.`)
-      setSaving(false); return
-    }
-
-    // ── Part-timer: sum completed roster shifts ───────────────
-    let totalHours = 0, totalPay = 0
-    let rosterShiftIds: string[] = []
-    if (isPartTime) {
-      const monthStart = `${pYear}-${String(pMonth).padStart(2, '0')}-01`
-      const monthEnd = new Date(pYear, pMonth, 0).toISOString().split('T')[0]
-      const { data: roster } = await supabase.from('duty_roster')
-        .select('id, hours_worked, gross_pay').eq('user_id', id)
-        .gte('shift_date', monthStart).lte('shift_date', monthEnd)
-        .eq('status', 'completed').is('payslip_id', null) // only unpaid shifts
-      totalHours = roster?.reduce((s: number, r: any) => s + (r.hours_worked || 0), 0) || 0
-      totalPay = roster?.reduce((s: number, r: any) => s + (r.gross_pay || 0), 0) || 0
-      rosterShiftIds = roster?.map((r: any) => r.id) || []
-    }
-
-    const basicSalary = isPartTime ? totalPay : (payroll?.current_salary || 0)
-    const isCpf = payroll?.is_cpf_liable ?? (isPartTime ? false : true)
-
-    // ── Bonuses for this payslip month ────────────────────────
-    const { data: bonusRows } = await supabase.from('staff_bonuses')
-      .select('amount').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear)
-    const bonusAmt = bonusRows?.reduce((s: number, b: any) => s + (b.amount || 0), 0) || 0
-
-    // ── Pending deductions (overpayment recovery from disputes) ──
-    let deductionAmount = 0
-    let deductionReason: string | null = null
-    let deductionIds: string[] = []
-    if (isPartTime) {
-      const gymId2 = staff?.trainer_gyms?.[0]?.gym_id || staff?.manager_gym_id || null
-      const { data: deductions } = await supabase.from('pending_deductions')
-        .select('id, amount, reason').eq('user_id', id as string)
-        .is('applied_at', null)
-        .is('gym_id', gymId2 ? undefined : null)
-      if (gymId2) {
-        const gymDeductions = await supabase.from('pending_deductions')
-          .select('id, amount, reason').eq('user_id', id as string)
-          .eq('gym_id', gymId2).is('applied_at', null)
-        if (gymDeductions.data?.length) {
-          gymDeductions.data.forEach((d: any) => {
-            deductionAmount += d.amount || 0
-            deductionReason = d.reason
-            deductionIds.push(d.id)
-          })
-        }
-      }
-    }
-
-    // ── CPF ceiling config from commission_config ─────────────
-    const { data: cfgRows } = await supabase.from('commission_config')
-      .select('config_key, config_value')
-      .in('config_key', ['cpf_ow_ceiling', 'cpf_annual_ceiling'])
-    const cfg: Record<string, number> = {}
-    cfgRows?.forEach((r: any) => { cfg[r.config_key] = r.config_value })
-    const OW_CEILING = cfg['cpf_ow_ceiling'] ?? 8000
-    const ANNUAL_CEILING = cfg['cpf_annual_ceiling'] ?? 102000
-
-    // ── CPF rates: effective_from-aware bracket lookup ────────
-    const brackets = Array.isArray(cpfRates) ? cpfRates : []
-    const rates = getBracketRates(brackets, staff?.date_of_birth || null, pYear, pMonth)
-
-    // ── Age for low-income threshold check ────────────────────
-    const age = getAge(staff?.date_of_birth || null)
-
-    // ── YTD Ordinary Wages (prior approved/paid payslips this year) ──
-    const { data: ytdSlips } = await supabase.from('payslips')
-      .select('salary_amount, aw_subject_to_cpf, period_month')
-      .eq('user_id', id as string).eq('period_year', pYear)
-      .in('status', ['approved', 'paid'])
-      .neq('month', pMonth)
-    const ytdOWBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.salary_amount || 0), 0) || 0
-    const ytdAWCpfBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.aw_subject_to_cpf || 0), 0) || 0
-
-    // ── CPF Calculation ───────────────────────────────────────
-    let empCpf = 0, erCpf = 0
-    let cappedOW = 0, awSubject = 0
-    let empCpfAW = 0, erCpfAW = 0
-    let lowIncomeFlag = false
-
-    if (isCpf && basicSalary > 0) {
-      // Low-income threshold: age ≤55 earning ≤$50/month — no CPF required
-      if (age !== null && age <= 55 && basicSalary <= 50) {
-        lowIncomeFlag = true
-      } else {
-        // ── Ordinary Wages CPF ────────────────────────────────
-        // Check annual ceiling headroom for OW
-        const owHeadroom = Math.max(0, ANNUAL_CEILING - ytdOWBefore)
-        cappedOW = Math.min(basicSalary, OW_CEILING, owHeadroom)
-
-        const erCpfOW = Math.round(cappedOW * rates.employer_rate / 100)
-        const empCpfOW = Math.floor(cappedOW * rates.employee_rate / 100)
-
-        // ── Additional Wages CPF (bonus) ──────────────────────
-        if (bonusAmt > 0) {
-          // Projected OW = YTD OW already paid + (capped current month OW × remaining months)
-          const remainingMonths = 12 - pMonth + 1
-          const projectedOW = ytdOWBefore + (Math.min(basicSalary, OW_CEILING) * remainingMonths)
-          // AW ceiling = Annual ceiling - projected OW
-          const awCeiling = Math.max(0, ANNUAL_CEILING - projectedOW)
-          // AW already subjected to CPF this year
-          const awRemaining = Math.max(0, awCeiling - ytdAWCpfBefore)
-          awSubject = Math.min(bonusAmt, awRemaining)
-
-          if (awSubject > 0) {
-            erCpfAW = Math.round(awSubject * rates.employer_rate / 100)
-            empCpfAW = Math.floor(awSubject * rates.employee_rate / 100)
-          }
-        }
-
-        empCpf = empCpfOW + empCpfAW
-        erCpf = erCpfOW + erCpfAW
-      }
-    }
-
-    // ── December Year-End Re-calculation ────────────────────────
-    // If this is December, compare actual full-year OW against the
-    // projected OW used when any bonus was processed earlier in the year.
-    // Surface any CPF top-up or refund as an adjustment note.
-    let cpfAdjustmentAmount = 0
-    let cpfAdjustmentNote = ''
-    if (pMonth === 12 && isCpf && !lowIncomeFlag && ytdAWCpfBefore > 0) {
-      // Actual full-year OW = YTD before + December salary
-      const actualFullYearOW = ytdOWBefore + Math.min(basicSalary, OW_CEILING)
-      const cappedActualOW = Math.min(actualFullYearOW, OW_CEILING * 12)
-      const actualAWCeiling = Math.max(0, ANNUAL_CEILING - cappedActualOW)
-      const awVariance = actualAWCeiling - ytdAWCpfBefore
-      if (Math.abs(awVariance) >= 1) {
-        const erAdj = Math.round(Math.abs(awVariance) * rates.employer_rate / 100)
-        const empAdj = Math.floor(Math.abs(awVariance) * rates.employee_rate / 100)
-        const totalAdj = erAdj + empAdj
-        const direction = awVariance > 0 ? 'top-up' : 'refund'
-        cpfAdjustmentAmount = awVariance > 0 ? totalAdj : -totalAdj
-        cpfAdjustmentNote = `Year-end CPF AW adjustment (${direction}): ` +
-          `AW previously subjected to CPF: ${formatSGD(ytdAWCpfBefore)}. ` +
-          `Actual AW ceiling based on full-year OW: ${formatSGD(actualAWCeiling)}. ` +
-          `Variance: ${formatSGD(Math.abs(awVariance))}. ` +
-          `Employee ${direction}: ${formatSGD(empAdj)}. ` +
-          `Employer ${direction}: ${formatSGD(erAdj)}.`
-      }
-    }
-
-    const grossSalary = basicSalary + bonusAmt
-    const netSalary = grossSalary - deductionAmount - empCpf
-    const totalEmployerCost = grossSalary + erCpf
-
-    // Use delete+insert instead of upsert — avoids ON CONFLICT issues
-    // with partial indexes on nullable gym_id column.
-    // Only delete draft payslips (approved/paid are immutable).
-    const gymId = staff?.trainer_gyms?.[0]?.gym_id || staff?.manager_gym_id || null
-    await supabase.from('payslips')
-      .delete()
-      .eq('user_id', id).eq('period_month', pMonth).eq('period_year', pYear)
-      .eq('payment_type', 'salary')
-      .is('gym_id', gymId ? undefined : null)
-      .eq('status', 'draft')
-
-    const { error: err } = await supabase.from('payslips').insert({
-      user_id: id, period_month: pMonth, period_year: pYear, payment_type: 'salary',
-      gym_id: gymId,
-      employment_type: staff?.employment_type || 'full_time',
-      salary_amount: basicSalary, bonus_amount: bonusAmt,
-      total_hours: isPartTime ? totalHours : null,
-      hourly_rate_used: isPartTime ? (staff?.hourly_rate || 0) : null,
-      is_cpf_liable: isCpf,
-      employee_cpf_rate: rates.employee_rate,
-      employer_cpf_rate: rates.employer_rate,
-      employee_cpf_amount: empCpf,
-      employer_cpf_amount: erCpf,
-      net_salary: netSalary,
-      total_employer_cost: totalEmployerCost,
-      capped_ow: cappedOW,
-      aw_subject_to_cpf: awSubject,
-      employee_cpf_aw: empCpfAW,
-      employer_cpf_aw: erCpfAW,
-      ow_ceiling_used: OW_CEILING,
-      annual_ceiling_used: ANNUAL_CEILING,
-      ytd_ow_before: ytdOWBefore,
-      ytd_aw_cpf_before: ytdAWCpfBefore,
-      low_income_flag: lowIncomeFlag,
-      cpf_adjustment_amount: cpfAdjustmentAmount,
-      cpf_adjustment_note: cpfAdjustmentNote || null,
-      deduction_amount: deductionAmount,
-      deduction_reason: deductionReason,
-      notes: payslipForm.notes || null, status: 'draft',
-      generated_by: user?.id, generated_at: new Date().toISOString(),
+    const res = await fetch('/api/generate-payslip', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'generate', userId: id,
+        period_month: pMonth, period_year: pYear,
+        notes: payslipForm.notes,
+      }),
     })
-
-    if (err) { setError(err.message); setSaving(false); return }
-
-    // Fetch the newly inserted payslip to get its ID
-    const { data: newPs } = await supabase.from('payslips')
-      .select('id').eq('user_id', id as string).eq('period_month', pMonth).eq('period_year', pYear)
-      .eq('payment_type', 'salary').eq('status', 'draft').maybeSingle()
-    if (newPs?.id) {
-      // Stamp payslip_id on roster rows — prevents double payment
-      if (rosterShiftIds.length > 0) {
-        await supabase.from('duty_roster').update({ payslip_id: newPs.id }).in('id', rosterShiftIds)
-      }
-      // Mark pending deductions as applied
-      if (deductionIds.length > 0) {
-        await supabase.from('pending_deductions')
-          .update({ applied_at: new Date().toISOString(), applied_payslip_id: newPs.id })
-          .in('id', deductionIds)
-      }
-    }
-    logActivity('create', 'Staff Payroll', 'Generated individual payslip')
+    const data = await res.json()
+    if (!res.ok) { setError(data.error || 'Failed to generate payslip'); setSaving(false); return }
+    logActivity('create', 'Staff Payroll', `Generated salary payslip — ${staff?.full_name} ${pMonth}/${pYear}`)
     await loadData(); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
+    return
   }
-
   const handleDeletePayslip = async (payslipId: string) => {
     if (!confirm('Delete this draft payslip? This cannot be undone.')) return
-    // Clear payslip_id on roster rows so they can be included in future regeneration
-    await supabase.from('duty_roster').update({ payslip_id: null }).eq('payslip_id', payslipId)
-    // Un-apply pending deductions so they are included in future payslip
-    await supabase.from('pending_deductions')
-      .update({ applied_at: null, applied_payslip_id: null })
-      .eq('applied_payslip_id', payslipId)
-    await supabase.from('payslips').delete().eq('id', payslipId).eq('status', 'draft')  // status guard prevents deleting non-draft payslips
-    logActivity('delete', 'Staff Payroll', 'Deleted draft payslip — roster shifts and deductions released for regeneration')
+    const res = await fetch('/api/generate-payslip', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', payslipId }),
+    })
+    if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); return }
+    logActivity('delete', 'Staff Payroll', 'Deleted draft payslip — roster shifts and deductions released')
     await loadData(); showMsg('Draft payslip deleted')
   }
 

@@ -205,95 +205,15 @@ export default function PayrollPage() {
     })
     const appliedDeductionIds: string[] = []
 
-    let generated = 0; let skipped = 0
-    const noSalaryNames: string[] = []
-    const toInsert: any[] = []
-
-    for (const member of staffList) {
-      const isPartTime = member.employment_type === 'part_time'
-      const rates = getCpfBracketRates(cpfBrackets, member.date_of_birth, bulkYear, bulkMonth)
-      const isCpf = member.staff_payroll != null
-        ? !!member.staff_payroll.is_cpf_liable
-        : !isPartTime
-
-      if (isPartTime) {
-        // Part-timers: generate one payslip per gym where they had completed shifts
-        const gymMap = rosterByUserGym[member.id] || {}
-        let anyGenerated = false
-        for (const [gymId, roster] of Object.entries(gymMap)) {
-          if (roster.pay === 0) continue // skip gyms with no pay
-          const existKey = `${member.id}:${gymId}`
-          if (existingApproved.has(existKey)) { skipped++; continue } // skip approved/paid only
-          const actualGymId = gymId === 'null' ? null : gymId
-          const deductKey = `${member.id}:${gymId}`
-          const deduction = deductionByUserGym[deductKey]
-          if (deduction) deduction.ids.forEach(id => appliedDeductionIds.push(id))
-          toInsert.push({
-            user_id: member.id, period_month: bulkMonth, period_year: bulkYear,
-            payment_type: 'salary', gym_id: actualGymId,
-            employment_type: 'part_time',
-            salary_amount: roster.pay, bonus_amount: 0,
-            total_hours: roster.hours,
-            hourly_rate_used: member.hourly_rate || 0,
-            is_cpf_liable: isCpf,
-            employee_cpf_rate: isCpf ? rates.employee_rate : 0,
-            employer_cpf_rate: isCpf ? rates.employer_rate : 0,
-            deduction_amount: deduction?.amount || 0,
-            deduction_reason: deduction?.reason || null,
-            status: 'draft', generated_by: user?.id, generated_at: new Date().toISOString(),
-          })
-          generated++; anyGenerated = true
-        }
-        if (!anyGenerated && Object.keys(gymMap).length === 0) skipped++ // no shifts at all — skip silently
-      } else {
-        // Full-timers: one payslip from their assigned gym
-        const existKey = `${member.id}:null`
-        // Resolve gym_id: trainer uses trainer_gyms[0], others use manager_gym_id
-        const gymId = member.trainer_gyms?.[0]?.gym_id || member.manager_gym_id || null
-        const existKeyWithGym = `${member.id}:${gymId || 'null'}`
-        if (existingApproved.has(existKey) || existingApproved.has(existKeyWithGym)) { skipped++; continue } // skip approved/paid only
-        const basicSalary = member.staff_payroll?.current_salary || 0
-        if (basicSalary === 0) { noSalaryNames.push(member.full_name); skipped++; continue }
-        const bonusAmt = bonusByUser[member.id] || 0
-        toInsert.push({
-          user_id: member.id, period_month: bulkMonth, period_year: bulkYear,
-          payment_type: 'salary', gym_id: gymId,
-          employment_type: member.employment_type || 'full_time',
-          salary_amount: basicSalary, bonus_amount: bonusAmt,
-          total_hours: null, hourly_rate_used: null,
-          is_cpf_liable: isCpf,
-          employee_cpf_rate: isCpf ? rates.employee_rate : 0,
-          employer_cpf_rate: isCpf ? rates.employer_rate : 0,
-          status: 'draft', generated_by: user?.id, generated_at: new Date().toISOString(),
-        })
-        generated++
-      }
-    }
-
-    if (toInsert.length > 0) {
-      const { data: inserted } = await supabase.from('payslips').insert(toInsert).select('id, user_id, gym_id')
-      // Stamp payslip_id on roster rows — prevents double payment
-      if (inserted) {
-        for (const ps of inserted) {
-          const gymKey = ps.gym_id || 'null'
-          const shiftIds = rosterByUserGym[ps.user_id]?.[gymKey]?.shiftIds || []
-          if (shiftIds.length > 0) {
-            await supabase.from('duty_roster')
-              .update({ payslip_id: ps.id })
-              .in('id', shiftIds)
-          }
-        }
-      }
-      // Mark pending deductions as applied
-      if (appliedDeductionIds.length > 0) {
-        await supabase.from('pending_deductions')
-          .update({ applied_at: new Date().toISOString() })
-          .in('id', appliedDeductionIds)
-      }
-    }
-
-    setBulkResult({ generated, skipped, noSalary: noSalaryNames, noShifts: [] })
-    logActivity('create', 'Monthly Payroll', 'Generated bulk payslips')
+    const res = await fetch('/api/generate-bulk-payslips', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ period_month: bulkMonth, period_year: bulkYear }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setError(data.error || 'Failed'); setBulkGenerating(false); return }
+    setBulkResult({ generated: data.generated, skipped: data.skipped, noSalary: data.noSalary || [], noShifts: [] })
+    if (data.existingDrafts?.length > 0) setError(`Skipped — existing payslips for: ${data.existingDrafts.join(', ')}`)
+    logActivity('create', 'Monthly Payroll', `Generated ${data.generated} bulk salary payslip(s)`)
     setBulkGenerating(false)
     load()
   }

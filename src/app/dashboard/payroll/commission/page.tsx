@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName, nowSGT } from '@/lib/utils'
-import { getCpfBracketRates, loadCpfBrackets, getCpfCeilings, loadYtdOW, computeCpfAmounts } from '@/lib/cpf'
+import { loadCpfBrackets, getCpfCeilings } from '@/lib/cpf'
 import { TrendingUp, Plus, CheckCircle, AlertCircle, X, Trash2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -76,12 +76,11 @@ export default function CommissionPayslipsPage() {
 
     const { period_month, period_year } = genForm
     const targetStaff = genForm.user_ids.length > 0
-      ? staff.filter(s => genForm.user_ids.includes(s.id))
+      ? staff.filter((s: any) => genForm.user_ids.includes(s.id))
       : staff
 
     const results: any[] = []
     const late: any[] = []
-    const { owCeiling, annualAWCeiling } = getCpfCeilings(cpfBrackets, period_year)
 
     for (const member of targetStaff) {
       // Load ALL unpaid commission items up to selected period
@@ -104,42 +103,22 @@ export default function CommissionPayslipsPage() {
       if (total === 0) continue
 
       const gymId = items[0]?.gym_id || member.trainer_gyms?.[0]?.gym_id || null
+      // CPF computed server-side in /api/generate-commission-payslips on save
+      // Preview shows commission breakdown only
       const isCpf = !!member.staff_payroll?.is_cpf_liable
-      const rates = getCpfBracketRates(cpfBrackets, member.date_of_birth, period_year, period_month)
-
-      // Load YTD for CPF ceiling calculation
-      const { ytdOW: ytdOWBefore, ytdAW: ytdAWBefore, allLowIncome } = await loadYtdOW(
-        supabase, member.id, period_year, period_month
-      )
-
-      const cpf = computeCpfAmounts({
-        salaryAmount: 0, commissionAmount: total, allowanceAmount: 0,
-        bonusAW: 0, othersAmount: 0, othersCpfLiable: false, deductionAmount: 0,
-        isCpf, rates, owCeiling, annualAWCeiling,
-        ytdOWBefore, ytdAWBefore, allLowIncome,
-        periodMonth: period_month, periodYear: period_year,
-      })
 
       results.push({
         user_id: member.id, user_name: member.full_name, user_role: member.role,
-        gym_id: gymId, itemIds: items.map(i => i.id),
-        ptSessionTotal: items.filter(i => i.source_type === 'pt_session').reduce((s: number, i: any) => s + i.amount, 0),
-        ptSignupTotal: items.filter(i => i.source_type === 'pt_signup').reduce((s: number, i: any) => s + i.amount, 0),
-        membershipTotal: items.filter(i => i.source_type === 'membership').reduce((s: number, i: any) => s + i.amount, 0),
+        gym_id: gymId, itemIds: items.map((i: any) => i.id),
+        ptSessionTotal: items.filter((i: any) => i.source_type === 'pt_session').reduce((s: number, i: any) => s + i.amount, 0),
+        ptSignupTotal: items.filter((i: any) => i.source_type === 'pt_signup').reduce((s: number, i: any) => s + i.amount, 0),
+        membershipTotal: items.filter((i: any) => i.source_type === 'membership').reduce((s: number, i: any) => s + i.amount, 0),
         commission_amount: total,
         is_cpf_liable: isCpf,
-        employee_cpf_rate: rates.employee_rate,
-        employer_cpf_rate: rates.employer_rate,
-        ow_ceiling_used: owCeiling,
-        annual_aw_ceiling_used: annualAWCeiling,
-        capped_ow: cpf.cappedOW,
-        aw_subject_to_cpf: cpf.awSubject,
-        employee_cpf_amount: cpf.employeeCpf,
-        employer_cpf_amount: cpf.employerCpf,
-        gross_salary: cpf.grossSalary,
-        net_salary: cpf.netSalary,
-        total_employer_cost: cpf.totalEmployerCost,
-        low_income_flag: cpf.lowIncomeFlag,
+        // Net shown as gross - estimated CPF; actual CPF computed server-side
+        gross_salary: total,
+        net_salary: total, // will be recalculated by API; shown as gross in preview
+        employee_cpf_amount: 0, // computed server-side
       })
     }
 
@@ -167,64 +146,36 @@ export default function CommissionPayslipsPage() {
   const handleSave = async () => {
     if (preview.length === 0) return
     if (existingDrafts.length > 0) {
-      showError(`Cannot generate — draft/approved/paid commission payslips already exist for: ${existingDrafts.join(', ')}. Delete them first.`)
+      showError(`Cannot generate — payslips already exist for: ${existingDrafts.join(', ')}. Delete drafts first.`)
       return
     }
     setSaving(true); setError('')
 
-    for (const item of preview) {
-      const { data: inserted, error: insertErr } = await supabase.from('payslips').insert({
-        user_id: item.user_id, gym_id: item.gym_id,
+    const userIds = preview.map((p: any) => p.user_id)
+    const res = await fetch('/api/generate-commission-payslips', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         period_month: genForm.period_month, period_year: genForm.period_year,
-        payment_type: 'commission',
-        commission_period_month: genForm.period_month,
-        commission_period_year: genForm.period_year,
-        salary_amount: 0, commission_amount: item.commission_amount,
-        allowance_amount: 0, bonus_amount: 0, others_amount: 0,
-        gross_salary: item.gross_salary, net_salary: item.net_salary,
-        deduction_amount: 0,
-        is_cpf_liable: item.is_cpf_liable,
-        employee_cpf_rate: item.employee_cpf_rate,
-        employer_cpf_rate: item.employer_cpf_rate,
-        employee_cpf_amount: item.employee_cpf_amount,
-        employer_cpf_amount: item.employer_cpf_amount,
-        capped_ow: item.capped_ow, aw_subject_to_cpf: item.aw_subject_to_cpf,
-        ow_ceiling_used: item.ow_ceiling_used,
-        annual_aw_ceiling_used: item.annual_aw_ceiling_used,
-        total_employer_cost: item.total_employer_cost,
-        low_income_flag: item.low_income_flag,
-        status: 'draft', generated_by: user!.id,
-        generated_at: new Date().toISOString(),
-      }).select('id').single()
-
-      if (insertErr) { showError('Failed to save payslip: ' + insertErr.message); setSaving(false); return }
-      // Note: commission_items.payslip_id stamped only on Mark Paid, not on generation
-    }
+        user_ids: userIds,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) { showError(data.error || 'Failed to generate'); setSaving(false); return }
 
     await loadData()
     setPreview([]); setShowGenerateForm(false); setSaving(false)
-    logActivity('create', 'Commission Payslips', `Generated ${preview.length} commission payslip draft(s) for ${getMonthName(genForm.period_month)} ${genForm.period_year}`)
-    showMsg(`${preview.length} commission payslip(s) generated as draft`)
+    logActivity('create', 'Commission Payslips', `Generated ${data.generated} commission payslip draft(s) for ${getMonthName(genForm.period_month)} ${genForm.period_year}`)
+    showMsg(`${data.generated} commission payslip(s) generated as draft`)
   }
 
   const handleStatusChange = async (payslipId: string, newStatus: 'approved' | 'paid') => {
-    const update: any = { status: newStatus }
-    if (newStatus === 'approved') { update.approved_by = user!.id; update.approved_at = new Date().toISOString() }
-    if (newStatus === 'paid') {
-      update.paid_at = new Date().toISOString()
-      // Stamp payslip_id on commission_items — marks them as paid
-      const slip = payslips.find(p => p.id === payslipId)
-      if (slip) {
-        await supabase.from('commission_items')
-          .update({ payslip_id: payslipId })
-          .eq('user_id', slip.user_id)
-          .eq('period_year', slip.commission_period_year || slip.period_year)
-          .is('payslip_id', null)
-          .lte('period_year', slip.commission_period_year || slip.period_year)
-      }
-    }
-    await supabase.from('payslips').update(update).eq('id', payslipId)
     const slip = payslips.find(p => p.id === payslipId)
+    const action = newStatus === 'approved' ? 'approve' : 'mark_paid'
+    const res = await fetch('/api/generate-commission-payslips', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, payslipId }),
+    })
+    if (!res.ok) { const d = await res.json(); showError(d.error || 'Failed'); return }
     logActivity(newStatus === 'approved' ? 'approve' : 'update', 'Commission Payslips',
       `${newStatus === 'approved' ? 'Approved' : 'Marked paid'}: ${slip?.user?.full_name || ''} — ${getMonthName(slip?.period_month)} ${slip?.period_year}`)
     await loadData()
@@ -235,8 +186,12 @@ export default function CommissionPayslipsPage() {
     const slip = payslips.find(p => p.id === payslipId)
     if (slip?.status === 'paid') { showError('Paid payslips cannot be deleted.'); return }
     if (!confirm(`Delete this draft commission payslip for ${slip?.user?.full_name}? Commission items will be available for the next generation run.`)) return
-    await supabase.from('payslips').delete().eq('id', payslipId)
-    // commission_items.payslip_id cleared by ON DELETE SET NULL
+    const res = await fetch('/api/generate-commission-payslips', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', payslipId }),
+    })
+    if (!res.ok) { const d = await res.json(); showError(d.error || 'Failed'); return }
+    // commission_items.payslip_id cleared by ON DELETE SET NULL automatically
     logActivity('delete', 'Commission Payslips', `Deleted draft commission payslip — ${slip?.user?.full_name || ''} ${getMonthName(slip?.period_month)} ${slip?.period_year}`)
     await loadData()
     showMsg('Draft deleted')
