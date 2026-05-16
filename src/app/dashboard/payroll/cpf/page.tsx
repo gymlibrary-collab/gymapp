@@ -5,27 +5,15 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName, nowSGT} from '@/lib/utils'
+import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 
-function getAge(dob: string) {
-  if (!dob) return null
-  const today = nowSGT(); const birth = new Date(dob)
-  let age = today.getFullYear() - birth.getFullYear()
-  if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--
-  return age
-}
-
-function getAgeAsOf(dob: string | null, refDate: Date): number | null {
-  if (!dob) return null
-  const birth = new Date(dob)
-  let age = refDate.getFullYear() - birth.getFullYear()
-  if (refDate.getMonth() < birth.getMonth() || (refDate.getMonth() === birth.getMonth() && refDate.getDate() < birth.getDate())) age--
-  return age
-}
+// getAge/getAgeAsOf: use shared lib/cpf.ts versions
+const getAge = (dob: string) => getAgeAsOf(dob, nowSGT())
 
 export default function CpfPage() {
 
@@ -105,7 +93,7 @@ export default function CpfPage() {
 
     const { data: payslips } = await supabase.from('payslips')
       .select('*, user:users!payslips_user_id_fkey(full_name, nric, date_of_birth)')
-      .eq('month', selectedMonth).eq('year', selectedYear)
+      .eq('period_month', selectedMonth).eq('period_year', selectedYear)
       .in('status', ['approved', 'paid'])
       .eq('is_cpf_liable', true)
 
@@ -117,12 +105,12 @@ export default function CpfPage() {
     const OW_CEILING = cfg['cpf_ow_ceiling'] ?? 8000
 
     const rows = (payslips || []).map((p: any) => {
-      const bracket = getBracket(p.user?.date_of_birth, selectedYear, selectedMonth)
+      const bracket = getCpfBracketRates(brackets, p.user?.date_of_birth || null, selectedYear, selectedMonth)
       const empRate = bracket?.employee_rate ?? p.employee_cpf_rate ?? 20
       const erRate = bracket?.employer_rate ?? p.employer_cpf_rate ?? 17
       // Use stored capped_ow if available (payslip already calculated correctly),
       // otherwise apply OW ceiling to basic_salary for the preview estimate.
-      const cappedOW = p.capped_ow ?? Math.min(p.basic_salary || 0, OW_CEILING)
+      const cappedOW = p.capped_ow ?? Math.min(p.salary_amount || 0, OW_CEILING)
       const awSubject = p.aw_subject_to_cpf ?? 0
       const erCpfOW = Math.round(cappedOW * erRate / 100)
       const empCpfOW = Math.floor(cappedOW * empRate / 100)

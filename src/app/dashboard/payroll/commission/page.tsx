@@ -1,332 +1,250 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, formatDate, getMonthName , getRoleLabel, nowSGT} from '@/lib/utils'
-import { getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
-import {
-  TrendingUp, Plus, CheckCircle, AlertCircle, X,
-  Download, Users, DollarSign, Calendar, Search
-} from 'lucide-react'
+import { formatSGD, getMonthName, nowSGT } from '@/lib/utils'
+import { getCpfBracketRates, loadCpfBrackets, getCpfCeilings, loadYtdOW, computeCpfAmounts } from '@/lib/cpf'
+import { TrendingUp, Plus, CheckCircle, AlertCircle, X, Trash2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { PageSpinner } from '@/components/PageSpinner'
 
-export default function CommissionPayoutsPage() {
+// ── Commission Payslips ───────────────────────────────────────
+// Generates commission payslips (payment_type='commission') from commission_items.
+// Only shown when combined_payslip_enabled = false.
+// Each run sweeps ALL unpaid commission_items up to the selected period
+// so late-confirmed items from prior months are included automatically.
+
+export default function CommissionPayslipsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
-
-
   const { logActivity } = useActivityLog()
-  const [payouts, setPayouts] = useState<any[]>([])
+  const [payslips, setPayslips] = useState<any[]>([])
   const [dataLoading, setDataLoading] = useState(true)
   const [staff, setStaff] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editingDeduction, setEditingDeduction] = useState<{id: string, amount: string, reason: string} | null>(null)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [showGenerateForm, setShowGenerateForm] = useState(false)
   const [genForm, setGenForm] = useState({
-    period_month: nowSGT().getUTCMonth() === 0 ? 12 : nowSGT().getUTCMonth(), // previous month
-    period_year: new Date().getMonth() === 0 ? new Date().getFullYear() - 1 : new Date().getFullYear(),
-    user_ids: [] as string[], gym_id: '',
+    period_month: nowSGT().getUTCMonth() === 0 ? 12 : nowSGT().getUTCMonth(),
+    period_year: nowSGT().getUTCMonth() === 0 ? nowSGT().getUTCFullYear() - 1 : nowSGT().getUTCFullYear(),
+    user_ids: [] as string[],
   })
   const [preview, setPreview] = useState<any[]>([])
+  const [lateItems, setLateItems] = useState<any[]>([]) // items from prior periods
   const [cpfBrackets, setCpfBrackets] = useState<any[]>([])
-  const [existingDrafts, setExistingDrafts] = useState<string[]>([]) // user names with existing drafts
-  const [showDraftWarning, setShowDraftWarning] = useState(false)
-  const router = useRouter()
+  const [existingDrafts, setExistingDrafts] = useState<string[]>([])
   const supabase = createClient()
-
   const { success, error, showMsg, showError, setError } = useToast()
 
-
-
   const loadData = async () => {
-    logActivity('page_view', 'Commission Payouts', 'Viewed commission payouts')
+    logActivity('page_view', 'Commission Payslips', 'Viewed commission payslips')
     if (!user) return
 
-    // Load payouts
-    let q = supabase.from('commission_payouts')
-      .select('*, user:users!commission_payouts_user_id_fkey(full_name, role), gym:gyms(name)')
-      .order('period_end', { ascending: false })
-    if (user!.role === 'manager' && user!.manager_gym_id) q = q.eq('gym_id', user!.manager_gym_id)
-    const { data: payoutData } = await q
-    setPayouts(payoutData || [])
+    // Load commission payslips (payment_type=commission or combined)
+    const { data: slips } = await supabase.from('payslips')
+      .select('*, user:users_safe!payslips_user_id_fkey(full_name, role), gym:gyms(name)')
+      .in('payment_type', ['commission', 'combined'])
+      .order('period_year', { ascending: false })
+      .order('period_month', { ascending: false })
+    setPayslips(slips || [])
 
-    // Load staff for generation (business_ops)
-    if (user!.role === 'business_ops') {
-      const { data: staffData } = await supabase.from('users')
-        .select('*, trainer_gyms(gym_id), staff_payroll(is_cpf_liable)')
-        .eq('is_archived', false).neq('role', 'admin').order('full_name')
-      setStaff(staffData || [])
+    // Load staff for generation
+    const { data: staffData } = await supabase.from('users_safe')
+      .select('*, trainer_gyms(gym_id), staff_payroll(is_cpf_liable)')
+      .eq('is_archived', false).neq('role', 'admin').order('full_name')
+    setStaff(staffData || [])
 
-      // Load CPF brackets for AW calculation
-      const brackets = await loadCpfBrackets(supabase)
-      setCpfBrackets(brackets || [])
-    }
+    const brackets = await loadCpfBrackets(supabase)
+    setCpfBrackets(brackets || [])
   }
 
-  useEffect(() => { if (!user) return; loadData().finally(() => setDataLoading(false)) }, [user])
+  useEffect(() => {
+    if (!user) return
+    loadData().finally(() => setDataLoading(false))
+  }, [user])
 
   if (loading || dataLoading) return <PageSpinner />
   if (!user) return null
 
-
   const generatePreview = async () => {
-    if (!genForm.period_month || !genForm.period_year) { setError('Please select a period'); return }
-    // Derive period_start and period_end from month/year
-    const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
-    const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
-    const period_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
-    setGenerating(true); setError('')
+    setGenerating(true); setError(''); setPreview([]); setLateItems([])
 
-    const results: any[] = []
+    const { period_month, period_year } = genForm
     const targetStaff = genForm.user_ids.length > 0
       ? staff.filter(s => genForm.user_ids.includes(s.id))
       : staff
 
+    const results: any[] = []
+    const late: any[] = []
+    const { owCeiling, annualAWCeiling } = getCpfCeilings(cpfBrackets, period_year)
+
     for (const member of targetStaff) {
-      // PT signup commissions (from packages created in period)
-      // Packages eligible: manager_confirmed = true AND not yet paid
-      // Confirmed by either manager or Biz Ops (escalated items)
-      const { data: packages } = await supabase.from('packages')
-        .select('signup_commission_sgd, gym_id')
-        .eq('trainer_id', member.id)
-        .eq('manager_confirmed', true)
-        .eq('signup_commission_paid', false)
-        .gte('created_at', period_start)
-        .lte('created_at', period_end + 'T23:59:59')
+      // Load ALL unpaid commission items up to selected period
+      const { data: items } = await supabase.from('commission_items')
+        .select('id, source_type, amount, period_month, period_year, gym_id')
+        .eq('user_id', member.id)
+        .is('payslip_id', null)
+        .or(`period_year.lt.${period_year},and(period_year.eq.${period_year},period_month.lte.${period_month})`)
 
-      // PT session commissions: notes submitted AND manager_confirmed = true AND not yet paid
-      // Confirmed by either manager or Biz Ops (escalated items)
-      const { data: sessions } = await supabase.from('sessions')
-        .select('session_commission_sgd, gym_id')
-        .eq('trainer_id', member.id)
-        .eq('status', 'completed')
-        .not('notes_submitted_at', 'is', null)
-        .eq('manager_confirmed', true)
-        .eq('commission_paid', false)
-        .gte('marked_complete_at', period_start)
-        .lte('marked_complete_at', period_end + 'T23:59:59')
+      if (!items || items.length === 0) continue
 
-      // Membership sale commissions (confirmed in period) — from gym_memberships table
-      const { data: memSales } = await supabase.from('gym_memberships')
-        .select('commission_sgd, gym_id')
-        .eq('sold_by_user_id', member.id)
-        .eq('sale_status', 'confirmed')
-        .eq('commission_paid', false)
-        .gte('created_at', period_start)
-        .lte('created_at', period_end + 'T23:59:59')
+      const currentItems = items.filter(i => i.period_month === period_month && i.period_year === period_year)
+      const priorItems = items.filter(i => !(i.period_month === period_month && i.period_year === period_year))
 
-      const ptSignup = packages?.reduce((s, p) => s + (p.signup_commission_sgd || 0), 0) || 0
-      const ptSession = sessions?.reduce((s, s2) => s + (s2.session_commission_sgd || 0), 0) || 0
-      const membership = memSales?.reduce((s, m) => s + (m.commission_sgd || 0), 0) || 0
-      const total = ptSignup + ptSession + membership
-
-      if (total > 0) {
-        const gymId = packages?.[0]?.gym_id || sessions?.[0]?.gym_id || memSales?.[0]?.gym_id || member.manager_gym_id || (member.trainer_gyms?.[0]?.gym_id)
-
-        // ── CPF on commission (Additional Wages) ──────────────
-        const isCpfLiable = !!member.staff_payroll?.is_cpf_liable
-        let empCpfRate = 0, erCpfRate = 0, awSubject = 0, empCpf = 0, erCpf = 0
-
-        if (isCpfLiable && cpfBrackets.length > 0) {
-          const rates = getCpfBracketRates(cpfBrackets, member.date_of_birth, genForm.period_year, genForm.period_month)
-          empCpfRate = rates.employee_rate
-          erCpfRate = rates.employer_rate
-
-          // Load YTD ordinary wages to compute remaining AW ceiling
-          // AW ceiling = $102,000 - projected full-year OW
-          // Also load low_income_flag to check CPF exemption
-          const { data: ytdSlips } = await supabase.from('payslips')
-            .select('basic_salary, employee_cpf_rate, low_income_flag')
-            .eq('user_id', member.id).eq('year', genForm.period_year)
-            .in('status', ['approved', 'paid'])
-          // If ALL payslips this year are low-income exempt, skip commission CPF
-          // (staff earning below $50/month total are fully exempt)
-          const slips = ytdSlips ?? []
-          const allLowIncome = slips.length > 0 && slips.every((p: any) => p.low_income_flag)
-          if (allLowIncome) {
-            empCpfRate = 0; erCpfRate = 0; awSubject = 0; empCpf = 0; erCpf = 0
-          } else {
-          const ytdOW = slips.reduce((s: number, p: any) => s + (p.basic_salary || 0), 0)
-          const remainingMonths = 12 - (genForm.period_month - 1)
-          const estMonthlyOW = slips.length > 0 ? ytdOW / slips.length : 0
-          const projectedOW = ytdOW + (estMonthlyOW * remainingMonths)
-          const awCeiling = Math.max(0, 102000 - projectedOW)
-
-          // Load YTD AW already subjected to CPF from prior commission payouts
-          const { data: priorPayouts } = await supabase.from('commission_payouts')
-            .select('aw_subject_to_cpf')
-            .eq('user_id', member.id).eq('is_cpf_liable', true)
-            .in('status', ['approved', 'paid'])
-            .gte('period_start', `${genForm.period_year}-01-01`)
-            .lt('period_start', period_start)
-          const ytdAWCpf = priorPayouts?.reduce((s: number, p: any) => s + (p.aw_subject_to_cpf || 0), 0) || 0
-          const awRemaining = Math.max(0, awCeiling - ytdAWCpf)
-          awSubject = Math.min(total, awRemaining)
-          empCpf = Math.floor(awSubject * empCpfRate / 100)
-          erCpf = Math.round(awSubject * erCpfRate / 100)
-          } // end else (not all low income)
-        }
-
-        results.push({
-          user_id: member.id, user_name: member.full_name, user_role: member.role,
-          gym_id: gymId,
-          pt_signup_commission_sgd: ptSignup, pt_session_commission_sgd: ptSession,
-          membership_commission_sgd: membership, total_commission_sgd: total,
-          pt_signups_count: packages?.length || 0,
-          pt_sessions_count: sessions?.length || 0,
-          membership_sales_count: memSales?.length || 0,
-          is_cpf_liable: isCpfLiable,
-          employee_cpf_rate: empCpfRate, employer_cpf_rate: erCpfRate,
-          aw_subject_to_cpf: awSubject,
-          employee_cpf_amount: empCpf, employer_cpf_amount: erCpf,
-          // net_commission_sgd is now a generated column (total - deduction_amount)
-          // empCpf included in total_commission_sgd calculation upstream
-        })
+      if (priorItems.length > 0) {
+        priorItems.forEach(i => late.push({ ...i, staff_name: member.full_name }))
       }
+
+      const total = items.reduce((s: number, i: any) => s + (i.amount || 0), 0)
+      if (total === 0) continue
+
+      const gymId = items[0]?.gym_id || member.trainer_gyms?.[0]?.gym_id || null
+      const isCpf = !!member.staff_payroll?.is_cpf_liable
+      const rates = getCpfBracketRates(cpfBrackets, member.date_of_birth, period_year, period_month)
+
+      // Load YTD for CPF ceiling calculation
+      const { ytdOW: ytdOWBefore, ytdAW: ytdAWBefore, allLowIncome } = await loadYtdOW(
+        supabase, member.id, period_year, period_month
+      )
+
+      const cpf = computeCpfAmounts({
+        salaryAmount: 0, commissionAmount: total, allowanceAmount: 0,
+        bonusAW: 0, othersAmount: 0, othersCpfLiable: false, deductionAmount: 0,
+        isCpf, rates, owCeiling, annualAWCeiling,
+        ytdOWBefore, ytdAWBefore, allLowIncome,
+        periodMonth: period_month, periodYear: period_year,
+      })
+
+      results.push({
+        user_id: member.id, user_name: member.full_name, user_role: member.role,
+        gym_id: gymId, itemIds: items.map(i => i.id),
+        ptSessionTotal: items.filter(i => i.source_type === 'pt_session').reduce((s: number, i: any) => s + i.amount, 0),
+        ptSignupTotal: items.filter(i => i.source_type === 'pt_signup').reduce((s: number, i: any) => s + i.amount, 0),
+        membershipTotal: items.filter(i => i.source_type === 'membership').reduce((s: number, i: any) => s + i.amount, 0),
+        commission_amount: total,
+        is_cpf_liable: isCpf,
+        employee_cpf_rate: rates.employee_rate,
+        employer_cpf_rate: rates.employer_rate,
+        ow_ceiling_used: owCeiling,
+        annual_aw_ceiling_used: annualAWCeiling,
+        capped_ow: cpf.cappedOW,
+        aw_subject_to_cpf: cpf.awSubject,
+        employee_cpf_amount: cpf.employeeCpf,
+        employer_cpf_amount: cpf.employerCpf,
+        gross_salary: cpf.grossSalary,
+        net_salary: cpf.netSalary,
+        total_employer_cost: cpf.totalEmployerCost,
+        low_income_flag: cpf.lowIncomeFlag,
+      })
     }
 
-    // Check for existing draft payouts for this period
+    setLateItems(late)
+
+    // Check for existing drafts
     if (results.length > 0) {
       const userIds = results.map(r => r.user_id)
-      // Derive period dates for draft check
-      const dcDays = new Date(genForm.period_year, genForm.period_month, 0).getDate()
-      const dc_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
-      const dc_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(dcDays).padStart(2, '0')}`
-      const { data: drafts } = await supabase.from('commission_payouts')
-        .select('user_id, user:users!commission_payouts_user_id_fkey(full_name)')
+      const { data: drafts } = await supabase.from('payslips')
+        .select('user_id, user:users_safe!payslips_user_id_fkey(full_name)')
         .in('user_id', userIds)
-        .eq('period_start', dc_start)
-        .eq('period_end', dc_end)
-        .eq('status', 'draft')
+        .eq('period_month', genForm.period_month)
+        .eq('period_year', genForm.period_year)
+        .eq('payment_type', 'commission')
+        .in('status', ['draft', 'approved', 'paid'])
       const draftNames = (drafts || []).map((d: any) => d.user?.full_name).filter(Boolean)
       setExistingDrafts(draftNames)
-      if (draftNames.length > 0) setShowDraftWarning(true)
-    } else {
-      setExistingDrafts([])
-      setShowDraftWarning(false)
     }
+
     setPreview(results)
     setGenerating(false)
-    if (results.length === 0) setError('No commissions found for this period with unpaid items.')
+    if (results.length === 0) setError('No unpaid commission items found for this period.')
   }
 
-  const handleSavePayouts = async () => {
+  const handleSave = async () => {
     if (preview.length === 0) return
-    setSaving(true); setError('')
-    // Derive period dates from month/year selection
-    const daysInMonth = new Date(genForm.period_year, genForm.period_month, 0).getDate()
-    const period_start = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-01`
-    const period_end = `${genForm.period_year}-${String(genForm.period_month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
-
-    // Block: check for any approved/paid payouts in this period — never overwrite finalised records
-    const userIds = preview.map(i => i.user_id)
-    const { data: finalised } = await supabase.from('commission_payouts')
-      .select('user_id, user:users!commission_payouts_user_id_fkey(full_name), status')
-      .in('user_id', userIds)
-      .eq('period_start', period_start).eq('period_end', period_end)
-      .in('status', ['approved', 'paid'])
-    if (finalised && finalised.length > 0) {
-      const names = finalised.map((p: any) => `${p.user?.full_name} (${p.status})`).join(', ')
-      showError(`Cannot overwrite finalised payouts: ${names}. Void them first before regenerating.`)
-      setSaving(false)
+    if (existingDrafts.length > 0) {
+      showError(`Cannot generate — draft/approved/paid commission payslips already exist for: ${existingDrafts.join(', ')}. Delete them first.`)
       return
     }
+    setSaving(true); setError('')
 
     for (const item of preview) {
-      await supabase.from('commission_payouts').upsert({
+      const { data: inserted, error: insertErr } = await supabase.from('payslips').insert({
         user_id: item.user_id, gym_id: item.gym_id,
-        period_start: period_start, period_end: period_end,
-        pt_signup_commission_sgd: item.pt_signup_commission_sgd,
-        pt_session_commission_sgd: item.pt_session_commission_sgd,
-        membership_commission_sgd: item.membership_commission_sgd,
-        pt_signups_count: item.pt_signups_count,
-        pt_sessions_count: item.pt_sessions_count,
-        membership_sales_count: item.membership_sales_count,
+        period_month: genForm.period_month, period_year: genForm.period_year,
+        payment_type: 'commission',
+        commission_period_month: genForm.period_month,
+        commission_period_year: genForm.period_year,
+        salary_amount: 0, commission_amount: item.commission_amount,
+        allowance_amount: 0, bonus_amount: 0, others_amount: 0,
+        gross_salary: item.gross_salary, net_salary: item.net_salary,
+        deduction_amount: 0,
         is_cpf_liable: item.is_cpf_liable,
         employee_cpf_rate: item.employee_cpf_rate,
         employer_cpf_rate: item.employer_cpf_rate,
-        aw_subject_to_cpf: item.aw_subject_to_cpf,
         employee_cpf_amount: item.employee_cpf_amount,
         employer_cpf_amount: item.employer_cpf_amount,
-        status: 'draft',
-        generated_by: user!.id,
+        capped_ow: item.capped_ow, aw_subject_to_cpf: item.aw_subject_to_cpf,
+        ow_ceiling_used: item.ow_ceiling_used,
+        annual_aw_ceiling_used: item.annual_aw_ceiling_used,
+        total_employer_cost: item.total_employer_cost,
+        low_income_flag: item.low_income_flag,
+        status: 'draft', generated_by: user!.id,
         generated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,period_start,period_end' })
+      }).select('id').single()
+
+      if (insertErr) { showError('Failed to save payslip: ' + insertErr.message); setSaving(false); return }
+      // Note: commission_items.payslip_id stamped only on Mark Paid, not on generation
     }
-    setShowDraftWarning(false)
-    setExistingDrafts([])
 
     await loadData()
-    setPreview([])
-    setShowGenerateForm(false)
-    setSaving(false)
-    logActivity('create', 'Commission Payouts', `Generated ${preview.length} commission payout(s) as draft`)
-    logActivity('create', 'Commission Payouts', `Generated ${preview.length} payout draft(s) for ${getMonthName(genForm.period_month)} ${genForm.period_year}`)
-    showMsg(`${preview.length} commission payout(s) generated as draft`)
+    setPreview([]); setShowGenerateForm(false); setSaving(false)
+    logActivity('create', 'Commission Payslips', `Generated ${preview.length} commission payslip draft(s) for ${getMonthName(genForm.period_month)} ${genForm.period_year}`)
+    showMsg(`${preview.length} commission payslip(s) generated as draft`)
   }
 
-  const handleSaveDeduction = async () => {
-    if (!editingDeduction) return
-    setSaving(true)
-    const amount = parseFloat(editingDeduction.amount) || 0
-    await supabase.from('commission_payouts').update({
-      deduction_amount: amount,
-      deduction_reason: editingDeduction.reason.trim() || null,
-    }).eq('id', editingDeduction.id).eq('status', 'draft')
-    setEditingDeduction(null)
-    setSaving(false)
-    await loadData()
-    showMsg('Deduction saved')
-  }
-
-  const handleStatusChange = async (payoutId: string, newStatus: 'approved' | 'paid') => {
+  const handleStatusChange = async (payslipId: string, newStatus: 'approved' | 'paid') => {
     const update: any = { status: newStatus }
     if (newStatus === 'approved') { update.approved_by = user!.id; update.approved_at = new Date().toISOString() }
     if (newStatus === 'paid') {
       update.paid_at = new Date().toISOString()
-      // Mark related items as paid
-      const payout = payouts.find(p => p.id === payoutId)
-      if (payout) {
-        await supabase.from('sessions').update({ commission_paid: true })
-          .eq('trainer_id', payout.user_id).eq('status', 'completed')
-          .not('notes_submitted_at', 'is', null)
-          .eq('manager_confirmed', true)
-          .gte('marked_complete_at', payout.period_start)
-          .lte('marked_complete_at', payout.period_end + 'T23:59:59')
-        await supabase.from('packages').update({ signup_commission_paid: true })
-          .eq('trainer_id', payout.user_id)
-          .eq('manager_confirmed', true)
-          .eq('signup_commission_paid', false)
-          .gte('created_at', payout.period_start)
-          .lte('created_at', payout.period_end + 'T23:59:59')
-        await supabase.from('gym_memberships').update({ commission_paid: true, commission_payout_id: payoutId })
-          .eq('sold_by_user_id', payout.user_id).eq('sale_status', 'confirmed')
-          .gte('created_at', payout.period_start)
-          .lte('created_at', payout.period_end + 'T23:59:59')
+      // Stamp payslip_id on commission_items — marks them as paid
+      const slip = payslips.find(p => p.id === payslipId)
+      if (slip) {
+        await supabase.from('commission_items')
+          .update({ payslip_id: payslipId })
+          .eq('user_id', slip.user_id)
+          .eq('period_year', slip.commission_period_year || slip.period_year)
+          .is('payslip_id', null)
+          .lte('period_year', slip.commission_period_year || slip.period_year)
       }
     }
-    await supabase.from('commission_payouts').update(update).eq('id', payoutId)
-    const payout = payouts.find(p => p.id === payoutId)
-    const staffName = payout?.user?.full_name || ''
-    const period = payout?.period_start ? `${getMonthName(new Date(payout.period_start).getMonth() + 1)} ${new Date(payout.period_start).getFullYear()}` : ''
-    logActivity(newStatus === 'approved' ? 'approve' : 'update', 'Commission Payouts', `${newStatus === 'approved' ? 'Approved' : 'Marked paid'}: ${staffName} — ${period}`)
+    await supabase.from('payslips').update(update).eq('id', payslipId)
+    const slip = payslips.find(p => p.id === payslipId)
+    logActivity(newStatus === 'approved' ? 'approve' : 'update', 'Commission Payslips',
+      `${newStatus === 'approved' ? 'Approved' : 'Marked paid'}: ${slip?.user?.full_name || ''} — ${getMonthName(slip?.period_month)} ${slip?.period_year}`)
     await loadData()
-    showMsg(`Payout ${newStatus}`)
+    showMsg(`Payslip ${newStatus}`)
   }
 
-  const isBizOps = user?.role === 'business_ops'
-  const totalPending = payouts.filter(p => p.status === 'draft').reduce((s, p) => s + p.total_commission_sgd, 0)
-  const totalPaid = payouts.filter(p => p.status === 'paid').reduce((s, p) => s + p.total_commission_sgd, 0)
+  const handleDelete = async (payslipId: string) => {
+    const slip = payslips.find(p => p.id === payslipId)
+    if (slip?.status === 'paid') { showError('Paid payslips cannot be deleted.'); return }
+    if (!confirm(`Delete this draft commission payslip for ${slip?.user?.full_name}? Commission items will be available for the next generation run.`)) return
+    await supabase.from('payslips').delete().eq('id', payslipId)
+    // commission_items.payslip_id cleared by ON DELETE SET NULL
+    logActivity('delete', 'Commission Payslips', `Deleted draft commission payslip — ${slip?.user?.full_name || ''} ${getMonthName(slip?.period_month)} ${slip?.period_year}`)
+    await loadData()
+    showMsg('Draft deleted')
+  }
 
-  const filtered = payouts.filter(p => {
+  const totalDraft = payslips.filter(p => p.status === 'draft').reduce((s, p) => s + (p.commission_amount || 0), 0)
+  const totalPaid = payslips.filter(p => p.status === 'paid').reduce((s, p) => s + (p.commission_amount || 0), 0)
+  const filtered = payslips.filter(p => {
     const matchSearch = p.user?.full_name?.toLowerCase().includes(search.toLowerCase())
     const matchStatus = filterStatus === 'all' || p.status === filterStatus
     return matchSearch && matchStatus
@@ -336,29 +254,28 @@ export default function CommissionPayoutsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Commission Payouts</h1>
-          <p className="text-sm text-gray-500">PT package, session and membership sale commissions</p>
+          <h1 className="text-xl font-bold text-gray-900">Commission Payslips</h1>
+          <p className="text-sm text-gray-500">PT session, signup and membership sale commissions</p>
         </div>
-        {isBizOps && (
-          <button onClick={() => setShowGenerateForm(!showGenerateForm)} className="btn-primary flex items-center gap-1.5">
-            <Plus className="w-4 h-4" /> Generate Payouts
-          </button>
-        )}
+        <button onClick={() => setShowGenerateForm(!showGenerateForm)} className="btn-primary flex items-center gap-1.5">
+          <Plus className="w-4 h-4" /> Generate
+        </button>
       </div>
 
-      {/* Summary */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Total Payouts</p><p className="text-2xl font-bold text-gray-900">{payouts.length}</p></div>
-        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Draft / Pending</p><p className="text-xl font-bold text-amber-600">{formatSGD(totalPending)}</p></div>
+        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Total Payslips</p><p className="text-2xl font-bold text-gray-900">{payslips.length}</p></div>
+        <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Draft / Pending</p><p className="text-xl font-bold text-amber-600">{formatSGD(totalDraft)}</p></div>
         <div className="stat-card"><p className="text-xs text-gray-500 mb-1">Paid Out</p><p className="text-xl font-bold text-green-700">{formatSGD(totalPaid)}</p></div>
       </div>
 
       <StatusBanner success={success} error={error} onDismissError={() => setError('')} />
 
-      {/* Generate form */}
-      {showGenerateForm && isBizOps && (
+      {showGenerateForm && (
         <div className="card p-4 space-y-4 border-red-200">
-          <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Generate Commission Payouts</h2><button onClick={() => { setShowGenerateForm(false); setPreview([]) }}><X className="w-4 h-4 text-gray-400" /></button></div>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900 text-sm">Generate Commission Payslips</h2>
+            <button onClick={() => { setShowGenerateForm(false); setPreview([]) }}><X className="w-4 h-4 text-gray-400" /></button>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -373,14 +290,11 @@ export default function CommissionPayoutsPage() {
               <label className="label">Year *</label>
               <select className="input" value={genForm.period_year}
                 onChange={e => setGenForm(f => ({ ...f, period_year: parseInt(e.target.value) }))}>
-                {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() - i)
+                {Array.from({ length: 3 }, (_, i) => nowSGT().getUTCFullYear() - i)
                   .map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
           </div>
-          <p className="text-xs text-gray-400 -mt-2">
-            Period: 1–{new Date(genForm.period_year, genForm.period_month, 0).getDate()} {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][genForm.period_month - 1]} {genForm.period_year}
-          </p>
 
           <div>
             <label className="label">Staff (leave empty for all)</label>
@@ -391,7 +305,6 @@ export default function CommissionPayoutsPage() {
                     onChange={() => setGenForm(f => ({ ...f, user_ids: f.user_ids.includes(s.id) ? f.user_ids.filter(id => id !== s.id) : [...f.user_ids, s.id] }))}
                     className="rounded border-gray-300 text-red-600" />
                   <span className="text-sm text-gray-700">{s.full_name}</span>
-                  <span className="text-xs text-gray-400 ml-auto">{getRoleLabel(s.role)}</span>
                 </label>
               ))}
             </div>
@@ -401,66 +314,69 @@ export default function CommissionPayoutsPage() {
             {generating ? 'Calculating...' : 'Calculate Preview'}
           </button>
 
-          {/* Preview */}
+          {lateItems.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800">{lateItems.length} item{lateItems.length > 1 ? 's' : ''} from prior periods included</p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    {Array.from(new Set(lateItems.map(i => `${getMonthName(i.period_month)} ${i.period_year}`))).join(', ')} — confirmed late, swept into this run
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {existingDrafts.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-800">
+                  Cannot generate — payslips already exist for: <strong>{existingDrafts.join(', ')}</strong>. Delete drafts first.
+                </p>
+              </div>
+            </div>
+          )}
+
           {preview.length > 0 && (
             <div className="space-y-3">
-              <p className="text-sm font-medium text-gray-900">Preview — {preview.length} staff with commissions</p>
-
-              {/* Draft overwrite warning */}
-              {showDraftWarning && existingDrafts.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-amber-800">Existing draft payouts will be overwritten</p>
-                      <p className="text-xs text-amber-700 mt-0.5">
-                        {existingDrafts.join(', ')} already {existingDrafts.length === 1 ? 'has' : 'have'} a draft payout for {getMonthName(genForm.period_month)} {genForm.period_year}. Saving will replace {existingDrafts.length === 1 ? 'it' : 'them'} with the new figures.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
+              <p className="text-sm font-medium text-gray-900">Preview — {preview.length} staff with unpaid commissions</p>
               <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
                 {preview.map((item, i) => (
-                  <div key={i} className={cn('p-3 flex items-center gap-3', existingDrafts.includes(item.user_name) && 'bg-amber-50')}>
+                  <div key={i} className="p-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900">{item.user_name}</p>
-                        {existingDrafts.includes(item.user_name) && (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">overwrites draft</span>
-                        )}
-                      </div>
+                      <p className="text-sm font-medium text-gray-900">{item.user_name}</p>
                       <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5 flex-wrap">
-                        {item.pt_signups_count > 0 && <span>PT Signups: {formatSGD(item.pt_signup_commission_sgd)}</span>}
-                        {item.pt_sessions_count > 0 && <span>PT Sessions: {formatSGD(item.pt_session_commission_sgd)}</span>}
-                        {item.membership_sales_count > 0 && <span>Membership: {formatSGD(item.membership_commission_sgd)}</span>}
-                        {item.is_cpf_liable && item.employee_cpf_amount > 0 && <span className="text-amber-600">Employee CPF ({item.employee_cpf_rate}%): -{formatSGD(item.employee_cpf_amount)}</span>}
+                        {item.ptSessionTotal > 0 && <span>Sessions: {formatSGD(item.ptSessionTotal)}</span>}
+                        {item.ptSignupTotal > 0 && <span>Signups: {formatSGD(item.ptSignupTotal)}</span>}
+                        {item.membershipTotal > 0 && <span>Memberships: {formatSGD(item.membershipTotal)}</span>}
+                        {item.is_cpf_liable && item.employee_cpf_amount > 0 && (
+                          <span className="text-amber-600">CPF: -{formatSGD(item.employee_cpf_amount)}</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-bold text-green-700">{formatSGD(item.net_commission_sgd)}</p>
-                      {item.is_cpf_liable && item.employee_cpf_amount > 0 && <p className="text-xs text-gray-400">Gross: {formatSGD(item.total_commission_sgd)}</p>}
+                      <p className="text-sm font-bold text-green-700">{formatSGD(item.net_salary)}</p>
+                      {item.is_cpf_liable && item.employee_cpf_amount > 0 && (
+                        <p className="text-xs text-gray-400">Gross: {formatSGD(item.gross_salary)}</p>
+                      )}
                     </div>
                   </div>
                 ))}
                 <div className="p-3 bg-gray-50 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-900">Total</p>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-green-700">{formatSGD(preview.reduce((s, i) => s + i.net_commission_sgd, 0))}</p>
-                    {preview.some(i => i.employee_cpf_amount > 0) && <p className="text-xs text-gray-400">Gross: {formatSGD(preview.reduce((s, i) => s + i.total_commission_sgd, 0))}</p>}
-                  </div>
+                  <p className="text-sm font-bold text-green-700">{formatSGD(preview.reduce((s, i) => s + i.net_salary, 0))}</p>
                 </div>
               </div>
-              <button onClick={handleSavePayouts} disabled={saving} className="btn-primary w-full">
-                {saving ? 'Saving...' : showDraftWarning ? `Confirm & Overwrite ${existingDrafts.length} Draft(s)` : `Save ${preview.length} Payout Drafts`}
+              <button onClick={handleSave} disabled={saving || existingDrafts.length > 0} className="btn-primary w-full disabled:opacity-50">
+                {saving ? 'Saving...' : `Save ${preview.length} Draft Payslip${preview.length > 1 ? 's' : ''}`}
               </button>
             </div>
           )}
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -477,81 +393,46 @@ export default function CommissionPayoutsPage() {
         </div>
       </div>
 
-      {/* Payouts list */}
       {filtered.length === 0 ? (
-        <div className="card p-8 text-center"><TrendingUp className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No commission payouts found</p></div>
+        <div className="card p-8 text-center"><TrendingUp className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No commission payslips found</p></div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(payout => (
-            <div key={payout.id} className="card p-4">
+          {filtered.map(slip => (
+            <div key={slip.id} className="card p-4">
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-green-700 font-semibold text-sm">{payout.user?.full_name?.charAt(0)}</span>
+                  <span className="text-green-700 font-semibold text-sm">{slip.user?.full_name?.charAt(0)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-sm">{payout.user?.full_name}</p>
+                    <p className="font-semibold text-gray-900 text-sm">{slip.user?.full_name}</p>
                     <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
-                      payout.status === 'paid' ? 'bg-green-100 text-green-700' :
-                      payout.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'badge-pending')}>
-                      {payout.status.charAt(0).toUpperCase() + payout.status.slice(1)}
+                      slip.status === 'paid' ? 'bg-green-100 text-green-700' :
+                      slip.status === 'approved' ? 'bg-blue-100 text-blue-700' : 'badge-pending')}>
+                      {slip.status.charAt(0).toUpperCase() + slip.status.slice(1)}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">{payout.period_start} — {payout.period_end} · {payout.gym?.name}</p>
+                  <p className="text-xs text-gray-500">{getMonthName(slip.period_month)} {slip.period_year} · {slip.gym?.name}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
-                    {payout.pt_signups_count > 0 && <span>PT Sign-ups: {formatSGD(payout.pt_signup_commission_sgd)}</span>}
-                    {payout.pt_sessions_count > 0 && <span>Sessions: {formatSGD(payout.pt_session_commission_sgd)}</span>}
-                    {payout.membership_sales_count > 0 && <span>Memberships: {formatSGD(payout.membership_commission_sgd)}</span>}
-                    <span className="font-bold text-green-700">Total: {formatSGD(payout.total_commission_sgd)}</span>
+                    <span>Commission: {formatSGD(slip.commission_amount)}</span>
+                    {slip.deduction_amount > 0 && <span className="text-red-600">Deduction: -{formatSGD(slip.deduction_amount)}</span>}
+                    <span className="font-bold text-green-700">Net: {formatSGD(slip.net_salary)}</span>
                   </div>
-                  {payout.deduction_amount > 0 && (
-                    <p className="text-xs text-red-600 mt-0.5">Deduction: -{formatSGD(payout.deduction_amount)}{payout.deduction_reason ? ` — ${payout.deduction_reason}` : ''}</p>
-                  )}
-                  {payout.paid_at && <p className="text-xs text-green-600 mt-0.5">Paid {formatDate(payout.paid_at)}</p>}
-                  {/* Inline deduction editor — draft only */}
-                  {payout.status === 'draft' && isBizOps && (
-                    editingDeduction?.id === payout.id ? (
-                      <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
-                        <p className="text-xs font-medium text-gray-700">Edit Deduction</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="label text-xs">Amount (SGD)</label>
-                            <input className="input" type="number" min="0" step="0.01"
-                              value={editingDeduction?.amount ?? ''}
-                              onChange={e => setEditingDeduction(d => d ? {...d, amount: e.target.value} : null)} />
-                          </div>
-                          <div>
-                            <label className="label text-xs">Reason</label>
-                            <input className="input" type="text" placeholder="e.g. Cash advance recovery"
-                              value={editingDeduction?.reason ?? ''}
-                              onChange={e => setEditingDeduction(d => d ? {...d, reason: e.target.value} : null)} />
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={handleSaveDeduction} disabled={saving}
-                            className="btn-primary text-xs py-1.5 flex-1">{saving ? 'Saving...' : 'Save'}</button>
-                          <button onClick={() => setEditingDeduction(null)}
-                            className="btn-secondary text-xs py-1.5">Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setEditingDeduction({ id: payout.id, amount: (payout.deduction_amount || 0).toString(), reason: payout.deduction_reason || '' })}
-                        className="mt-1 text-xs text-gray-400 hover:text-gray-600 underline">
-                        {payout.deduction_amount > 0 ? 'Edit deduction' : '+ Add deduction'}
+                  {slip.paid_at && <p className="text-xs text-green-600 mt-0.5">Paid {new Date(slip.paid_at).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' })}</p>}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {slip.status === 'draft' && (
+                    <>
+                      <button onClick={() => handleStatusChange(slip.id, 'approved')} className="btn-primary text-xs py-1.5">Approve</button>
+                      <button onClick={() => handleDelete(slip.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete draft">
+                        <Trash2 className="w-4 h-4" />
                       </button>
-                    )
+                    </>
+                  )}
+                  {slip.status === 'approved' && (
+                    <button onClick={() => handleStatusChange(slip.id, 'paid')} className="btn-primary text-xs py-1.5">Mark Paid</button>
                   )}
                 </div>
-                {isBizOps && (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {payout.status === 'draft' && (
-                      <button onClick={() => handleStatusChange(payout.id, 'approved')} className="btn-primary text-xs py-1.5">Approve</button>
-                    )}
-                    {payout.status === 'approved' && (
-                      <button onClick={() => handleStatusChange(payout.id, 'paid')} className="btn-primary text-xs py-1.5">Mark Paid</button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           ))}

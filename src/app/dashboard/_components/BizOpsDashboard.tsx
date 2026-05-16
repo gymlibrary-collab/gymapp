@@ -68,7 +68,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
       const shiftYear = parseInt(shift.shift_date.split('-')[0])
       const { data: existingPayslip } = await supabase.from('payslips')
         .select('id, status').eq('user_id', shift.user_id)
-        .eq('gym_id', shift.gym_id).eq('month', shiftMonth).eq('year', shiftYear)
+        .eq('gym_id', shift.gym_id).eq('period_month', shiftMonth).eq('period_year', shiftYear)
         .in('status', ['approved', 'paid']).maybeSingle()
       if (existingPayslip) {
         await supabase.from('pending_deductions').insert({
@@ -396,7 +396,7 @@ function BizOpsGymTabs() {
         { data: allMembers },
         { data: allMemSales },
         { data: allSessions },
-        { data: allPayouts },
+        { data: allCommItems },
       ] = await Promise.all([
         supabase.from('sessions').select('gym_id, scheduled_at, status, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name)').in('gym_id', gymIds).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
         supabase.from('gym_memberships').select('gym_id').in('gym_id', gymIds).eq('sale_status', 'pending'),
@@ -407,7 +407,7 @@ function BizOpsGymTabs() {
         supabase.from('members').select('gym_id').in('gym_id', gymIds),
         supabase.from('gym_memberships').select('gym_id, price_sgd').in('gym_id', gymIds).eq('sale_status', 'confirmed').gte('created_at', monthStart),
         supabase.from('sessions').select('gym_id, session_commission_sgd').in('gym_id', gymIds).eq('status', 'completed').gte('marked_complete_at', monthStart),
-        supabase.from('commission_payouts').select('gym_id, total_commission_sgd').in('gym_id', gymIds).in('status', ['approved', 'paid']).gte('generated_at', monthStart),
+        supabase.from('commission_items').select('gym_id, amount, payslip_id').in('gym_id', gymIds).gte('created_at', monthStart),
       ])
 
       // Per-gym assembly — escalation check stays sequential (write op)
@@ -423,7 +423,7 @@ function BizOpsGymTabs() {
         const memberCount     = (allMembers || []).filter((m: any) => m.gym_id === gId).length
         const gymMemSales     = (allMemSales || []).filter((m: any) => m.gym_id === gId)
         const gymSessions     = (allSessions || []).filter((s: any) => s.gym_id === gId)
-        const gymPayouts      = (allPayouts || []).filter((p: any) => p.gym_id === gId)
+        const gymCommItems    = (allCommItems || []).filter((p: any) => p.gym_id === gId)
 
         // membership_expiry escalation moved to /api/cron/expire-memberships
 
@@ -434,7 +434,7 @@ function BizOpsGymTabs() {
           members: memberCount, membershipSalesCount: gymMemSales.length,
           membershipRevenue: gymMemSales.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0),
           sessionsCount: gymSessions.length,
-          commissionPayout: gymPayouts.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0),
+          commissionPayout: gymCommItems.reduce((s: number, p: any) => s + (p.amount || 0), 0),
         })
       }
       setGyms(enriched)

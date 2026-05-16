@@ -94,7 +94,7 @@ export default function NotificationBanners({
           <FileText className="w-5 h-5 text-green-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">
-              New payslip available — {getMonthName(newPayslip.month)} {newPayslip.year}
+              New payslip available — {getMonthName(newPayslip.period_month)} {newPayslip.period_year}
             </p>
             <p className="text-xs text-green-600 mt-0.5">
               {newPayslip.status === 'paid' ? 'Paid' : 'Approved'} · Net {formatSGD(newPayslip.net_salary)}
@@ -104,23 +104,23 @@ export default function NotificationBanners({
         </Link>
       )}
 
-      {/* ── Commission payout notification ── */}
+      {/* ── Commission payslip notification ── */}
       {newCommission && (
         <Link
-          href="/dashboard/my/payslips?tab=commission"
+          href="/dashboard/my/payslips"
           onClick={onDismissPayslipNotif}
           className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-4 hover:bg-green-100 transition-colors"
         >
           <DollarSign className="w-5 h-5 text-green-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">
-              Commission payout approved —{' '}
-              {newCommission.period_start
-                ? new Date(newCommission.period_start).toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
+              Commission payslip approved —{' '}
+              {newCommission.period_month
+                ? getMonthName(newCommission.period_month) + ' ' + newCommission.period_year
                 : ''}
             </p>
             <p className="text-xs text-green-600 mt-0.5">
-              {formatSGD(newCommission.total_commission_sgd)} ready for collection
+              {formatSGD(newCommission.commission_amount)} ready for collection
             </p>
           </div>
           <ChevronRight className="w-4 h-4 text-green-400 flex-shrink-0" />

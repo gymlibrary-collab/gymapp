@@ -103,22 +103,30 @@ export default function PackageSalesPage() {
 
   const handleConfirm = async (pkg: any) => {
     setConfirming(pkg.id)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const { error: err } = await supabase.from('packages').update({
-      manager_confirmed: true,
-      manager_confirmed_by: authUser!.id,
-      manager_confirmed_at: new Date().toISOString(),
-    }).eq('id', pkg.id)
-    if (err) { setError('Failed to confirm: ' + err.message); setConfirming(null); return }
+    const res = await fetch('/api/confirm-package', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageId: pkg.id }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      setError('Failed to confirm: ' + (data.error || 'Unknown error'))
+      setConfirming(null)
+      return
+    }
     showMsg('Package confirmed')
-    logActivity('confirm', 'PT Package Sales', 'Confirmed PT package sale')
+    logActivity('confirm', 'PT Package Sales', `Confirmed PT package — ${pkg.package_name}, trainer: ${pkg.trainer?.full_name || ''}`)
     setConfirming(null)
     loadData()
   }
 
   const handleReject = async (pkg: any) => {
     // ── Check 1: Commission already paid ─────────────────────
-    if (pkg.signup_commission_paid) {
+    // Check if commission item for this package has been paid (payslip_id not null)
+    const { data: paidItem } = await supabase.from('commission_items')
+      .select('id').eq('source_type', 'pt_signup').eq('source_id', pkg.id)
+      .not('payslip_id', 'is', null).maybeSingle()
+    if (paidItem) {
       setError("Commission has already been paid for this package. Handle as a manual adjustment in next month's payout — rejection is not possible.")
       return
     }

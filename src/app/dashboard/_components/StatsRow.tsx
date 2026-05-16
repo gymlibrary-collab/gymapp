@@ -37,9 +37,9 @@ interface StatsRowProps {
     ptSessionTotal?: number
     ptSignupTotal?: number
     membershipTotal?: number
-    membershipRevenue: number
-    membershipSalesCount: number
-    totalCommissionPayout: number
+    membershipRevenue?: number
+    membershipSalesCount?: number
+    totalCommissionPayout?: number
   }
   /** Commission stats (may differ from stats.commission if period navigator is used) */
   commissionStats: {

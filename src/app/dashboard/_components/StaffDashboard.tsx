@@ -55,7 +55,7 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([])
   const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
   const [calendarOffset, setCalendarOffset] = useState(0)
-  const [stats, setStats] = useState<any>({ members: 0, packages: 0, sessions: 0, commission: 0, sessionCommission: 0, signupCommission: 0, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
+  const [stats, setStats] = useState<any>({ members: 0, packages: 0, sessions: 0, commission: 0, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
   const [commissionStats, setCommissionStats] = useState<any>({ total: 0, session: 0, signup: 0, membership: 0 })
   const [commissionLoading, setCommissionLoading] = useState(false)
   const [commissionOffset, setCommissionOffset] = useState(0)
@@ -144,8 +144,6 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
           packages: pkgCount || 0,
           sessions: sessData?.length || 0,
           commission: 0,
-          sessionCommission: 0,
-          signupCommission: 0,
           membershipRevenue: memSalesData?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0,
           membershipSalesCount: memSalesData?.length || 0,
           totalCommissionPayout: 0,

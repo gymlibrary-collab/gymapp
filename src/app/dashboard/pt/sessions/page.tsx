@@ -88,12 +88,23 @@ export default function PtSessionsPage() {
   const isTrainer = user?.role === 'trainer' || isActingAsTrainer
   const isStaff = user?.role === 'staff'
 
-  const handleManagerConfirm = async (sessionId: string) => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    await supabase.from('sessions').update({
-      manager_confirmed: true, manager_confirmed_by: authUser!.id,
-      manager_confirmed_at: new Date().toISOString(),
-    }).eq('id', sessionId)
+  const handleManagerConfirm = async (sessionId: string, action: 'confirm' | 'reverse' = 'confirm') => {
+    const res = await fetch('/api/confirm-session-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, action }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      alert('Failed: ' + (data.error || 'Unknown error'))
+      return
+    }
+    const session = sessions.find((s: any) => s.id === sessionId)
+    if (action === 'confirm') {
+      logActivity('confirm', 'PT Sessions', `Confirmed session notes — trainer: ${session?.trainer?.full_name || ''}, member: ${session?.member?.full_name || ''}`)
+    } else {
+      logActivity('update', 'PT Sessions', `Reversed session note confirmation — trainer: ${session?.trainer?.full_name || ''}, member: ${session?.member?.full_name || ''}`)
+    }
     loadSessions()
   }
 

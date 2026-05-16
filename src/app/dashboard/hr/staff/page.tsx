@@ -235,47 +235,14 @@ export default function TrainersPage() {
     checks.payslips = payslips || []
 
     // Unpaid commission payouts
-    const { data: commissions } = await supabase.from('commission_payouts')
-      .select('id, period_start, period_end, total_commission_sgd, status')
-      .eq('user_id', userId).in('status', ['draft', 'approved'])
+    const { data: commissions } = await supabase.from('payslips')
+      .select('*').eq('user_id', userId)
+      .in('payment_type', ['commission', 'combined'])
+      .in('status', ['approved', 'paid'])
+      .order('period_year', { ascending: false })
+      .order('period_month', { ascending: false })
+      .limit(24)
     checks.commissions = commissions || []
-
-    // Future roster shifts
-    const today = todaySGT()
-    const { data: roster } = await supabase.from('duty_roster')
-      .select('id, shift_date, gym_id').eq('user_id', userId).gte('shift_date', today)
-    checks.roster = roster || []
-
-    // Unconfirmed package sales
-    const { data: packages } = await supabase.from('packages')
-      .select('id, package_name, created_at').eq('trainer_id', userId).eq('manager_confirmed', false)
-    checks.packages = packages || []
-
-    // Active PT packages with remaining sessions
-    const { data: activePkgs } = await supabase.from('packages')
-      .select('id, package_name, total_sessions, sessions_used, member:members(full_name)')
-      .eq('trainer_id', userId).eq('status', 'active')
-    checks.activePkgs = activePkgs?.filter((p: any) => p.sessions_used < p.total_sessions) || []
-
-    setOffboardingTicks({ accessCard: false, portalAccess: false, companyItems: false })
-    setOffboardingChecklist({ member, checks })
-  }
-
-  const handleConfirmOffboarding = async () => {
-    if (!offboardingChecklist) return
-    setCompletingOffboard(true)
-    // Save departure date + mark offboarding complete
-    const res = await fetch('/api/staff', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: offboardingChecklist.member.id,
-        date_of_departure: editForm.date_of_departure,
-        departure_reason: editForm.departure_reason,
-        offboarding_completed_at: new Date().toISOString(),
-      }),
-    })
-    if (!res.ok) { setError('Failed to complete offboarding'); setCompletingOffboard(false); return }
     setOffboardingChecklist(null)
     setCompletingOffboard(false)
     await loadData()

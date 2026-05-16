@@ -29,7 +29,7 @@ export default function StaffPayrollDetailPage() {
   const [salaryHistory, setSalaryHistory] = useState<any[]>([])
   const [bonuses, setBonuses] = useState<any[]>([])
   const [payslips, setPayslips] = useState<any[]>([])
-  const [commissionPayouts, setCommissionPayouts] = useState<any[]>([])
+  const [commissionPayouts, setCommissionPayouts] = useState<any[]>([]) // now payslips with payment_type=commission
   const [rosterSummary, setRosterSummary] = useState<any[]>([])
   const [cpfRates, setCpfRates] = useState<any>(null)
   const [payslipBranding, setPayslipBranding] = useState<{logoUrl: string|null, companyName: string, gymName: string}>({ logoUrl: null, companyName: 'Gym Operations', gymName: 'Gym Operations' })
@@ -87,7 +87,11 @@ export default function StaffPayrollDetailPage() {
     setPayslips(slipData || [])
 
     const payoutYearFrom = `${(new Date(Date.now()+8*60*60*1000).getUTCFullYear() - 1)}-01-01`
-    const { data: payoutData } = await supabase.from('commission_payouts').select('*').eq('user_id', id).gte('period_start', payoutYearFrom).order('period_start', { ascending: false })
+    const { data: payoutData } = await supabase.from('payslips')
+      .select('*').eq('user_id', id)
+      .in('payment_type', ['commission', 'combined'])
+      .in('status', ['draft', 'approved', 'paid'])
+      .order('period_year', { ascending: false }).order('period_month', { ascending: false })
     setCommissionPayouts(payoutData || [])
 
     // For part-timers: load last 3 months roster summary
@@ -185,7 +189,7 @@ export default function StaffPayrollDetailPage() {
 
     // Block overwriting approved/paid payslips
     const { data: existing } = await supabase.from('payslips')
-      .select('id, status').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear).maybeSingle()
+      .select('id, status').eq('user_id', id as string).eq('period_month', pMonth).eq('period_year', pYear).eq('payment_type', 'salary').maybeSingle()
     if (existing && (existing.status === 'approved' || existing.status === 'paid')) {
       setError(`A ${existing.status} payslip already exists for this month and cannot be overwritten.`)
       setSaving(false); return
@@ -256,11 +260,11 @@ export default function StaffPayrollDetailPage() {
 
     // ── YTD Ordinary Wages (prior approved/paid payslips this year) ──
     const { data: ytdSlips } = await supabase.from('payslips')
-      .select('basic_salary, aw_subject_to_cpf, month')
-      .eq('user_id', id as string).eq('year', pYear)
+      .select('salary_amount, aw_subject_to_cpf, period_month')
+      .eq('user_id', id as string).eq('period_year', pYear)
       .in('status', ['approved', 'paid'])
       .neq('month', pMonth)
-    const ytdOWBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.basic_salary || 0), 0) || 0
+    const ytdOWBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.salary_amount || 0), 0) || 0
     const ytdAWCpfBefore = ytdSlips?.reduce((s: number, p: any) => s + (p.aw_subject_to_cpf || 0), 0) || 0
 
     // ── CPF Calculation ───────────────────────────────────────
@@ -341,15 +345,16 @@ export default function StaffPayrollDetailPage() {
     const gymId = staff?.trainer_gyms?.[0]?.gym_id || staff?.manager_gym_id || null
     await supabase.from('payslips')
       .delete()
-      .eq('user_id', id).eq('month', pMonth).eq('year', pYear)
+      .eq('user_id', id).eq('period_month', pMonth).eq('period_year', pYear)
+      .eq('payment_type', 'salary')
       .is('gym_id', gymId ? undefined : null)
       .eq('status', 'draft')
 
     const { error: err } = await supabase.from('payslips').insert({
-      user_id: id, month: pMonth, year: pYear,
+      user_id: id, period_month: pMonth, period_year: pYear, payment_type: 'salary',
       gym_id: gymId,
       employment_type: staff?.employment_type || 'full_time',
-      basic_salary: basicSalary, bonus_amount: bonusAmt,
+      salary_amount: basicSalary, bonus_amount: bonusAmt,
       total_hours: isPartTime ? totalHours : null,
       hourly_rate_used: isPartTime ? (staff?.hourly_rate || 0) : null,
       is_cpf_liable: isCpf,
@@ -380,8 +385,8 @@ export default function StaffPayrollDetailPage() {
 
     // Fetch the newly inserted payslip to get its ID
     const { data: newPs } = await supabase.from('payslips')
-      .select('id').eq('user_id', id as string).eq('month', pMonth).eq('year', pYear)
-      .eq('status', 'draft').maybeSingle()
+      .select('id').eq('user_id', id as string).eq('period_month', pMonth).eq('period_year', pYear)
+      .eq('payment_type', 'salary').eq('status', 'draft').maybeSingle()
     if (newPs?.id) {
       // Stamp payslip_id on roster rows — prevents double payment
       if (rosterShiftIds.length > 0) {
@@ -431,10 +436,10 @@ export default function StaffPayrollDetailPage() {
       staff_name: staff?.full_name || 'Unknown',
       gym_id: ps.gym_id || null,
       gym_name: ps.gym?.name || null,
-      month: ps.month,
-      year: ps.year,
+      period_month: ps.period_month,
+      period_year: ps.period_year,
       employment_type: ps.employment_type,
-      basic_salary: ps.basic_salary,
+      salary_amount: ps.salary_amount,
       bonus_amount: ps.bonus_amount,
       gross_salary: ps.gross_salary,
       net_salary: ps.net_salary,
@@ -468,10 +473,11 @@ export default function StaffPayrollDetailPage() {
         deduction_reason: editingDeduction.reason.trim() || null,
       }).eq('id', editingDeduction.id).eq('status', 'draft')
     } else {
-      await supabase.from('commission_payouts').update({
+      await supabase.from('payslips').update({
         deduction_amount: amount,
         deduction_reason: editingDeduction.reason.trim() || null,
-      }).eq('id', editingDeduction.id).eq('status', 'pending')
+        net_salary: ((payslips.find((p: any) => p.id === editingDeduction.id) || commissionPayouts.find((p: any) => p.id === editingDeduction.id))?.gross_salary || 0) - amount - ((payslips.find((p: any) => p.id === editingDeduction.id) || commissionPayouts.find((p: any) => p.id === editingDeduction.id))?.employee_cpf_amount || 0),
+      }).eq('id', editingDeduction.id).eq('status', 'draft')
     }
     logActivity('update', 'Staff Payroll', `Updated deduction on ${editingDeduction.type}`)
     setEditingDeduction(null)

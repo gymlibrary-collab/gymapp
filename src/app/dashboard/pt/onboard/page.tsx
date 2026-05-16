@@ -139,7 +139,6 @@ export default function PtOnboardPage() {
       signup_commission_pct: currentUser?.commission_signup_pct || 10,
       session_commission_pct: currentUser?.commission_session_pct || 15,
       signup_commission_sgd: selectedTemplate.default_price_sgd * (currentUser?.commission_signup_pct || 10) / 100,
-      signup_commission_paid: false,
       manager_confirmed: false,
       is_shared: !!form.secondary_member_id,
       secondary_member_id: form.secondary_member_id || null,

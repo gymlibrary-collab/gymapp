@@ -68,7 +68,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   const [upcomingSessions, setUpcomingSessions] = useState<any[]>([])
   const [gymScheduleSessions, setGymScheduleSessions] = useState<any[]>([])
   const [calendarOffset, setCalendarOffset] = useState(0)
-  const [stats, setStats] = useState<any>({ members: 0, packages: 0, sessions: 0, commission: 0, sessionCommission: 0, signupCommission: 0, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
+  const [stats, setStats] = useState<any>({ members: 0, packages: 0, sessions: 0, commission: 0, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
   const [commissionStats, setCommissionStats] = useState<any>({ session: 0, signup: 0, membership: 0, total: 0 })
   const [commissionLoading, setCommissionLoading] = useState(false)
   const [commissionOffset, setCommissionOffset] = useState(0)
@@ -103,27 +103,25 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   const loadCommissionStats = useCallback(async (periodStart: string, periodEnd: string) => {
     setCommissionLoading(true)
     const d = new Date(periodStart)
-    setCommissionPeriodLabel(`${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`)
+    const periodMonth = d.getMonth() + 1
+    const periodYear = d.getFullYear()
+    setCommissionPeriodLabel(`${getMonthName(periodMonth)} ${periodYear}`)
     setCommissionPeriodStart(periodStart)
     setCommissionPeriodEnd(periodEnd)
 
     if (!gymId) { setCommissionLoading(false); return }
 
-    const { data: sessSales } = await supabase.from('sessions')
-      .select('session_commission_sgd').eq('gym_id', gymId).eq('status', 'completed')
-      .not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
-      .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
-    const sessionComm = sessSales?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+    // Read from commission_items — single source of truth
+    const { data: items } = await supabase.from('commission_items')
+      .select('source_type, amount')
+      .eq('gym_id', gymId)
+      .eq('period_month', periodMonth)
+      .eq('period_year', periodYear)
 
-    const { data: pkgSales } = await supabase.from('packages')
-      .select('signup_commission_sgd').eq('gym_id', gymId).eq('manager_confirmed', true)
-      .gte('created_at', periodStart).lte('created_at', periodEnd)
-    const signupComm = pkgSales?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
-
-    const { data: memSales } = await supabase.from('gym_memberships')
-      .select('commission_sgd').eq('gym_id', gymId).eq('sale_status', 'confirmed')
-      .gte('created_at', periodStart).lte('created_at', periodEnd)
-    const membershipComm = memSales?.reduce((s: number, m: any) => s + (m.commission_sgd || 0), 0) || 0
+    const rows = items || []
+    const sessionComm = rows.filter((r: any) => r.source_type === 'pt_session').reduce((s: number, r: any) => s + (r.amount || 0), 0)
+    const signupComm = rows.filter((r: any) => r.source_type === 'pt_signup').reduce((s: number, r: any) => s + (r.amount || 0), 0)
+    const membershipComm = rows.filter((r: any) => r.source_type === 'membership').reduce((s: number, r: any) => s + (r.amount || 0), 0)
 
     setCommissionStats({ session: sessionComm, signup: signupComm, membership: membershipComm, total: sessionComm + signupComm + membershipComm })
     setCommissionLoading(false)
@@ -137,24 +135,22 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       body: JSON.stringify({ user_id: user.id, user_name: user.full_name, role: user.role, action_type: 'other', page: 'Commission Breakdown', description: `Viewed commission breakdown by ${groupBy}` }),
     }).catch(() => {})
 
-    let sessQ = supabase.from('sessions')
-      .select('session_commission_sgd, trainer_id, trainer:users!sessions_trainer_id_fkey(full_name)')
-      .eq('status', 'completed').not('notes_submitted_at', 'is', null).eq('manager_confirmed', true)
-      .gte('marked_complete_at', periodStart).lte('marked_complete_at', periodEnd)
-    if (gymId) sessQ = sessQ.eq('gym_id', gymId)
-    const sessData = await sessQ
+    const d = new Date(periodStart)
+    const periodMonth = d.getMonth() + 1
+    const periodYear = d.getFullYear()
 
-    let pkgQ = supabase.from('packages')
-      .select('signup_commission_sgd, trainer_id, trainer:users!packages_trainer_id_fkey(full_name)')
-      .eq('manager_confirmed', true).gte('created_at', periodStart).lte('created_at', periodEnd)
-    if (gymId) pkgQ = pkgQ.eq('gym_id', gymId)
-    const pkgData = await pkgQ
+    // commission_items is the source of truth — one query with user join
+    let itemsQ = supabase.from('commission_items')
+      .select('source_type, amount, user_id, user:users!commission_items_user_id_fkey(full_name)')
+      .eq('period_month', periodMonth).eq('period_year', periodYear)
+    if (gymId) itemsQ = itemsQ.eq('gym_id', gymId)
+    const { data: itemsData } = await itemsQ
+    const allItems = itemsData || []
 
-    let memQ = supabase.from('gym_memberships')
-      .select('commission_sgd, sold_by_user_id, sold_by:users!gym_memberships_sold_by_user_id_fkey(full_name)')
-      .eq('sale_status', 'confirmed').gte('created_at', periodStart).lte('created_at', periodEnd)
-    if (gymId) memQ = memQ.eq('gym_id', gymId)
-    const memData = await memQ
+    // Shim: map to legacy variable names used below
+    const sessData = { data: allItems.filter((i: any) => i.source_type === 'pt_session').map((i: any) => ({ session_commission_sgd: i.amount, trainer_id: i.user_id, trainer: i.user })) }
+    const pkgData = { data: allItems.filter((i: any) => i.source_type === 'pt_signup').map((i: any) => ({ signup_commission_sgd: i.amount, trainer_id: i.user_id, trainer: i.user })) }
+    const memData = { data: allItems.filter((i: any) => i.source_type === 'membership').map((i: any) => ({ commission_sgd: i.amount, sold_by_user_id: i.user_id, sold_by: i.user })) }
 
     if (groupBy === 'staff') {
       const byStaff: Record<string, any> = {}
@@ -232,11 +228,12 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       const { count: pkgCount } = await supabase.from('packages').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'active')
       const { data: sessData } = await supabase.from('sessions').select('session_commission_sgd').eq('gym_id', gymId).eq('status', 'completed').gte('marked_complete_at', monthStart)
       const { data: memSalesData } = await supabase.from('gym_memberships').select('price_sgd, commission_sgd').eq('gym_id', gymId).eq('sale_status', 'confirmed').gte('created_at', monthStart)
-      const { data: payoutData } = await supabase.from('commission_payouts').select('total_commission_sgd').eq('gym_id', gymId).in('status', ['approved', 'paid']).gte('generated_at', monthStart)
+      // commission_payouts removed — commission items tracked via commission_items
+      const payoutData: any[] = []
 
       const membershipRevenue = memSalesData?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0
-      const totalCommissionPayout = payoutData?.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0) || 0
-      setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: 0, sessionCommission: 0, signupCommission: 0, membershipRevenue, membershipSalesCount: memSalesData?.length || 0, totalCommissionPayout })
+      const totalCommissionPayout = 0 // now read from commission_items via loadCommissionStats
+      setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: 0, membershipRevenue, membershipSalesCount: memSalesData?.length || 0, totalCommissionPayout })
 
       // ── Pending confirmations ──────────────────────────────
       setPendingMemberships(await fetchPendingMemberships(supabase, gymId))

@@ -49,7 +49,7 @@ export default function PayrollPage() {
     // Issue 7: Guard — only business_ops can access payroll
     // Load all active staff with payroll profile — exclude admin (no payroll)
     const { data: staff } = await supabase
-      .from('users')
+      .from('users_safe')
       .select('*, staff_payroll(*)')
       .eq('is_archived', false)
       .neq('role', 'admin')
@@ -89,7 +89,7 @@ export default function PayrollPage() {
     const currentYear = new Date().getFullYear()
     const { data: ytdSlips } = await supabase.from('payslips')
       .select('user_id, capped_ow')
-      .eq('year', currentYear)
+      .eq('period_year', currentYear)
       .in('status', ['approved', 'paid'])
     const ytdMap: Record<string, number> = {}
     ytdSlips?.forEach((s: any) => {
@@ -129,7 +129,7 @@ export default function PayrollPage() {
     const allIds = staffList.map(m => m.id)
     const { data: existingDraftCheck } = await supabase.from('payslips')
       .select('user_id, users!payslips_user_id_fkey(full_name)')
-      .in('user_id', allIds).eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
+      .in('user_id', allIds).eq('period_month', bulkMonth).eq('period_year', bulkYear).eq('status', 'draft')
     const draftNames = (existingDraftCheck || []).map((p: any) => (p as any).users?.full_name).filter(Boolean)
     if (draftNames.length > 0 && !pendingBulkGenerate) {
       setBulkDraftWarning(draftNames)
@@ -147,7 +147,7 @@ export default function PayrollPage() {
     // Batch-load everything upfront before the loop.
     // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
     const existingRes = await supabase.from('payslips').select('user_id, gym_id')
-      .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
+      .in('user_id', allUserIds).eq('period_month', bulkMonth).eq('period_year', bulkYear)
     // Part-timers: load roster grouped by gym_id so we generate one payslip per gym
     const rosterRes = await supabase.from('duty_roster').select('user_id, gym_id, hours_worked, gross_pay, id')
       .in('user_id', allUserIds)
@@ -155,7 +155,7 @@ export default function PayrollPage() {
       .eq('status', 'completed')
       .is('payslip_id', null)  // only unpaid shifts
     const bonusRes = await supabase.from('staff_bonuses').select('user_id, amount')
-      .in('user_id', allUserIds).eq('month', bulkMonth).eq('year', bulkYear)
+      .in('user_id', allUserIds).eq('period_month', bulkMonth).eq('period_year', bulkYear)
     // Load pending deductions (overpayment recovery from dispute approvals)
     const deductionRes = await supabase.from('pending_deductions')
       .select('user_id, gym_id, amount, reason, id')
@@ -171,7 +171,7 @@ export default function PayrollPage() {
     // Clear payslip_id on roster rows linked to draft payslips before deleting
     // (ON DELETE SET NULL handles this via FK, but explicit clear is more reliable)
     const { data: draftPayslips } = await supabase.from('payslips')
-      .select('id').eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
+      .select('id').eq('period_month', bulkMonth).eq('period_year', bulkYear).eq('status', 'draft')
     if (draftPayslips && draftPayslips.length > 0) {
       const draftIds = draftPayslips.map((p: any) => p.id)
       await supabase.from('duty_roster')
@@ -179,7 +179,7 @@ export default function PayrollPage() {
     }
     // Delete all existing DRAFT payslips for this month — regeneration overwrites them
     await supabase.from('payslips')
-      .delete().eq('month', bulkMonth).eq('year', bulkYear).eq('status', 'draft')
+      .delete().eq('period_month', bulkMonth).eq('period_year', bulkYear).eq('status', 'draft')
     // rosterByUserGym: { userId: { gymId: { hours, pay } } }
     const rosterByUserGym: Record<string, Record<string, {hours: number, pay: number, shiftIds: string[]}>> = {}
     rosterRes.data?.forEach((r: any) => {
@@ -229,10 +229,10 @@ export default function PayrollPage() {
           const deduction = deductionByUserGym[deductKey]
           if (deduction) deduction.ids.forEach(id => appliedDeductionIds.push(id))
           toInsert.push({
-            user_id: member.id, month: bulkMonth, year: bulkYear,
-            gym_id: actualGymId,
+            user_id: member.id, period_month: bulkMonth, period_year: bulkYear,
+            payment_type: 'salary', gym_id: actualGymId,
             employment_type: 'part_time',
-            basic_salary: roster.pay, bonus_amount: 0,
+            salary_amount: roster.pay, bonus_amount: 0,
             total_hours: roster.hours,
             hourly_rate_used: member.hourly_rate || 0,
             is_cpf_liable: isCpf,
@@ -256,10 +256,10 @@ export default function PayrollPage() {
         if (basicSalary === 0) { noSalaryNames.push(member.full_name); skipped++; continue }
         const bonusAmt = bonusByUser[member.id] || 0
         toInsert.push({
-          user_id: member.id, month: bulkMonth, year: bulkYear,
-          gym_id: gymId,
+          user_id: member.id, period_month: bulkMonth, period_year: bulkYear,
+          payment_type: 'salary', gym_id: gymId,
           employment_type: member.employment_type || 'full_time',
-          basic_salary: basicSalary, bonus_amount: bonusAmt,
+          salary_amount: basicSalary, bonus_amount: bonusAmt,
           total_hours: null, hourly_rate_used: null,
           is_cpf_liable: isCpf,
           employee_cpf_rate: isCpf ? rates.employee_rate : 0,
@@ -303,8 +303,8 @@ export default function PayrollPage() {
     setBulkGenerating(true)
     const { error } = await supabase.from('payslips')
       .delete()
-      .eq('month', bulkMonth)
-      .eq('year', bulkYear)
+      .eq('period_month', bulkMonth)
+      .eq('period_year', bulkYear)
       .eq('status', 'draft')
     if (error) { alert('Delete failed: ' + error.message); setBulkGenerating(false); return }
     setBulkResult(null)
@@ -610,7 +610,7 @@ export default function PayrollPage() {
                       <p className="text-sm font-bold text-gray-900">{formatSGD(payroll.current_salary)}</p>
                       {(() => {
                         const ytd = ytdOW[member.id] || 0
-                        const OW_ANNUAL_CEILING = 102000
+                        const OW_ANNUAL_CEILING = 102000 // TODO: read from cpf_age_brackets via getCpfCeilings()
                         if (ytd >= OW_ANNUAL_CEILING - 10000 && ytd < OW_ANNUAL_CEILING) {
                           return <p className="text-xs text-amber-600 mt-0.5">⚠ YTD OW {formatSGD(ytd)} — {formatSGD(OW_ANNUAL_CEILING - ytd)} below annual ceiling</p>
                         }

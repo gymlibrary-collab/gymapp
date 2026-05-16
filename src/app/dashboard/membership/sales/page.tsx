@@ -102,13 +102,19 @@ export default function MembershipSalesPage() {
   }
 
   const handleConfirm = async (id: string) => {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    await supabase.from('gym_memberships').update({
-      sale_status: 'confirmed', status: 'active',
-      confirmed_by: authUser!.id, confirmed_at: new Date().toISOString(),
-    }).eq('id', id)
+    const res = await fetch('/api/confirm-membership-sale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gymMembershipId: id }),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      showMsg('Failed to confirm: ' + (data.error || 'Unknown error'))
+      return
+    }
+    const sale = [...allGymSales, ...mySales].find((s: any) => s.id === id)
     await load(); showMsg('Sale confirmed')
-    logActivity('confirm', 'Membership Sales', 'Confirmed membership sale')
+    logActivity('confirm', 'Membership Sales', `Confirmed membership sale — member: ${sale?.member?.full_name || ''}, sold by: ${sale?.sold_by?.full_name || ''}`)
   }
 
   const handleReject = async () => {

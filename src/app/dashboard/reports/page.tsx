@@ -81,7 +81,7 @@ export default function ReportsPage() {
         const sIds = await getGymStaffIds(supabase, g.id)
         let payroll = 0
         if (sIds.length > 0) {
-          const { data: pays } = await supabase.from('payslips').select('gross_salary,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid']).in('user_id',sIds)
+          const { data: pays } = await supabase.from('payslips').select('gross_salary,employer_cpf_amount').eq('period_month',month).eq('period_year',year).in('status',['approved','paid']).in('user_id',sIds)
           payroll = (pays||[]).reduce((s:number,p:any)=>s+(p.gross_salary||0)+(p.employer_cpf_amount||0),0)
         }
         const memRev = (mem||[]).reduce((s:number,m:any)=>s+(m.price_sgd||0),0)
@@ -122,12 +122,12 @@ export default function ReportsPage() {
     const totalActive = new Set([...Array.from(activeMemberIds),...Array.from(activePkgIds)]).size
 
     // PT packages
-    let ptQ = supabase.from('packages').select('id,trainer_id,member_id,secondary_member_id,total_price_sgd,signup_commission_sgd,signup_commission_paid').eq('manager_confirmed',true).neq('status','cancelled').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
+    let ptQ = supabase.from('packages').select('id,trainer_id,member_id,secondary_member_id,total_price_sgd,signup_commission_sgd').eq('manager_confirmed',true).neq('status','cancelled').gte('created_at',monthStart).lte('created_at',monthEnd+'T23:59:59')
     if (gymId) ptQ = ptQ.eq('gym_id',gymId)
     const { data: ptSales } = await ptQ
 
     // Sessions completed
-    let sessQ = supabase.from('sessions').select('trainer_id,session_commission_sgd,commission_paid').eq('status','completed').eq('manager_confirmed',true).not('notes_submitted_at','is',null).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
+    let sessQ = supabase.from('sessions').select('trainer_id,session_commission_sgd').eq('status','completed').eq('manager_confirmed',true).not('notes_submitted_at','is',null).gte('marked_complete_at',monthStart).lte('marked_complete_at',monthEnd+'T23:59:59')
     if (gymId) sessQ = sessQ.eq('gym_id',gymId)
     const { data: ptSessions } = await sessQ
 
@@ -162,8 +162,8 @@ export default function ReportsPage() {
       ;(activePkgsForTrainer||[]).filter((p:any)=>p.trainer_id===t.id).forEach((p:any)=>{ if(p.member_id) mIds.add(p.member_id); if(p.secondary_member_id) mIds.add(p.secondary_member_id) })
       const signupComm = myPkgs.reduce((s:number,p:any)=>s+(p.signup_commission_sgd||0),0)
       const sessComm   = mySess.reduce((s:number,s2:any)=>s+(s2.session_commission_sgd||0),0)
-      const signupPaid = myPkgs.filter((p:any)=>p.signup_commission_paid).reduce((s:number,p:any)=>s+(p.signup_commission_sgd||0),0)
-      const sessPaid   = mySess.filter((s:any)=>s.commission_paid).reduce((s:number,s2:any)=>s+(s2.session_commission_sgd||0),0)
+      const signupPaid = 0 // paid status now tracked via commission_items.payslip_id
+      const sessPaid   = 0 // paid status now tracked via commission_items.payslip_id
       return { id:t.id, name:t.full_name, nickname:t.nickname||t.full_name.split(' ')[0], members:mIds.size, packages:myPkgs.length, sessionsCompleted:mySess.length, sessionsScheduled:mySched.length, commissionEarned:signupComm+sessComm, commissionPaid:signupPaid+sessPaid }
     })
 
@@ -171,7 +171,7 @@ export default function ReportsPage() {
     let payslips: any[] = []
     if (isBizOps) {
       const sIds = gymId ? await getGymStaffIds(supabase, gymId) : []
-      let payQ = supabase.from('payslips').select('gross_salary,employee_cpf_amount,employer_cpf_amount').eq('month',month).eq('year',year).in('status',['approved','paid'])
+      let payQ = supabase.from('payslips').select('gross_salary,employee_cpf_amount,employer_cpf_amount').eq('period_month',month).eq('period_year',year).in('status',['approved','paid'])
       if (sIds.length > 0) payQ = payQ.in('user_id',sIds)
       const { data: pays } = await payQ
       payslips = pays || []

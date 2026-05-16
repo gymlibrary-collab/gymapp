@@ -416,7 +416,6 @@ export default function MemberProfilePage() {
       signup_commission_pct: (user as any)?.commission_signup_pct || 10,
       session_commission_pct: (user as any)?.commission_session_pct || 15,
       signup_commission_sgd: parseFloat(pkgForm.total_price_sgd) * ((user as any)?.commission_signup_pct || 10) / 100,
-      signup_commission_paid: false,
       manager_confirmed: false,
     })
 
