@@ -25,6 +25,7 @@ export default function StaffPayrollDetailPage() {
   const router = useRouter()
   const { logActivity } = useActivityLog()
   const [staff, setStaff] = useState<any>(null)
+  const [dataLoading, setDataLoading] = useState(true)
   const [payroll, setPayroll] = useState<any>(null)
   const [salaryHistory, setSalaryHistory] = useState<any[]>([])
   const [bonuses, setBonuses] = useState<any[]>([])
@@ -67,39 +68,45 @@ export default function StaffPayrollDetailPage() {
 
   const loadData = async () => {
     logActivity('page_view', 'Staff Payroll', 'Viewed staff payroll')
-    // Guard — only business_ops can access payroll
+    setDataLoading(true)
     setIsBizOpsRole(user!.role === 'business_ops')
 
+    // Step 1: Load staff record first — unblocks page render immediately
     const { data: staffData } = await supabase.from('users').select('*').eq('id', id).maybeSingle()
     setStaff(staffData)
 
-    const { data: payrollData } = await supabase.from('staff_payroll').select('*').eq('user_id', id).maybeSingle()
+    // Step 2: Load everything else in parallel
+    const payoutYearFrom = `${nowSGT().getUTCFullYear() - 1}-01-01`
+    const [
+      { data: payrollData },
+      { data: historyData },
+      { data: bonusData },
+      { data: slipData },
+      { data: payoutData },
+      brackets,
+      branding,
+    ] = await Promise.all([
+      supabase.from('staff_payroll').select('*').eq('user_id', id).maybeSingle(),
+      supabase.from('salary_history').select('*').eq('user_id', id).order('effective_from', { ascending: false }),
+      supabase.from('staff_bonuses').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
+      supabase.from('payslips').select('*').eq('user_id', id).order('period_year', { ascending: false }).order('period_month', { ascending: false }),
+      supabase.from('payslips').select('*').eq('user_id', id).in('payment_type', ['commission', 'combined']).in('status', ['draft', 'approved', 'paid']).order('period_year', { ascending: false }).order('period_month', { ascending: false }),
+      loadCpfBrackets(supabase),
+      resolvePayslipBranding(supabase, staffData),
+    ])
+
     setPayroll(payrollData)
     if (payrollData) setSalaryForm({ current_salary: payrollData.current_salary?.toString() || '0', is_cpf_liable: payrollData.is_cpf_liable ? 'true' : 'false' })
-
-    const { data: historyData } = await supabase.from('salary_history').select('*').eq('user_id', id).order('effective_from', { ascending: false })
     setSalaryHistory(historyData || [])
-
-    const { data: bonusData } = await supabase.from('staff_bonuses').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false })
     setBonuses(bonusData || [])
-
-    const { data: slipData } = await supabase.from('payslips').select('*').eq('user_id', id).order('period_year', { ascending: false }).order('period_month', { ascending: false }).limit(26)
     setPayslips(slipData || [])
-
-    const payoutYearFrom = `${(new Date(Date.now()+8*60*60*1000).getUTCFullYear() - 1)}-01-01`
-    const { data: payoutData } = await supabase.from('payslips')
-      .select('*').eq('user_id', id)
-      .in('payment_type', ['commission', 'combined'])
-      .in('status', ['draft', 'approved', 'paid'])
-      .order('period_year', { ascending: false }).order('period_month', { ascending: false })
     setCommissionPayouts(payoutData || [])
+    setCpfRates(brackets || [])
 
-    // For part-timers: load last 3 months roster summary
+    // Roster summary for part-timers (conditional — after staffData known)
     if (staffData?.employment_type === 'part_time') {
       const { data: roster } = await supabase.from('duty_roster').select('shift_date, hours_worked, gross_pay, status')
         .eq('user_id', id).order('shift_date', { ascending: false }).limit(90)
-
-      // Group by month/year
       const grouped: Record<string, any> = {}
       roster?.forEach((r: any) => {
         const d = new Date(r.shift_date)
@@ -109,17 +116,10 @@ export default function StaffPayrollDetailPage() {
       })
       setRosterSummary(Object.values(grouped).sort((a, b) => b.year - a.year || b.month - a.month).slice(0, 3))
     }
-
-    // Load CPF age brackets
-    const brackets = await loadCpfBrackets(supabase)
-    setCpfRates(brackets || [])
-
-    // Resolve payslip branding via central helper
-    const branding = await resolvePayslipBranding(supabase, staffData)
     setPayslipBranding({ logoUrl: branding.logoUrl, companyName: branding.companyName, gymName: branding.gymName })
   }
 
-  useEffect(() => { if (!user) return; loadData() }, [id, user])
+  useEffect(() => { if (!user) return; loadData().finally(() => setDataLoading(false)) }, [id, user])
 
   const handleSavePayroll = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true); setError('')
@@ -311,6 +311,7 @@ export default function StaffPayrollDetailPage() {
     logActivity('export', 'Staff Payroll', `Downloaded payslip PDF — ${staff?.full_name} ${getMonthName(slip.month)} ${slip.year}`)
   }
 
+  if (loading || dataLoading) return <PageSpinner />
   if (!staff) return <div className="card p-8 text-center"><p className="text-gray-500">Staff not found</p></div>
 
   const isPartTime = staff.employment_type === 'part_time'
@@ -436,7 +437,7 @@ export default function StaffPayrollDetailPage() {
             {showHistory ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
           {showHistory && (
-            <div className="border-t border-gray-100 overflow-x-auto">
+            <div className="border-t border-gray-100 overflow-x-auto overflow-y-auto max-h-64">
               {salaryHistory.length === 0 ? <p className="p-4 text-sm text-gray-400 text-center">No history yet</p> : (
                 <table className="w-full text-sm">
                   <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left p-3">Effective</th><th className="text-left p-3">Type</th><th className="text-right p-3">Change</th><th className="text-right p-3">New Salary</th></tr></thead>
@@ -583,7 +584,7 @@ export default function StaffPayrollDetailPage() {
           </form>
         )}
         {payslips.length === 0 ? <p className="p-4 text-sm text-gray-400 text-center">No payslips yet</p> : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-100 overflow-y-auto max-h-96">
             {payslips.map(ps => (
               <div key={ps.id} className="p-4">
                 <div className="flex items-start justify-between mb-2">
