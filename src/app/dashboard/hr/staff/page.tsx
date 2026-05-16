@@ -9,7 +9,7 @@ import { validatePhone, validateNric, validateNationality, validateHourlyRate, v
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
   Edit2, Trash2, X, Save, CheckCircle, AlertCircle, Archive,
-  Building2, Clock
+  Building2, Clock, DollarSign,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -620,7 +620,8 @@ export default function TrainersPage() {
                 {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>
+                      {isBizOps && <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>}
+                      {isBizOps && <a href={`/dashboard/hr/${member.id}/payroll`} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4" /></a>}
                       {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </div>

@@ -26,14 +26,20 @@ export default function CommissionConfigPage() {
 
       // Load per-gym commission config (correct schema: gym_id based)
       const { data: gymConfigs } = await supabase.from('commission_config')
-        .select('*, gym:gyms(name)').order('created_at')
+        .select('id, gym_id, default_signup_pct, default_session_pct, default_membership_commission_sgd, updated_at, gym:gyms(name)').order('created_at')
       const cfg: Record<string, any> = {}
       gymConfigs?.forEach((c: any) => { cfg[c.gym_id] = c })
       setConfig(cfg)
       // Use first gym's membership commission as display default
       const firstCfg = gymConfigs?.[0]
       setMembershipPct(firstCfg?.default_membership_commission_sgd?.toString() || '10')
-      setDefaultHourlyRate(firstCfg?.default_session_pct?.toString() || '15')
+      // Load default_hourly_rate separately (added in migration_v90_addendum)
+      try {
+        const { data: hrCfg } = await supabase.from('commission_config')
+          .select('default_hourly_rate').eq('gym_id', firstCfg?.gym_id || '').maybeSingle()
+        if (hrCfg?.default_hourly_rate != null) setDefaultHourlyRate(hrCfg.default_hourly_rate.toString())
+      } catch { /* column not yet added — use default */ }
+      setDefaultHourlyRate(firstCfg?.default_hourly_rate?.toString() || '12')
     }
     load()
   }, [])
@@ -44,12 +50,15 @@ export default function CommissionConfigPage() {
     const now = new Date().toISOString()
 
     // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
-    // Update default_membership_commission_sgd for all gyms
-    for (const gymId of Object.keys(config)) {
-      await supabase.from('commission_config').update({
+    // Upsert commission defaults for all gyms (handles new gyms with no existing row)
+    const { data: gyms } = await supabase.from('gyms').select('id').eq('is_active', true)
+    for (const gym of gyms || []) {
+      await supabase.from('commission_config').upsert({
+        gym_id: gym.id,
         default_membership_commission_sgd: parseFloat(membershipPct),
+        default_hourly_rate: parseFloat(defaultHourlyRate),
         updated_at: now,
-      }).eq('gym_id', gymId)
+      }, { onConflict: 'gym_id' })
     }
 
     logActivity('update', 'Commission Rates', 'Updated commission rates')
