@@ -156,8 +156,7 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
         .select('id', { count: 'exact', head: true }).eq('trainer_id', user.id).eq('status', 'active')
 
       // Commission: read from commission_items (source of truth)
-      // Use current SGT month for the main stats card
-      const now = nowSGT()
+      // now is already declared above (nowSGT())
       const curMonth = now.getUTCMonth() + 1
       const curYear = now.getUTCFullYear()
       const { data: sessData } = await supabase.from('sessions')
