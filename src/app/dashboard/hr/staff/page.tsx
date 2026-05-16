@@ -49,6 +49,12 @@ export default function TrainersPage() {
   const [dataLoading, setDataLoading] = useState(true)
   const [archived, setArchived] = useState<any[]>([])
   const [gyms, setGyms] = useState<any[]>([])
+  const [globalCommissionDefaults, setGlobalCommissionDefaults] = useState<{
+    membership_commission_sgd: string
+    hourly_rate: string
+    commission_signup_pct: string
+    commission_session_pct: string
+  }>({ membership_commission_sgd: '10', hourly_rate: '12', commission_signup_pct: '10', commission_session_pct: '15' })
   const [tab, setTab] = useState<'active' | 'archived'>('active')
   const [archivedLoaded, setArchivedLoaded] = useState(false)
   const archQRef = useRef<any>(null)
@@ -127,6 +133,25 @@ export default function TrainersPage() {
     // Skip archived on initial load — deferred until tab is clicked
     const { data: gymData } = await supabase.from('gyms').select('*').eq('is_active', true)
     setGyms(gymData || [])
+
+    // Load global commission defaults once on page open
+    // These pre-fill the Add Staff form immediately — no gym selection needed
+    // All gyms share the same defaults (set via Commission Rates page)
+    if (gymData && gymData.length > 0) {
+      const { data: firstCfg } = await supabase.from('commission_config')
+        .select('default_signup_pct, default_session_pct, default_membership_commission_sgd, default_hourly_rate')
+        .eq('gym_id', gymData[0].id).maybeSingle()
+      if (firstCfg) {
+        const defaults = {
+          membership_commission_sgd: firstCfg.default_membership_commission_sgd?.toString() || '10',
+          hourly_rate: firstCfg.default_hourly_rate?.toString() || '12',
+          commission_signup_pct: firstCfg.default_signup_pct?.toString() || '10',
+          commission_session_pct: firstCfg.default_session_pct?.toString() || '15',
+        }
+        setGlobalCommissionDefaults(defaults)
+      }
+    }
+
     setDataLoading(false)
   }
 
@@ -416,7 +441,17 @@ export default function TrainersPage() {
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-gray-900">Staff Management</h1><p className="text-sm text-gray-500">{isBizOps ? `All staff across Gym Library · ${staff.filter(s => (s.employment_type || 'full_time') === 'full_time').length} full-time · ${staff.filter(s => s.employment_type === 'part_time').length} part-time` : `Your gym staff · ${staff.length} member${staff.length !== 1 ? 's' : ''} · view only`}</p></div>
-        {tab === 'active' && isBizOps && <button onClick={() => { setShowCreateForm(!showCreateForm); setEditingUser(null) }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Staff</button>}
+        {tab === 'active' && isBizOps && <button onClick={() => {
+          // Pre-fill form with global commission defaults when opening
+          setCreateForm(f => ({
+            ...f,
+            commission_signup_pct: globalCommissionDefaults.commission_signup_pct,
+            commission_session_pct: globalCommissionDefaults.commission_session_pct,
+            membership_commission_sgd: globalCommissionDefaults.membership_commission_sgd,
+            // hourly_rate: only shown for part-time — pre-filled when part-time selected
+          }))
+          setShowCreateForm(!showCreateForm); setEditingUser(null)
+        }} className="btn-primary flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Staff</button>}
       </div>
 
       <StatusBanner success={success} error={error} onDismissError={() => setError('')} />
@@ -911,7 +946,16 @@ function EmploymentFields({ form, setF, isBizOps }: { form: any; setF: any; isBi
             <label key={et} className={cn('flex-1 flex items-center gap-2 p-3 rounded-lg border transition-colors',
               disabled ? 'border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed' :
               form.employment_type === et ? 'border-red-500 bg-red-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer')}>
-              <input type="radio" checked={form.employment_type === et} disabled={disabled} onChange={() => !disabled && setF((f: any) => ({ ...f, employment_type: et }))} />
+              <input type="radio" checked={form.employment_type === et} disabled={disabled} onChange={() => {
+                if (!disabled) {
+                  setF((f: any) => ({
+                    ...f,
+                    employment_type: et,
+                    // Pre-fill hourly rate from global defaults when switching to part-time
+                    ...(et === 'part_time' && !f.hourly_rate ? { hourly_rate: globalCommissionDefaults.hourly_rate } : {}),
+                  }))
+                }
+              }} />
               <div>
                 <p className="text-sm font-medium text-gray-900">{et === 'full_time' ? 'Full Time' : 'Part Time'}</p>
                 <p className="text-xs text-gray-400">{et === 'full_time' ? 'Fixed monthly salary' : 'Hourly rate per shift'}</p>
