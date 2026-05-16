@@ -57,20 +57,13 @@ export default function AnnualStatementPage() {
       const { data: payslipUsers } = await supabase.from('payslips')
         .select('user_id')
         .eq('gym_id', selectedGym)
-        .eq('year', selectedYear)
+        .eq('period_year', selectedYear)
         .in('status', ['approved', 'paid'])
 
-      const { data: payoutUsers } = await supabase.from('commission_payouts')
-        .select('user_id')
-        .eq('gym_id', selectedGym)
-        .gte('period_start', yearStart)
-        .lte('period_end', yearEnd)
-        .in('status', ['approved', 'paid'])
-
-      const allUserIds = Array.from(new Set([
-        ...(payslipUsers || []).map((p: any) => p.user_id),
-        ...(payoutUsers || []).map((p: any) => p.user_id),
-      ]))
+      // commission_payouts removed — commission payslips unified in payslips table
+      const allUserIds = Array.from(new Set(
+        (payslipUsers || []).map((p: any) => p.user_id)
+      ))
 
       if (allUserIds.length === 0) {
         setStaffResults([])
@@ -87,8 +80,7 @@ export default function AnnualStatementPage() {
       // Count payslips and payouts per staff for display
       const results = await Promise.resolve((staffData || []).map((s: any) => {
         const slipCount = (payslipUsers || []).filter((p: any) => p.user_id === s.id).length
-        const payoutCount = (payoutUsers || []).filter((p: any) => p.user_id === s.id).length
-        return { ...s, slipCount, payoutCount }
+        return { ...s, slipCount }
       }))
 
       setStaffResults(results)
@@ -131,18 +123,9 @@ export default function AnnualStatementPage() {
           .select('*')
           .eq('user_id', staff.id)
           .eq('gym_id', selectedGym)
-          .eq('year', selectedYear)
+          .eq('period_year', selectedYear)
           .in('status', ['approved', 'paid'])
-          .order('month')
-
-        const { data: payouts } = await supabase.from('commission_payouts')
-          .select('*')
-          .eq('user_id', staff.id)
-          .eq('gym_id', selectedGym)
-          .gte('period_start', yearStart)
-          .lte('period_end', yearEnd)
-          .in('status', ['approved', 'paid'])
-          .order('period_start')
+          .order('period_month')
 
         const doc = new jsPDF()
         await renderAnnualStatementPdf(
@@ -150,8 +133,7 @@ export default function AnnualStatementPage() {
           selectedYear,
           staff,
           { logoUrl, gymName, gymAddress },
-          payslips || [],
-          payouts || []
+          payslips || []
         )
         zip.file(`AnnualStatement-${staff.full_name}-${selectedYear}.pdf`, doc.output('arraybuffer'))
       }
@@ -221,7 +203,7 @@ export default function AnnualStatementPage() {
           </div>
         ) : staffResults.length === 0 && selectedGym ? (
           <div className="bg-gray-50 rounded-lg p-4 text-center">
-            <p className="text-sm text-gray-500">No approved or paid payslips or commission payouts found for this gym and year.</p>
+            <p className="text-sm text-gray-500">No approved or paid payslips found for this gym and year.</p>
           </div>
         ) : staffResults.length > 0 ? (
           <div className="border border-gray-200 rounded-lg overflow-hidden">
