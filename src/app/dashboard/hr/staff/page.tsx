@@ -687,7 +687,7 @@ export default function TrainersPage() {
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={isBizOps ? "Edit" : "View"}><Edit2 className="w-4 h-4" /></button>
-                      {isBizOps && <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 rounded-lg transition-colors inline-flex items-center hover:opacity-80" style={{backgroundColor:'#58595B'}} title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>}
+                      {isBizOps && <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>}
                       {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </div>
