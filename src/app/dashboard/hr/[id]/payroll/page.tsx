@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD, getMonthName, getRoleLabel, todaySGT, nowSGT} from '@/lib/utils'
 import { resolvePayslipBranding, renderUnifiedPayslipPdf } from '@/lib/pdf'
-import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
+import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets, residencyLabel } from '@/lib/cpf'
 import {
   ArrowLeft, DollarSign, Plus, TrendingUp, FileText,
   CheckCircle, AlertCircle, Save, X, ChevronDown, ChevronUp,
