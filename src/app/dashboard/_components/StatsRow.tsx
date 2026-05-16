@@ -167,8 +167,8 @@ export default function StatsRow({
           <CreditCard className="w-4 h-4 text-red-600" />
         </div>
         <p className="text-2xl font-bold">{stats.membershipSalesCount ?? 0}</p>
-        {stats.membershipRevenue > 0 && (
-          <p className="text-xs text-gray-400 mt-1">{formatSGD(stats.membershipRevenue)}</p>
+        {(stats.membershipRevenue ?? 0) > 0 && (
+          <p className="text-xs text-gray-400 mt-1">{formatSGD(stats.membershipRevenue ?? 0)}</p>
         )}
       </div>
 
