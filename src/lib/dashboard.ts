@@ -436,61 +436,63 @@ export async function fetchCommissionStats(
   options: {
     userId: string
     gymId?: string
-    periodStart: string
-    periodEnd: string
+    periodMonth: number
+    periodYear: number
     isTrainer: boolean
   }
 ): Promise<{
-  sessionCommission: number
-  signupCommission: number
-  membershipRevenue: number
-  membershipSalesCount: number
-  totalCommissionPayout: number
-  sessCount: number
+  ptSessionTotal: number
+  ptSignupTotal: number
+  membershipTotal: number
+  total: number
+  unpaidTotal: number
+  paidTotal: number
+  itemCount: number
 }> {
-  let sessQ = supabase.from('sessions')
-    .select('session_commission_sgd')
-    .eq('status', 'completed')
-    .gte('marked_complete_at', options.periodStart)
-    .lte('marked_complete_at', options.periodEnd)
-  if (options.isTrainer) sessQ = sessQ.eq('trainer_id', options.userId)
-  else if (options.gymId) sessQ = sessQ.eq('gym_id', options.gymId)
-  const { data: sessData } = await sessQ
-  const sessionCommission = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
-  const sessCount = sessData?.length || 0
+  // Read from commission_items — single source of truth for all commissions.
+  // Unpaid: payslip_id IS NULL. Paid: payslip_id IS NOT NULL.
+  // One query instead of three — no timezone ambiguity (period_month/year is SGT).
+  let q = supabase.from('commission_items')
+    .select('source_type, amount, payslip_id')
+    .eq('period_month', options.periodMonth)
+    .eq('period_year', options.periodYear)
 
-  let signupCommission = 0
   if (options.isTrainer) {
-    const { data: pkgData } = await supabase.from('packages')
-      .select('signup_commission_sgd')
-      .eq('trainer_id', options.userId)
-      .gte('created_at', options.periodStart)
-    signupCommission = pkgData?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
+    q = q.eq('user_id', options.userId)
+  } else if (options.gymId) {
+    q = q.eq('gym_id', options.gymId)
   }
 
-  let membershipRevenue = 0
-  let membershipSalesCount = 0
-  let totalCommissionPayout = 0
-  if (!options.isTrainer) {
-    let memQ = supabase.from('gym_memberships')
-      .select('price_sgd')
-      .eq('sale_status', 'confirmed')
-      .gte('created_at', options.periodStart)
-    if (options.gymId) memQ = memQ.eq('gym_id', options.gymId)
-    const { data: memData } = await memQ
-    membershipRevenue = memData?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0
-    membershipSalesCount = memData?.length || 0
+  const { data: items } = await q
+  const rows = items || []
 
-    let payoutQ = supabase.from('commission_payouts')
-      .select('total_commission_sgd')
-      .in('status', ['approved', 'paid'])
-      .gte('generated_at', options.periodStart)
-    if (options.gymId) payoutQ = payoutQ.eq('gym_id', options.gymId)
-    const { data: payoutData } = await payoutQ
-    totalCommissionPayout = payoutData?.reduce((s: number, p: any) => s + (p.total_commission_sgd || 0), 0) || 0
+  const ptSessionTotal = rows
+    .filter((r: any) => r.source_type === 'pt_session')
+    .reduce((s: number, r: any) => s + (r.amount || 0), 0)
+
+  const ptSignupTotal = rows
+    .filter((r: any) => r.source_type === 'pt_signup')
+    .reduce((s: number, r: any) => s + (r.amount || 0), 0)
+
+  const membershipTotal = rows
+    .filter((r: any) => r.source_type === 'membership')
+    .reduce((s: number, r: any) => s + (r.amount || 0), 0)
+
+  const total = ptSessionTotal + ptSignupTotal + membershipTotal
+  const unpaidTotal = rows
+    .filter((r: any) => !r.payslip_id)
+    .reduce((s: number, r: any) => s + (r.amount || 0), 0)
+  const paidTotal = total - unpaidTotal
+
+  return {
+    ptSessionTotal,
+    ptSignupTotal,
+    membershipTotal,
+    total,
+    unpaidTotal,
+    paidTotal,
+    itemCount: rows.length,
   }
-
-  return { sessionCommission, signupCommission, membershipRevenue, membershipSalesCount, totalCommissionPayout, sessCount }
 }
 
 // ── Notifications ─────────────────────────────────────────────
@@ -606,13 +608,15 @@ export async function fetchPayslipNotifications(
   const seenCommission = seenCommissionAt ? new Date(seenCommissionAt) : null
 
   const { data: latestPayslip } = await supabase.from('payslips')
-    .select('id, month, year, net_salary, approved_at')
+    .select('id, period_month, period_year, net_salary, payment_type, approved_at')
     .eq('user_id', userId).in('status', ['approved', 'paid'])
     .order('approved_at', { ascending: false }).limit(1).maybeSingle()
 
-  const { data: latestCommission } = await supabase.from('commission_payouts')
-    .select('id, period_start, period_end, total_commission_sgd, approved_at')
-    .eq('user_id', userId).eq('status', 'approved')
+  const { data: latestCommission } = await supabase.from('payslips')
+    .select('id, period_month, period_year, commission_amount, approved_at')
+    .eq('user_id', userId)
+    .in('payment_type', ['commission', 'combined'])
+    .in('status', ['approved', 'paid'])
     .order('approved_at', { ascending: false }).limit(1).maybeSingle()
 
   const newPayslip = latestPayslip?.approved_at &&
