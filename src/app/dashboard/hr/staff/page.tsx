@@ -366,9 +366,29 @@ export default function TrainersPage() {
     await loadData(); setSaving(false)
   }
 
-  const toggleGym = (gymId: string, type: 'create' | 'edit') => {
-    if (type === 'create') setCreateForm(f => ({ ...f, gym_ids: f.gym_ids.includes(gymId) ? f.gym_ids.filter(g => g !== gymId) : [...f.gym_ids, gymId] }))
-    else setEditForm((f: any) => ({ ...f, gym_ids: f.gym_ids.includes(gymId) ? f.gym_ids.filter((g: string) => g !== gymId) : [...f.gym_ids, gymId] }))
+  const loadCommissionDefaults = async (gymId: string, setF: any) => {
+    if (!gymId) return
+    const { data: cfg } = await supabase.from('commission_config')
+      .select('default_signup_pct, default_session_pct, default_membership_commission_sgd, default_hourly_rate')
+      .eq('gym_id', gymId).maybeSingle()
+    if (cfg) setF((f: any) => ({
+      ...f,
+      commission_signup_pct: cfg.default_signup_pct?.toString() || f.commission_signup_pct,
+      commission_session_pct: cfg.default_session_pct?.toString() || f.commission_session_pct,
+      membership_commission_sgd: cfg.default_membership_commission_sgd?.toString() || f.membership_commission_sgd,
+      hourly_rate: cfg.default_hourly_rate?.toString() || f.hourly_rate,
+    }))
+  }
+
+  const toggleGym = async (gymId: string, type: 'create' | 'edit') => {
+    const setF = type === 'create' ? setCreateForm : setEditForm
+    const currentIds = type === 'create' ? createForm.gym_ids : (editForm as any).gym_ids || []
+    const isAdding = !currentIds.includes(gymId)
+    setF((f: any) => ({ ...f, gym_ids: isAdding ? [...(f.gym_ids || []), gymId] : (f.gym_ids || []).filter((g: string) => g !== gymId) }))
+    // Load commission defaults from first gym checked (don't overwrite if already set)
+    if (isAdding && currentIds.length === 0) {
+      await loadCommissionDefaults(gymId, setF)
+    }
   }
 
   const getGymLabel = (m: any) => {
@@ -453,18 +473,7 @@ export default function TrainersPage() {
                         const gymId = e.target.value
                         setCreateForm(f => ({ ...f, gym_id: gymId, manager_gym_id: gymId }))
                         // Load commission defaults for this gym
-                        if (gymId) {
-                          const { data: cfg } = await supabase.from('commission_config')
-                            .select('default_signup_pct, default_session_pct, default_membership_commission_sgd, default_hourly_rate')
-                            .eq('gym_id', gymId).maybeSingle()
-                          if (cfg) setCreateForm(f => ({
-                            ...f, gym_id: gymId, manager_gym_id: gymId,
-                            commission_signup_pct: cfg.default_signup_pct?.toString() || f.commission_signup_pct,
-                            commission_session_pct: cfg.default_session_pct?.toString() || f.commission_session_pct,
-                            membership_commission_sgd: cfg.default_membership_commission_sgd?.toString() || f.membership_commission_sgd,
-                            hourly_rate: cfg.default_hourly_rate?.toString() || f.hourly_rate,
-                          }))
-                        }
+                        if (gymId) await loadCommissionDefaults(gymId, setCreateForm)
                       }}><option value="">Select gym...</option>{gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
                     </div>
                   )}
