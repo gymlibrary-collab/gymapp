@@ -488,7 +488,7 @@ export default function TrainersPage() {
               </div>
 
               <PersonalFields form={createForm} setF={setCreateForm} isBizOps={isBizOps} />
-              <EmploymentFields form={createForm} setF={setCreateForm} isBizOps={isBizOps} />
+              <EmploymentFields form={createForm} setF={setCreateForm} isBizOps={isBizOps} defaultHourlyRate={globalCommissionDefaults.hourly_rate} />
 
               {/* Gym assignment */}
               {(createForm.role !== 'admin' && createForm.role !== 'business_ops') && (
@@ -564,7 +564,7 @@ export default function TrainersPage() {
               </div>
 
               <PersonalFields form={editForm} setF={setEditForm} isBizOps={isBizOps} isEditing={true} />
-              <EmploymentFields form={editForm} setF={setEditForm} isBizOps={isBizOps} />
+              <EmploymentFields form={editForm} setF={setEditForm} isBizOps={isBizOps} defaultHourlyRate={globalCommissionDefaults.hourly_rate} />
 
               {/* Role and status changes are Biz Ops only — managers cannot change staff roles */}
               {!isSelf(editingUser) && isBizOps && (
@@ -929,7 +929,7 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
   )
 }
 
-function EmploymentFields({ form, setF, isBizOps }: { form: any; setF: any; isBizOps: boolean }) {
+function EmploymentFields({ form, setF, isBizOps, defaultHourlyRate = '12' }: { form: any; setF: any; isBizOps: boolean; defaultHourlyRate?: string }) {
   // Trainers must be full-time — part-time option is disabled for trainer role
   const isTrainer = form.role === 'trainer'
   return (
@@ -952,7 +952,7 @@ function EmploymentFields({ form, setF, isBizOps }: { form: any; setF: any; isBi
                     ...f,
                     employment_type: et,
                     // Pre-fill hourly rate from global defaults when switching to part-time
-                    ...(et === 'part_time' && !f.hourly_rate ? { hourly_rate: globalCommissionDefaults.hourly_rate } : {}),
+                    ...(et === 'part_time' && !f.hourly_rate ? { hourly_rate: defaultHourlyRate } : {}),
                   }))
                 }
               }} />
