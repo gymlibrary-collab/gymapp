@@ -330,7 +330,7 @@ export default function PayrollPage() {
     try {
       const { default: jsPDF } = await import('jspdf')
       const { default: autoTable } = await import('jspdf-autotable')
-      const { addLogoHeader, PDF_TABLE_STYLE, renderPayslipPdf, renderCommissionPdf } = await import('@/lib/pdf')
+      const { renderUnifiedPayslipPdf } = await import('@/lib/pdf')
 
       const { data: gym } = await supabase.from('gyms').select('name, logo_url').eq('id', archiveGym).maybeSingle()
       const gymName = (gym as any)?.name || 'Gym'
@@ -373,26 +373,15 @@ export default function PayrollPage() {
           .select('*').eq('user_id', staff.id).eq('year', archiveYear)
           .in('status', ['approved', 'paid']).order('month')
 
-        // Load commissions before payslip PDFs — needed for YTD table in payslip
-        const { data: commissions } = await supabase.from('commission_payouts')
-          .select('*').eq('user_id', staff.id)
-          .gte('period_start', `${archiveYear}-01-01`)
-          .lte('period_end', `${archiveYear}-12-31`)
-          .in('status', ['approved', 'paid']).order('period_start')
+        // Commission payslips unified in payslips table — loaded above already
 
         for (const slip of payslips || []) {
           const doc = new jsPDF()
-          await renderPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips || [], commissions || [])
+          await renderUnifiedPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips || [])
           folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
         }
 
-        for (const comm of commissions || []) {
-          const doc = new jsPDF()
-          const commMonth = parseInt((comm.period_start || '').split('-')[1] || '1')
-          const commYear = parseInt((comm.period_start || '').split('-')[0] || '0')
-          await renderCommissionPdf(doc, autoTable, comm, staff, { logoUrl, gymName })
-          folder!.file(`Commission-${staff.full_name}-${MONTHS[commMonth - 1]} ${commYear}.pdf`, doc.output('arraybuffer'))
-        }
+        // Commission payslips are now unified in payslips table — already rendered above
 
       }
 

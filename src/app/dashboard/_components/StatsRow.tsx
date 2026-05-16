@@ -34,8 +34,9 @@ interface StatsRowProps {
     packages: number
     sessions: number
     commission: number
-    sessionCommission: number
-    signupCommission: number
+    ptSessionTotal?: number
+    ptSignupTotal?: number
+    membershipTotal?: number
     membershipRevenue: number
     membershipSalesCount: number
     totalCommissionPayout: number

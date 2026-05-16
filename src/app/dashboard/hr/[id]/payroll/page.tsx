@@ -400,8 +400,14 @@ export default function StaffPayrollDetailPage() {
 
   const handleDeletePayslip = async (payslipId: string) => {
     if (!confirm('Delete this draft payslip? This cannot be undone.')) return
+    // Clear payslip_id on roster rows so they can be included in future regeneration
+    await supabase.from('duty_roster').update({ payslip_id: null }).eq('payslip_id', payslipId)
+    // Un-apply pending deductions so they are included in future payslip
+    await supabase.from('pending_deductions')
+      .update({ applied_at: null, applied_payslip_id: null })
+      .eq('applied_payslip_id', payslipId)
     await supabase.from('payslips').delete().eq('id', payslipId).eq('status', 'draft')  // status guard prevents deleting non-draft payslips
-    logActivity('delete', 'Staff Payroll', 'Deleted draft payslip')
+    logActivity('delete', 'Staff Payroll', 'Deleted draft payslip — roster shifts and deductions released for regeneration')
     await loadData(); showMsg('Draft payslip deleted')
   }
 
@@ -439,10 +445,16 @@ export default function StaffPayrollDetailPage() {
     })
     if (auditErr) { setError('Failed to write audit record: ' + auditErr.message); setDeleting(false); return }
 
+    // Clear payslip_id on roster rows so they can be included in future regeneration
+    await supabase.from('duty_roster').update({ payslip_id: null }).eq('payslip_id', ps.id)
+    // Un-apply pending deductions so they are included in future payslip
+    await supabase.from('pending_deductions')
+      .update({ applied_at: null, applied_payslip_id: null })
+      .eq('applied_payslip_id', ps.id)
     // Delete the payslip — .eq('status', 'approved') ensures paid payslips cannot be deleted even via crafted requests
     await supabase.from('payslips').delete().eq('id', ps.id).eq('status', 'approved')
     setDeleteModal(null); setDeleteReason(''); setDeleting(false)
-    logActivity('delete', 'Staff Payroll', 'Deleted approved payslip')
+    logActivity('delete', 'Staff Payroll', 'Deleted approved payslip — roster shifts and deductions released for regeneration')
     await loadData(); showMsg('Payslip deleted — audit record saved')
   }
 
@@ -489,7 +501,7 @@ export default function StaffPayrollDetailPage() {
     const { default: jsPDF } = await import('jspdf')
     const { default: autoTable } = await import('jspdf-autotable')
     const doc = new jsPDF()
-    await renderPayslipPdf(doc, autoTable, slip, staff!, payslipBranding, payslips, commissionPayouts)
+    await renderUnifiedPayslipPdf(doc, autoTable, slip, staff!, payslipBranding, payslips)
     doc.save(`Payslip-${staff?.full_name}-${getMonthName(slip.month)} ${slip.year}.pdf`)
     logActivity('export', 'Staff Payroll', `Downloaded payslip PDF — ${staff?.full_name} ${getMonthName(slip.month)} ${slip.year}`)
   }

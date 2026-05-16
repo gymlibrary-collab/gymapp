@@ -84,27 +84,27 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
   const getCommissionPeriod = (offset: number) => {
     const now = nowSGT() // SGT
     const d = new Date(now.getUTCFullYear(), now.getUTCMonth() + offset, 1)
-    const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
-    const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString()
-    const label = `${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`
-    return { start, end, label }
+    const periodMonth = d.getMonth() + 1
+    const periodYear = d.getFullYear()
+    const label = `${getMonthName(periodMonth)} ${periodYear}`
+    return { periodMonth, periodYear, label }
   }
 
   const loadCommissionStats = useCallback(async (offset: number) => {
     setCommissionLoading(true)
-    const { start, end, label } = getCommissionPeriod(offset)
+    const { periodMonth, periodYear, label } = getCommissionPeriod(offset)
     setCommissionPeriodLabel(label)
-    setCommissionPeriodStart(start)
-    setCommissionPeriodEnd(end)
+    setCommissionPeriodStart(`${periodYear}-${String(periodMonth).padStart(2, '0')}-01`)
+    setCommissionPeriodEnd(`${periodYear}-${String(periodMonth).padStart(2, '0')}-01`)
 
     const result = await fetchCommissionStats(supabase, {
-      userId: user.id, periodStart: start, periodEnd: end, isTrainer: true,
+      userId: user.id, periodMonth, periodYear, isTrainer: true,
     })
     setCommissionStats({
-      total: result.sessionCommission + result.signupCommission,
-      session: result.sessionCommission,
-      signup: result.signupCommission,
-      membership: 0,
+      total: result.total,
+      session: result.ptSessionTotal,
+      signup: result.ptSignupTotal,
+      membership: result.membershipTotal,
     })
     setCommissionLoading(false)
   }, [user.id])
@@ -155,15 +155,18 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       const { count: pkgCount } = await supabase.from('packages')
         .select('id', { count: 'exact', head: true }).eq('trainer_id', user.id).eq('status', 'active')
 
+      // Commission: read from commission_items (source of truth)
+      // Use current SGT month for the main stats card
+      const now = nowSGT()
+      const curMonth = now.getUTCMonth() + 1
+      const curYear = now.getUTCFullYear()
       const { data: sessData } = await supabase.from('sessions')
-        .select('session_commission_sgd').eq('trainer_id', user.id).eq('status', 'completed').gte('marked_complete_at', monthStart)
-      const sessionCommission = sessData?.reduce((s: number, r: any) => s + (r.session_commission_sgd || 0), 0) || 0
+        .select('id').eq('trainer_id', user.id).eq('status', 'completed').gte('marked_complete_at', monthStart)
+      const commResult = await fetchCommissionStats(supabase, {
+        userId: user.id, periodMonth: curMonth, periodYear: curYear, isTrainer: true,
+      })
 
-      const { data: signupPkgs } = await supabase.from('packages')
-        .select('signup_commission_sgd').eq('trainer_id', user.id).gte('created_at', monthStart)
-      const signupCommission = signupPkgs?.reduce((s: number, p: any) => s + (p.signup_commission_sgd || 0), 0) || 0
-
-      setStats({ members: memberCount, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: sessionCommission + signupCommission, sessionCommission, signupCommission, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: 0 })
+      setStats({ members: memberCount, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: commResult.unpaidTotal, ptSessionTotal: commResult.ptSessionTotal, ptSignupTotal: commResult.ptSignupTotal, membershipTotal: commResult.membershipTotal, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: commResult.paidTotal })
 
       // ── Package alerts ─────────────────────────────────────
       setLowSessionPackages(await fetchLowSessionPackages(supabase, { trainerId: user.id, limit: 10 }))
