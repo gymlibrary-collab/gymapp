@@ -490,7 +490,37 @@ export default function TrainersPage() {
             </form>
           )}
 
-          {/* Edit form */}
+          {/* View panel for managers (read-only) */}
+          {editingUser && !isBizOps && (
+            <div className="card p-4 space-y-4 border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900 text-sm">Staff Particulars — {editingUser.full_name}</h2>
+                <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><p className="text-xs text-gray-400 mb-0.5">Full Name</p><p className="font-medium text-gray-900">{editingUser.full_name}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Nickname</p><p className="text-gray-700">{editingUser.nickname || '—'}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Role</p><p className="text-gray-700">{getRoleLabel(editingUser.role)}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Employment</p><p className="text-gray-700">{editingUser.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Email</p><p className="text-gray-700">{editingUser.email}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Phone</p><p className="text-gray-700">{editingUser.phone || '—'}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Date of Joining</p><p className="text-gray-700">{editingUser.date_of_joining ? formatDate(editingUser.date_of_joining) : '—'}</p></div>
+                  <div><p className="text-xs text-gray-400 mb-0.5">Status</p><p className={editingUser.is_active ? 'text-green-700' : 'text-red-600'}>{editingUser.is_active ? 'Active' : 'Inactive'}</p></div>
+                  {editingUser.employment_type === 'part_time' && editingUser.hourly_rate && (
+                    <div><p className="text-xs text-gray-400 mb-0.5">Hourly Rate</p><p className="text-gray-700">{formatSGD(editingUser.hourly_rate)}/hr</p></div>
+                  )}
+                </div>
+                <div><p className="text-xs text-gray-400 mb-0.5">Gym(s)</p><p className="text-gray-700">{getGymLabel(editingUser)}</p></div>
+                {editingUser.date_of_departure && (
+                  <div><p className="text-xs text-gray-400 mb-0.5">Departure Date</p><p className="text-red-600">{formatDate(editingUser.date_of_departure)}{editingUser.departure_reason && ` — ${editingUser.departure_reason}`}</p></div>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">Contact Business Operations to update staff particulars.</p>
+            </div>
+          )}
+
+          {/* Edit form — biz ops only */}
           {editingUser && isBizOps && (
             <form onSubmit={handleEdit} className="card p-4 space-y-4 border-blue-200">
               <div className="flex items-center justify-between">
@@ -620,7 +650,7 @@ export default function TrainersPage() {
                 {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {isBizOps && <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 className="w-4 h-4" /></button>}
+                      <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={isBizOps ? "Edit" : "View"}><Edit2 className="w-4 h-4" /></button>
                       {isBizOps && <a href={`/dashboard/hr/${member.id}/payroll`} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4" /></a>}
                       {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
                     </div>

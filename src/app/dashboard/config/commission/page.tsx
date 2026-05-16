@@ -34,12 +34,16 @@ export default function CommissionConfigPage() {
       const firstCfg = gymConfigs?.[0]
       setMembershipPct(firstCfg?.default_membership_commission_sgd?.toString() || '10')
       // Load default_hourly_rate separately (added in migration_v90_addendum)
-      try {
-        const { data: hrCfg } = await supabase.from('commission_config')
-          .select('default_hourly_rate').eq('gym_id', firstCfg?.gym_id || '').maybeSingle()
-        if (hrCfg?.default_hourly_rate != null) setDefaultHourlyRate(hrCfg.default_hourly_rate.toString())
-      } catch { /* column not yet added — use default */ }
-      setDefaultHourlyRate(firstCfg?.default_hourly_rate?.toString() || '12')
+      // Safe: if column not yet added, silently uses the default '12'
+      if (firstCfg?.gym_id) {
+        try {
+          const { data: hrCfg } = await supabase.from('commission_config')
+            .select('default_hourly_rate').eq('gym_id', firstCfg.gym_id).maybeSingle()
+          if (hrCfg && (hrCfg as any).default_hourly_rate != null) {
+            setDefaultHourlyRate((hrCfg as any).default_hourly_rate.toString())
+          }
+        } catch { /* column not yet added — use default 12 */ }
+      }
     }
     load()
   }, [])
