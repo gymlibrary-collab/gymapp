@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       })
       if (gymKeys.size === 0) continue
 
-      for (const gymKey of gymKeys) {
+      for (const gymKey of Array.from(gymKeys)) {
         const key = `${member.id}:${gymKey}`
         if (existingMap.has(key)) continue
 
