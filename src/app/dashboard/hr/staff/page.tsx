@@ -334,7 +334,7 @@ export default function TrainersPage() {
   }
 
   const handleArchive = async (member: any) => {
-    if (!confirm(`Archive ${member.full_name}?`)) return
+    if (!confirm(`Archive ${member.full_name}?\n\nHistorical records (payslips, sessions, leave) will be preserved.\nIf this staff member rejoins in future, they must register with a new email address.`)) return
     setSaving(true)
 
     // Block if trainer has active or pending PT packages

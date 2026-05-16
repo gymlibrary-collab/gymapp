@@ -96,6 +96,7 @@ export default function GymManagementPage() {
         const logoUrl = await uploadToStorage(supabase, logoFile, 'gym-logos', `gym-${editingGym.id}`)
         if (logoUrl) await supabase.from('gyms').update({ logo_url: logoUrl.split('?')[0] }).eq('id', editingGym.id)
       }
+      logActivity('update', 'Gym Configuration', `Updated gym: ${payload.name}`)
       showMsg('Gym updated')
     } else {
       const { data: created, error: err } = await supabase.from('gyms')
@@ -122,6 +123,7 @@ export default function GymManagementPage() {
     const action = gym.is_active ? 'deactivate' : 'activate'
     if (!confirm(`${gym.is_active ? 'Deactivate' : 'Activate'} "${gym.name}"?\n\nStaff assigned to this gym will not be affected.`)) return
     await supabase.from('gyms').update({ is_active: !gym.is_active }).eq('id', gym.id)
+    logActivity('update', 'Gym Configuration', `${gym.is_active ? 'Deactivated' : 'Activated'} gym: ${gym.name}`)
     await load()
     showMsg(`"${gym.name}" ${action}d`)
   }

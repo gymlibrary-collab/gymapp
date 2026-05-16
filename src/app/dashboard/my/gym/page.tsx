@@ -57,6 +57,7 @@ export default function MyGymPage() {
 
     const logoUrl = uploaded.split('?')[0]
     await supabase.from('gyms').update({ logo_url: logoUrl }).eq('id', gym.id)
+    logActivity('update', 'My Gym', `Updated gym logo: ${gym.name}`)
     setGym((g: any) => ({ ...g, logo_url: logoUrl }))
     setLogoPreview(logoUrl + '?t=' + Date.now())
     setUploading(false)

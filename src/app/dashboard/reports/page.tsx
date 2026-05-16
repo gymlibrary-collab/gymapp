@@ -231,6 +231,7 @@ export default function ReportsPage() {
       doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.text('Payroll Costs', 14, y); y += 6
       autoTable(doc, { startY:y, body:[['Gross Salary',formatSGD(stats.salaryCost),'Employer CPF',formatSGD(stats.employerCPF)],['Total Payroll Cost',formatSGD(stats.totalPayrollCost),'Total Commissions',formatSGD(stats.totalCommission)]], styles:{fontSize:9}, margin:{left:14} })
       doc.save(`Report_${periodLabel.replace(' ','_')}${gymLabel?'_'+gymLabel.replace(/\s/g,'_'):''}.pdf`)
+      logActivity('export', 'Reports', `Downloaded monthly report PDF — ${periodLabel}${gymLabel ? ' — ' + gymLabel : ''}`)
     } catch(e) { console.error('PDF error', e) }
     setPdfLoading(false)
   }

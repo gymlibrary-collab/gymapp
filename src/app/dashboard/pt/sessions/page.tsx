@@ -132,11 +132,13 @@ export default function PtSessionsPage() {
       if (isLastSession) pkgUpdate.status = 'completed'
       await supabase.from('packages').update(pkgUpdate).eq('id', session.package_id)
     }
-    const rMemberName = actionSession?.member?.full_name || actionSession?.members?.full_name || ''
-    const newDateStr = new Date(`${rescheduleDate}T${rescheduleTime}`).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })
-    logActivity('update', 'PT Sessions', `Rescheduled session with ${rMemberName} to ${newDateStr}`)
+    const memberName = actionSession?.member?.full_name || actionSession?.members?.full_name || ''
+    if (status === 'completed') {
+      logActivity('update', 'PT Sessions', `Marked session as completed — ${memberName}`)
+    } else {
+      logActivity('update', 'PT Sessions', `Marked session as no-show — ${memberName} — session not deducted, no commission`)
+    }
     setActionSession(null); setActionType(null); setSaving(false); loadSessions()
-    logActivity('update', 'PT Sessions', 'Marked PT session as completed')
   }
 
   const handleCancel = async () => {
@@ -170,6 +172,12 @@ export default function PtSessionsPage() {
       .update({ scheduled_for: new Date(new Date(newTime).getTime() - 24*60*60*1000).toISOString() })
       .eq('related_id', actionSession.id).eq('status', 'pending')
 
+    const rMemberName = actionSession?.member?.full_name || actionSession?.members?.full_name || ''
+    const oldDateStr = actionSession?.scheduled_at
+      ? new Date(actionSession.scheduled_at).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric' })
+      : ''
+    const newDateStr = new Date(`${rescheduleDate}T${rescheduleTime}`).toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore', day: 'numeric', month: 'short', year: 'numeric' })
+    logActivity('update', 'PT Sessions', `Rescheduled session with ${rMemberName} from ${oldDateStr} to ${newDateStr}`)
     setActionSession(null); setActionType(null); setSaving(false); loadSessions()
   }
 
