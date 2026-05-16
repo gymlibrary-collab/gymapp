@@ -210,9 +210,9 @@ export default function PayrollPage() {
       body: JSON.stringify({ period_month: bulkMonth, period_year: bulkYear }),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Failed'); setBulkGenerating(false); return }
+    if (!res.ok) { setBulkResult({ generated: 0, skipped: 0, noSalary: [data.error || 'Failed'], noShifts: [] }); setBulkGenerating(false); return }
     setBulkResult({ generated: data.generated, skipped: data.skipped, noSalary: data.noSalary || [], noShifts: [] })
-    if (data.existingDrafts?.length > 0) setError(`Skipped — existing payslips for: ${data.existingDrafts.join(', ')}`)
+    if (data.existingDrafts?.length > 0) setBulkDraftWarning(data.existingDrafts)
     logActivity('create', 'Monthly Payroll', `Generated ${data.generated} bulk salary payslip(s)`)
     setBulkGenerating(false)
     load()
