@@ -367,7 +367,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const SidebarInner = () => (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       <div className="flex items-center gap-2 p-4 border-b border-gray-200 flex-shrink-0">
-        {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-8 w-auto max-w-[32px] object-contain rounded-lg flex-shrink-0" onError={() => setSidebarLogo(null)} /> : <div className="bg-red-600 p-2 rounded-lg flex-shrink-0"><Dumbbell className="w-4 h-4 text-white" /></div>}
+        {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-8 w-auto max-w-[76px] object-contain rounded flex-shrink-0" onError={() => setSidebarLogo(null)} /> : <div className="bg-red-600 p-2 rounded-lg flex-shrink-0"><Dumbbell className="w-4 h-4 text-white" /></div>}
         <div className="flex-1 min-w-0"><p className="font-bold text-gray-900 text-sm truncate">{gymName}</p><p className="text-xs text-gray-500">{portalLabel}</p></div>
         <button onClick={() => setSidebarOpen(false)} className="md:hidden p-1 text-gray-400"><X className="w-4 h-4" /></button>
       </div>
@@ -483,7 +483,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-20">
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100"><Menu className="w-5 h-5 text-gray-600" /></button>
           <div className="flex items-center gap-2">
-            {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-6 w-auto object-contain" /> : <Dumbbell className="w-5 h-5 text-red-600" />}
+            {sidebarLogo ? <img src={sidebarLogo} alt={gymName} className="h-6 w-auto max-w-[58px] object-contain" /> : <Dumbbell className="w-5 h-5 text-red-600" />}
             <span className="font-bold text-gray-900 text-sm">{gymName}</span>
             {isManagerTrainer && <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', viewMode === 'manager' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700')}>{viewMode === 'manager' ? 'Mgr' : 'Trainer'}</span>}
           </div>

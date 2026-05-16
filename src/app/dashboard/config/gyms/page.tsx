@@ -214,10 +214,10 @@ export default function GymManagementPage() {
               <ImageIcon className="w-3.5 h-3.5 text-gray-400" /> Gym Logo
             </label>
             <p className="text-xs text-gray-400 mb-2">
-              Printed on payslips and shown in the sidebar for staff at this gym. Max 2MB. Recommended: landscape PNG (e.g. 300×80px), transparent background. The logo prints at approximately 60mm wide on payslips — ensure text is legible at that size.
+              Used on payslips and in the sidebar. Max 2MB. Recommended: landscape PNG at 12:5 ratio (e.g. 480×200px), transparent background. Prints at 60×25mm on payslips.
             </p>
             <div className="flex items-center gap-4">
-              <div className="w-32 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+              <div className="rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0" style={{width:144,height:60}}>
                 {logoPreview
                   ? <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain p-1" onError={() => setLogoPreview(null)} />
                   : <ImageIcon className="w-8 h-8 text-gray-300" />
@@ -284,8 +284,8 @@ export default function GymManagementPage() {
             <div key={gym.id} className={cn('card p-4', !gym.is_active && 'opacity-60')}>
               <div className="flex items-start gap-3">
                 {/* Logo or icon */}
-                <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden',
-                  gym.is_active ? 'bg-red-100' : 'bg-gray-100')}>
+                <div className={cn('rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden',
+                  gym.is_active ? 'bg-red-50' : 'bg-gray-100')} style={{width:72,height:30}}>
                   {gym.logo_url
                     ? <img src={gym.logo_url + '?t=' + Date.now()} alt={gym.name}
                         className="w-full h-full object-contain p-1"

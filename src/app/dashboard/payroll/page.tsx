@@ -298,7 +298,7 @@ export default function PayrollPage() {
         for (const slip of payslips || []) {
           const doc = new jsPDF()
           await renderUnifiedPayslipPdf(doc, autoTable, slip, staff, { logoUrl, gymName }, payslips || [])
-          folder!.file(`Payslip-${staff.full_name}-${MONTHS[slip.month - 1]} ${slip.year}.pdf`, doc.output('arraybuffer'))
+          folder!.file(`Payslip-${staff.full_name}-${MONTHS[(slip.period_month || 1) - 1]} ${slip.period_year}.pdf`, doc.output('arraybuffer'))
         }
 
         // Commission payslips are now unified in payslips table — already rendered above

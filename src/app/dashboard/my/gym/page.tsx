@@ -87,7 +87,7 @@ export default function MyGymPage() {
       <div className="card p-5 space-y-5">
         {/* Logo */}
         <div className="flex items-start gap-4">
-          <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">
+          <div className="rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0" style={{width:144,height:60}}>
             {logoPreview
               ? <img src={logoPreview} alt={gym.name} className="w-full h-full object-contain p-1"
                   onError={() => setLogoPreview(null)} />
@@ -95,7 +95,7 @@ export default function MyGymPage() {
             }
           </div>
           <div className="flex-1">
-            <p className="text-xs text-gray-500 mb-2">Gym logo shown in the sidebar for all staff at this gym.</p>
+            <p className="text-xs text-gray-500 mb-2">Gym logo shown in the sidebar and printed on payslips for staff at this gym.</p>
             <label htmlFor="gym-logo" className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-xs">
               {uploading
                 ? <><div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600" /> Uploading...</>
@@ -104,7 +104,7 @@ export default function MyGymPage() {
             </label>
             <input id="gym-logo" type="file" accept="image/*" className="hidden"
               disabled={uploading} onChange={handleLogoChange} />
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Square image recommended · Max 2MB</p>
+            <p className="text-xs text-gray-400 mt-1">PNG, JPG or SVG · Max 2MB · Landscape ratio 12:5 (e.g. 480×200px) · Prints at 60×25mm on payslips</p>
           </div>
         </div>
 
