@@ -230,11 +230,11 @@ export default function TrainersPage() {
 
     // Draft/approved payslips not yet paid
     const { data: payslips } = await supabase.from('payslips')
-      .select('id, month, year, status')
+      .select('id, period_month, period_year, status')
       .eq('user_id', userId).in('status', ['draft', 'approved'])
     checks.payslips = payslips || []
 
-    // Unpaid commission payouts
+    // Unpaid commission payslips
     const { data: commissions } = await supabase.from('payslips')
       .select('*').eq('user_id', userId)
       .in('payment_type', ['commission', 'combined'])
@@ -243,6 +243,38 @@ export default function TrainersPage() {
       .order('period_month', { ascending: false })
       .limit(24)
     checks.commissions = commissions || []
+
+    // Active duty roster shifts without payslip
+    const { data: roster } = await supabase.from('duty_roster')
+      .select('id, shift_date, gross_pay').eq('user_id', userId)
+      .is('payslip_id', null).gte('shift_date', '2020-01-01')
+    checks.roster = roster || []
+
+    // Active packages
+    const { data: packages } = await supabase.from('packages')
+      .select('id, package_name, sessions_used, total_sessions')
+      .eq('trainer_id', userId).eq('status', 'active')
+    checks.packages = packages || []
+
+    // Active package memberships
+    const { data: activePkgs } = await supabase.from('packages')
+      .select('id, package_name').eq('trainer_id', userId)
+      .in('status', ['active']).lt('sessions_used', 'total_sessions' as any)
+    checks.activePkgs = activePkgs || []
+
+    setOffboardingChecklist({ member, checks })
+  }
+
+  const handleConfirmOffboarding = async () => {
+    if (!offboardingChecklist) return
+    setCompletingOffboard(true)
+    // Archive the member
+    await supabase.from('users').update({
+      is_archived: true,
+      is_active: false,
+      archived_at: new Date().toISOString(),
+    }).eq('id', offboardingChecklist.member.id)
+    logActivity('update', 'HR Staff', `Offboarded staff — ${offboardingChecklist.member.full_name}`)
     setOffboardingChecklist(null)
     setCompletingOffboard(false)
     await loadData()
