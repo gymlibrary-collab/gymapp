@@ -367,29 +367,6 @@ export default function StaffPayrollDetailPage() {
         </div>
       </div>
 
-      {/* CPF override — part-timers */}
-      {isPartTime && (
-        <div className="card p-4 space-y-2">
-          <label className="label">CPF Liability <span className="text-xs text-gray-400 font-normal">— auto-set from residency status</span></label>
-          <div className="flex items-center gap-2">
-            <select className="input flex-1" value={payroll?.is_cpf_liable ? 'true' : 'false'}
-              onChange={async e => {
-                const newVal = e.target.value === 'true'
-                const res = await fetch('/api/update-staff-salary', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ action: 'set', userId: id, current_salary: payroll?.current_salary || 0, is_cpf_liable: newVal }),
-                })
-                if (res.ok) { await loadData(); showMsg(`CPF liability updated`) }
-                else { const d = await res.json(); setError(d.error || 'Failed') }
-              }}>
-              <option value="true">CPF Liable (SG Citizen / PR)</option>
-              <option value="false">Not CPF Liable (Foreigner / Exempt)</option>
-            </select>
-          </div>
-          <p className="text-xs text-gray-400">Override only for exceptional cases.</p>
-        </div>
-      )}
-
       {/* Salary & CPF — only for full-time */}
       {!isPartTime && (
         <div className="card">
@@ -445,14 +422,7 @@ export default function StaffPayrollDetailPage() {
           {showSalaryForm && (
             <form onSubmit={handleSavePayroll} className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
               <div><label className="label">Monthly Salary (SGD) *</label><input className="input" type="number" required min="0" step="0.01" value={salaryForm.current_salary} onChange={e => setSalaryForm(f => ({ ...f, current_salary: e.target.value }))} /></div>
-              <div>
-                <label className="label">CPF Liability <span className="text-xs text-gray-400 font-normal">— auto-set from residency status</span></label>
-                <select className="input" value={salaryForm.is_cpf_liable} onChange={e => setSalaryForm(f => ({ ...f, is_cpf_liable: e.target.value }))}>
-                  <option value="true">CPF Liable (SG Citizen / PR)</option>
-                  <option value="false">Not CPF Liable (Foreigner / Exempt)</option>
-                </select>
-                <p className="text-xs text-gray-400 mt-1">Override only for exceptional cases.</p>
-              </div>
+
               <div className="flex gap-2"><button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Saving...' : 'Save'}</button><button type="button" onClick={() => setShowSalaryForm(false)} className="btn-secondary">Cancel</button></div>
             </form>
           )}

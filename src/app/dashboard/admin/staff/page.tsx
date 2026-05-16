@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
+import { RESIDENCY_STATUS_OPTIONS, residencyLabel } from '@/lib/cpf'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import {
   Plus, Edit2, Trash2, X, Save, CheckCircle,
@@ -27,7 +28,7 @@ interface BizOpsUser {
   created_at: string
 }
 
-const emptyForm = { full_name: '', nickname: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', date_of_birth: '', leave_entitlement_days: '', address: '' }
+const emptyForm = { full_name: '', nickname: '', email: '', phone: '', date_of_joining: '', nric: '', nationality: '', residency_status: 'singapore_citizen', date_of_birth: '', leave_entitlement_days: '', address: '' }
 
 export default function AdminStaffPage() {
 
@@ -77,6 +78,7 @@ export default function AdminStaffPage() {
       date_of_joining: user.date_of_joining || '',
       nric: (user as any).nric || '',
       nationality: (user as any).nationality || '',
+      residency_status: (user as any).residency_status || 'other',
       date_of_birth: (user as any).date_of_birth || '',
       leave_entitlement_days: (user as any).leave_entitlement_days?.toString() || '',
       address: (user as any).address || '',
@@ -244,6 +246,17 @@ export default function AdminStaffPage() {
               <label className="label">Nationality</label>
               <input className="input" value={(form as any).nationality} onChange={set('nationality')} placeholder="e.g. Singaporean" />
             </div>
+            <div>
+              <label className="label">Residency Status *</label>
+              <select className="input" required value={(form as any).residency_status || 'other'}
+                onChange={e => setForm((f: any) => ({ ...f, residency_status: e.target.value }))}>
+                {RESIDENCY_STATUS_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label} — {o.cpfLiable ? 'CPF liable' : 'no CPF'}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Date of Birth</label>
               <input className="input" type="date" value={(form as any).date_of_birth} onChange={set('date_of_birth')} />
