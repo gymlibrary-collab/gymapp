@@ -112,9 +112,9 @@ export default function RosterPage() {
       setRoster(rData || [])
 
       const { data: paidPs } = await supabase.from('payslips')
-        .select('user_id, gym_id, month, year').eq('gym_id', gId).in('status', ['approved', 'paid'])
+        .select('user_id, gym_id, period_month, period_year').eq('gym_id', gId).in('status', ['approved', 'paid'])
       setPaidPayslipKeys(new Set<string>(
-        (paidPs || []).map((p: any) => `${p.user_id}:${p.gym_id}:${p.month}:${p.year}`)
+        (paidPs || []).map((p: any) => `${p.user_id}:${p.gym_id}:${p.period_month}:${p.period_year}`)
       ))
 
       const { data: ptGymRows } = await supabase.from('trainer_gyms')
