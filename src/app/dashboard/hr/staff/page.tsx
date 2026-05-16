@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
+import Link from 'next/link'
 import { PageSpinner } from '@/components/PageSpinner'
 
 const ALL_ROLES = [
@@ -686,7 +687,7 @@ export default function TrainersPage() {
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={isBizOps ? "Edit" : "View"}><Edit2 className="w-4 h-4" /></button>
-                      {isBizOps && <a href={`/dashboard/hr/${member.id}/payroll`} className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4" /></a>}
+                      {isBizOps && <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4" /></Link>}
                       {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </div>
