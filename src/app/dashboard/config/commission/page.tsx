@@ -26,7 +26,7 @@ export default function CommissionConfigPage() {
 
       // Load per-gym commission config (correct schema: gym_id based)
       const { data: gymConfigs } = await supabase.from('commission_config')
-        .select('id, gym_id, default_signup_pct, default_session_pct, default_membership_commission_sgd, updated_at').order('created_at')
+        .select('id, gym_id, default_signup_pct, default_session_pct, default_membership_commission_sgd, updated_at').order('updated_at')
       const cfg: Record<string, any> = {}
       gymConfigs?.forEach((c: any) => { cfg[c.gym_id] = c })
       setConfig(cfg)
