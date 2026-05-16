@@ -122,7 +122,7 @@ export default function CpfPage() {
       return {
         name: p.user?.full_name, nric: p.user?.nric,
         age: p.user?.date_of_birth ? getAge(p.user.date_of_birth) : null,
-        bracket: bracket?.label || 'Unknown',
+        bracket: (() => { const age = p.user?.date_of_birth ? getAge(p.user.date_of_birth) : null; if (age === null) return 'Unknown'; if (age <= 55) return '≤55'; if (age <= 60) return '56–60'; if (age <= 65) return '61–65'; if (age <= 70) return '66–70'; return '>70' })(),
         gross, empRate, erRate, empCpf, erCpf,
         totalCpf: empCpf + erCpf,
         cappedOW, awSubject,
