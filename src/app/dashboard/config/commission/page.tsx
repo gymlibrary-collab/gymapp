@@ -24,12 +24,16 @@ export default function CommissionConfigPage() {
     const load = async () => {
       logActivity('page_view', 'Commission Rates', 'Viewed commission rates configuration')
 
-      const { data } = await supabase.from('commission_config').select('*')
+      // Load per-gym commission config (correct schema: gym_id based)
+      const { data: gymConfigs } = await supabase.from('commission_config')
+        .select('*, gym:gyms(name)').order('created_at')
       const cfg: Record<string, any> = {}
-      data?.forEach((c: any) => { cfg[c.config_key] = c })
+      gymConfigs?.forEach((c: any) => { cfg[c.gym_id] = c })
       setConfig(cfg)
-      setMembershipPct(cfg['membership_commission_sgd']?.config_value?.toString() || '5')
-      setDefaultHourlyRate(cfg['default_hourly_rate']?.config_value?.toString() || '12')
+      // Use first gym's membership commission as display default
+      const firstCfg = gymConfigs?.[0]
+      setMembershipPct(firstCfg?.default_membership_commission_sgd?.toString() || '10')
+      setDefaultHourlyRate(firstCfg?.default_session_pct?.toString() || '15')
     }
     load()
   }, [])
@@ -40,18 +44,13 @@ export default function CommissionConfigPage() {
     const now = new Date().toISOString()
 
     // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
-    await supabase.from('commission_config').upsert({
-      config_key: 'membership_commission_sgd',
-      config_value: parseFloat(membershipPct),
-      description: 'Fixed membership sale commission per sale (SGD)',
-      updated_by: user?.id, updated_at: now,
-    }, { onConflict: 'config_key' })
-    await supabase.from('commission_config').upsert({
-      config_key: 'default_hourly_rate',
-      config_value: parseFloat(defaultHourlyRate),
-      description: 'Default hourly rate for part-time staff (SGD)',
-      updated_by: user?.id, updated_at: now,
-    }, { onConflict: 'config_key' })
+    // Update default_membership_commission_sgd for all gyms
+    for (const gymId of Object.keys(config)) {
+      await supabase.from('commission_config').update({
+        default_membership_commission_sgd: parseFloat(membershipPct),
+        updated_at: now,
+      }).eq('gym_id', gymId)
+    }
 
     logActivity('update', 'Commission Rates', 'Updated commission rates')
     setSaving(false); setSaved(true)

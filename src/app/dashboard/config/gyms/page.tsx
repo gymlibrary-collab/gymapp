@@ -214,7 +214,7 @@ export default function GymManagementPage() {
               <ImageIcon className="w-3.5 h-3.5 text-gray-400" /> Gym Logo
             </label>
             <p className="text-xs text-gray-400 mb-2">
-              Shown in the sidebar and on payslips for staff assigned to this gym. Rectangular or square logos supported. Transparent background recommended.
+              Printed on payslips and shown in the sidebar for staff at this gym. Max 2MB. Recommended: landscape PNG (e.g. 300×80px), transparent background. The logo prints at approximately 60mm wide on payslips — ensure text is legible at that size.
             </p>
             <div className="flex items-center gap-4">
               <div className="w-32 h-20 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden bg-gray-50 flex-shrink-0">

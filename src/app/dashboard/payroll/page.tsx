@@ -290,8 +290,8 @@ export default function PayrollPage() {
 
         // Load payslips — approved or paid only
         const { data: payslips } = await supabase.from('payslips')
-          .select('*').eq('user_id', staff.id).eq('year', archiveYear)
-          .in('status', ['approved', 'paid']).order('month')
+          .select('*').eq('user_id', staff.id).eq('period_year', archiveYear)
+          .in('status', ['approved', 'paid']).order('period_month')
 
         // Commission payslips unified in payslips table — loaded above already
 

@@ -83,7 +83,7 @@ export default function StaffPayrollDetailPage() {
     const { data: bonusData } = await supabase.from('staff_bonuses').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false })
     setBonuses(bonusData || [])
 
-    const { data: slipData } = await supabase.from('payslips').select('*').eq('user_id', id).order('year', { ascending: false }).order('month', { ascending: false }).limit(26)
+    const { data: slipData } = await supabase.from('payslips').select('*').eq('user_id', id).order('period_year', { ascending: false }).order('period_month', { ascending: false }).limit(26)
     setPayslips(slipData || [])
 
     const payoutYearFrom = `${(new Date(Date.now()+8*60*60*1000).getUTCFullYear() - 1)}-01-01`
@@ -269,12 +269,13 @@ export default function StaffPayrollDetailPage() {
       await supabase.from('payslips').update({
         deduction_amount: amount,
         deduction_reason: editingDeduction.reason.trim() || null,
+        net_salary: (payslips.find((p: any) => p.id === editingDeduction.id)?.gross_salary || 0) - amount - (payslips.find((p: any) => p.id === editingDeduction.id)?.employee_cpf_amount || 0),
       }).eq('id', editingDeduction.id).eq('status', 'draft')
     } else {
       await supabase.from('payslips').update({
         deduction_amount: amount,
         deduction_reason: editingDeduction.reason.trim() || null,
-        net_salary: ((payslips.find((p: any) => p.id === editingDeduction.id) || commissionPayouts.find((p: any) => p.id === editingDeduction.id))?.gross_salary || 0) - amount - ((payslips.find((p: any) => p.id === editingDeduction.id) || commissionPayouts.find((p: any) => p.id === editingDeduction.id))?.employee_cpf_amount || 0),
+        net_salary: (payslips.find((p: any) => p.id === editingDeduction.id)?.gross_salary || 0) - amount - (payslips.find((p: any) => p.id === editingDeduction.id)?.employee_cpf_amount || 0),
       }).eq('id', editingDeduction.id).eq('status', 'draft')
     }
     logActivity('update', 'Staff Payroll', `Updated deduction on ${editingDeduction.type}`)
@@ -586,7 +587,7 @@ export default function StaffPayrollDetailPage() {
             {payslips.map(ps => (
               <div key={ps.id} className="p-4">
                 <div className="flex items-start justify-between mb-2">
-                  <div><p className="font-medium text-gray-900 text-sm">{getMonthName(ps.month)} {ps.year}</p><p className="text-xs text-gray-500">{ps.employment_type === 'part_time' ? `${ps.total_hours}h roster` : `Basic: ${formatSGD(ps.basic_salary)}`}{ps.bonus_amount > 0 && ` + ${formatSGD(ps.bonus_amount)}`}</p></div>
+                  <div><p className="font-medium text-gray-900 text-sm">{getMonthName(ps.period_month)} {ps.period_year}</p><p className="text-xs text-gray-500">{ps.employment_type === 'part_time' ? `${ps.total_hours}h roster` : `Salary: ${formatSGD(ps.salary_amount)}`}{ps.allowance_amount > 0 && ` + ${formatSGD(ps.allowance_amount)} allowance`}{ps.bonus_amount > 0 && ` + ${formatSGD(ps.bonus_amount)} bonus`}</p></div>
                   <div className="text-right"><p className="font-bold text-gray-900">{formatSGD(ps.net_salary)}</p><p className="text-xs text-gray-400">net pay</p></div>
                 </div>
                 {ps.cpf_adjustment_note && (

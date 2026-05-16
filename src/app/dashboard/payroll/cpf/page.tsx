@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD, getMonthName, nowSGT} from '@/lib/utils'
-import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
+import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets, getCpfCeilings } from '@/lib/cpf'
 import { Calculator, Save, CheckCircle, FileText, Download, Edit2, AlertCircle, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -97,12 +97,8 @@ export default function CpfPage() {
       .in('status', ['approved', 'paid'])
       .eq('is_cpf_liable', true)
 
-    // Load CPF ceiling config
-    const { data: cfgRows } = await supabase.from('commission_config')
-      .select('config_key, config_value').in('config_key', ['cpf_ow_ceiling', 'cpf_annual_ceiling'])
-    const cfg: Record<string, number> = {}
-    cfgRows?.forEach((r: any) => { cfg[r.config_key] = r.config_value })
-    const OW_CEILING = cfg['cpf_ow_ceiling'] ?? 8000
+    // Load CPF ceilings from cpf_age_brackets (correct source after v90)
+    const { owCeiling: OW_CEILING } = getCpfCeilings(brackets, selectedYear)
 
     const rows = (payslips || []).map((p: any) => {
       const bracket = getCpfBracketRates(brackets, p.user?.date_of_birth || null, selectedYear, selectedMonth)
