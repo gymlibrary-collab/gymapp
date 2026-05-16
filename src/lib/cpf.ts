@@ -17,6 +17,34 @@
 
 import { nowSGT } from '@/lib/utils'
 
+// ── CPF Liability from Residency Status ─────────────────────
+// Single source of truth for which residency statuses are CPF liable.
+// Singapore Citizens and PRs are CPF liable.
+// All other pass types are not CPF liable.
+export const CPF_LIABLE_STATUSES = ['singapore_citizen', 'singapore_pr'] as const
+
+export function cpfLiableFromResidency(residencyStatus: string | null | undefined): boolean {
+  if (!residencyStatus) return false
+  return CPF_LIABLE_STATUSES.includes(residencyStatus as any)
+}
+
+// ── Residency Status Options ─────────────────────────────────
+export const RESIDENCY_STATUS_OPTIONS = [
+  { value: 'singapore_citizen',    label: 'Singapore Citizen',      cpfLiable: true  },
+  { value: 'singapore_pr',         label: 'Singapore PR',           cpfLiable: true  },
+  { value: 'employment_pass',      label: 'Employment Pass (EP)',    cpfLiable: false },
+  { value: 's_pass',               label: 'S Pass',                 cpfLiable: false },
+  { value: 'work_permit',          label: 'Work Permit (WP)',        cpfLiable: false },
+  { value: 'dependants_pass',      label: "Dependant's Pass",       cpfLiable: false },
+  { value: 'long_term_visit_pass', label: 'Long-Term Visit Pass',   cpfLiable: false },
+  { value: 'other',                label: 'Other',                  cpfLiable: false },
+] as const
+
+export function residencyLabel(status: string | null | undefined): string {
+  if (!status) return 'Not set'
+  return RESIDENCY_STATUS_OPTIONS.find(o => o.value === status)?.label || status
+}
+
 // ── getAgeAsOf ───────────────────────────────────────────────
 // Returns whole-number age as of a given reference date.
 // Reference date uses UTC methods (pass a SGT-adjusted Date).

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { full_name, nickname, email, phone, role, commission_signup_pct, commission_session_pct,
+    const { full_name, nickname, email, phone, role, residency_status, commission_signup_pct, commission_session_pct,
       gym_ids, manager_gym_id, is_also_trainer } = body
 
     // Trainers must be full-time
@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
     const userPayload: any = {
       id: authData.user.id, full_name, nickname: nickname.trim(), email,
       phone: phone || null, role: resolvedRole,
+      residency_status: residency_status || 'other',
       employment_type: resolvedEmployment,
       hourly_rate: hourly_rate ? parseFloat(hourly_rate) : null,
       commission_signup_pct: parseFloat(commission_signup_pct) || 10,
@@ -125,6 +126,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Create staff_payroll record with defaults
+    // Allows CPF tag and payroll profile to work immediately after onboarding
+    const isPartTime = body.employment_type === 'part_time'
+    const isCpfLiable = ['singapore_citizen', 'singapore_pr'].includes(residency_status || '')
+    await adminClient.from('staff_payroll').insert({
+      user_id: authData.user.id,
+      current_salary: 0,
+      is_cpf_liable: isCpfLiable, // derived from residency status
+      monthly_allowance: 0,
+      others_monthly_amount: 0,
+      others_cpf_liable: false,
+    })
+
     return NextResponse.json({ success: true, userId: authData.user.id })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -142,7 +156,7 @@ export async function PATCH(request: Request) {
 
     const body = await request.json()
     const {
-      userId, full_name, nickname, email, phone, role, is_active,
+      userId, full_name, nickname, email, phone, role, is_active, residency_status,
       date_of_birth, date_of_joining, date_of_departure, departure_reason,
       probation_end_date, probation_passed, leave_carry_forward_days,
       commission_signup_pct, commission_session_pct,
@@ -249,6 +263,16 @@ export async function PATCH(request: Request) {
       // manager_gym_id: written for all roles so the DB stays consistent
       // with the gym dropdown selection regardless of role
       if (manager_gym_id !== undefined)          updatePayload.manager_gym_id = manager_gym_id || null
+      if (residency_status !== undefined) {
+        updatePayload.residency_status = residency_status
+        // Auto-update is_cpf_liable in staff_payroll when residency changes
+        // (unless biz ops has explicitly overridden it separately)
+        const newCpfLiable = ['singapore_citizen', 'singapore_pr'].includes(residency_status)
+        await adminClient.from('staff_payroll').upsert(
+          { user_id: userId, is_cpf_liable: newCpfLiable, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id', ignoreDuplicates: false }
+        )
+      }
     }
 
     // Admin: basic fields for managing Biz Ops accounts.

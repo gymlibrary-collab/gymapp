@@ -34,7 +34,7 @@ const emptyForm = {
   // gym_ids: multi-select checkboxes for part-time ops staff (rostered at any gym)
   gym_id: '', gym_ids: [] as string[], manager_gym_id: '', is_also_trainer: false, // gym_ids retained for API compatibility
   date_of_birth: '', date_of_joining: '', date_of_departure: '', departure_reason: '', address: '',
-  nric: '', nationality: 'Singaporean',
+  nric: '', nationality: 'Singaporean', residency_status: 'singapore_citizen',
   leave_entitlement_days: '',
   medical_leave_entitlement_days: '14',
   hospitalisation_leave_entitlement_days: '60',
@@ -243,6 +243,7 @@ export default function TrainersPage() {
       probation_passed: !!member.probation_passed_at,
       leave_carry_forward_days: member.leave_carry_forward_days?.toString() || '0',
       nationality: member.nationality || 'Singaporean',
+      residency_status: member.residency_status || 'other',
     })
     setShowCreateForm(false); setError('')
   }
@@ -842,9 +843,9 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
         <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
         <div><label className="label">Nickname *</label><input className="input" required value={form.nickname || ''} onChange={e => setF((f: any) => ({ ...f, nickname: e.target.value }))} placeholder="e.g. Alex" /></div>
       </div>
-      <div>
-        <label className="label">NRIC / FIN / Passport</label>
-        <input className="input" value={form.nric || ''} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" />
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric || ''} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" /></div>
+        <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth || ''} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
       </div>
       <div>
         <label className="label">Residential Address</label>
@@ -856,7 +857,15 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Nationality</label><input className="input" value={form.nationality || ''} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
-        <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth || ''} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
+        <div>
+          <label className="label">Residency Status * <span className="text-xs text-gray-400 font-normal">(determines CPF)</span></label>
+          <select className="input" required value={form.residency_status || 'other'}
+            onChange={e => setF((f: any) => ({ ...f, residency_status: e.target.value }))}>
+            {RESIDENCY_STATUS_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label} — {o.cpfLiable ? 'CPF liable' : 'no CPF'}</option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>

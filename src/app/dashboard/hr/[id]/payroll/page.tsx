@@ -115,7 +115,7 @@ export default function StaffPayrollDetailPage() {
         if (!grouped[key]) grouped[key] = { month: d.getMonth() + 1, year: d.getFullYear(), hours: 0, pay: 0, shifts: 0 }
         if (r.status === 'completed') { grouped[key].hours += r.hours_worked || 0; grouped[key].pay += r.gross_pay || 0; grouped[key].shifts++ }
       })
-      setRosterSummary(Object.values(grouped).sort((a, b) => b.year - a.year || b.month - a.month).slice(0, 3))
+      setRosterSummary(Object.values(grouped).sort((a, b) => b.year - a.year || b.month - a.month))
     }
     setPayslipBranding({ logoUrl: branding.logoUrl, companyName: branding.companyName, gymName: branding.gymName })
   }
@@ -340,7 +340,7 @@ export default function StaffPayrollDetailPage() {
           {rosterSummary.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-2">No roster shifts recorded yet</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-y-auto max-h-48">
               {rosterSummary.map(r => (
                 <div key={`${r.year}-${r.month}`} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                   <p className="text-sm font-medium text-gray-900">{getMonthName(r.month)} {r.year}</p>
@@ -352,6 +352,41 @@ export default function StaffPayrollDetailPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Nationality & Residency — shown for all staff */}
+      <div className="card p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-400">Nationality</p>
+          <p className="text-sm text-gray-900">{staff.nationality || <span className="italic text-gray-400">Not set</span>}</p>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-400">Residency status</p>
+          <p className="text-sm text-gray-900">{residencyLabel(staff.residency_status)}</p>
+        </div>
+      </div>
+
+      {/* CPF override — part-timers */}
+      {isPartTime && (
+        <div className="card p-4 space-y-2">
+          <label className="label">CPF Liability <span className="text-xs text-gray-400 font-normal">— auto-set from residency status</span></label>
+          <div className="flex items-center gap-2">
+            <select className="input flex-1" value={payroll?.is_cpf_liable ? 'true' : 'false'}
+              onChange={async e => {
+                const newVal = e.target.value === 'true'
+                const res = await fetch('/api/update-staff-salary', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'set', userId: id, current_salary: payroll?.current_salary || 0, is_cpf_liable: newVal }),
+                })
+                if (res.ok) { await loadData(); showMsg(`CPF liability updated`) }
+                else { const d = await res.json(); setError(d.error || 'Failed') }
+              }}>
+              <option value="true">CPF Liable (SG Citizen / PR)</option>
+              <option value="false">Not CPF Liable (Foreigner / Exempt)</option>
+            </select>
+          </div>
+          <p className="text-xs text-gray-400">Override only for exceptional cases.</p>
         </div>
       )}
 
@@ -410,7 +445,14 @@ export default function StaffPayrollDetailPage() {
           {showSalaryForm && (
             <form onSubmit={handleSavePayroll} className="px-4 pb-4 space-y-3 border-t border-gray-100 pt-3">
               <div><label className="label">Monthly Salary (SGD) *</label><input className="input" type="number" required min="0" step="0.01" value={salaryForm.current_salary} onChange={e => setSalaryForm(f => ({ ...f, current_salary: e.target.value }))} /></div>
-              <div><label className="label">CPF Liability</label><select className="input" value={salaryForm.is_cpf_liable} onChange={e => setSalaryForm(f => ({ ...f, is_cpf_liable: e.target.value }))}><option value="true">CPF Liable (SG Citizen / PR)</option><option value="false">Not CPF Liable (Foreigner / Exempt)</option></select></div>
+              <div>
+                <label className="label">CPF Liability <span className="text-xs text-gray-400 font-normal">— auto-set from residency status</span></label>
+                <select className="input" value={salaryForm.is_cpf_liable} onChange={e => setSalaryForm(f => ({ ...f, is_cpf_liable: e.target.value }))}>
+                  <option value="true">CPF Liable (SG Citizen / PR)</option>
+                  <option value="false">Not CPF Liable (Foreigner / Exempt)</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">Override only for exceptional cases.</p>
+              </div>
               <div className="flex gap-2"><button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Saving...' : 'Save'}</button><button type="button" onClick={() => setShowSalaryForm(false)} className="btn-secondary">Cancel</button></div>
             </form>
           )}

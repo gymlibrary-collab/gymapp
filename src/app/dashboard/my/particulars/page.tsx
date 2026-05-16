@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import { residencyLabel, cpfLiableFromResidency } from '@/lib/cpf'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { validatePhone, validateAddress, validateAll } from '@/lib/validators'
@@ -97,6 +99,23 @@ export default function MyParticularsPage() {
           <div>
             <p className="text-xs text-gray-400">Nationality</p>
             <p className="text-sm text-gray-900">{(user as any).nationality || <span className="italic text-gray-400">Not set</span>}</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <Shield className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-gray-400">Residency status</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-900">{residencyLabel((user as any).residency_status)}</p>
+              {(user as any).residency_status && (
+                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium',
+                  cpfLiableFromResidency((user as any).residency_status)
+                    ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600')}>
+                  {cpfLiableFromResidency((user as any).residency_status) ? 'CPF liable' : 'No CPF'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
