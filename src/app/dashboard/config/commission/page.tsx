@@ -15,8 +15,8 @@ export default function CommissionConfigPage() {
   const [config, setConfig] = useState<Record<string, any>>({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [membershipPct, setMembershipPct] = useState('5')
-  const [defaultHourlyRate, setDefaultHourlyRate] = useState('12')
+  const [membershipPct, setMembershipPct] = useState('')
+  const [defaultHourlyRate, setDefaultHourlyRate] = useState('')
   const router = useRouter()
   const supabase = createClient()
 
