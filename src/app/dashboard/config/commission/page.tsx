@@ -54,15 +54,24 @@ export default function CommissionConfigPage() {
     const now = new Date().toISOString()
 
     // Supabase query builders return PromiseLike, not Promise — never use Promise.all() with them.
-    // Upsert commission defaults for all gyms (handles new gyms with no existing row)
+    // Upsert commission defaults for all gyms
     const { data: gyms } = await supabase.from('gyms').select('id').eq('is_active', true)
     for (const gym of gyms || []) {
-      await supabase.from('commission_config').upsert({
+      // Try with default_hourly_rate (requires migration_v90_addendum to have run)
+      const { error: upsertErr } = await supabase.from('commission_config').upsert({
         gym_id: gym.id,
         default_membership_commission_sgd: parseFloat(membershipPct),
         default_hourly_rate: parseFloat(defaultHourlyRate),
         updated_at: now,
       }, { onConflict: 'gym_id' })
+      if (upsertErr) {
+        // Column not yet added — save without hourly rate
+        await supabase.from('commission_config').upsert({
+          gym_id: gym.id,
+          default_membership_commission_sgd: parseFloat(membershipPct),
+          updated_at: now,
+        }, { onConflict: 'gym_id' })
+      }
     }
 
     logActivity('update', 'Commission Rates', 'Updated commission rates')
