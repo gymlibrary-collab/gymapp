@@ -98,10 +98,9 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
 
   useEffect(() => { loadCommissionStats(commissionOffset) }, [commissionOffset, loadCommissionStats])
 
-  useEffect(() => {
-    const load = async (silent = false) => {
-      if (!silent) setLoading(true)
-      if (!silent) logActivity('page_view', 'Dashboard', 'Staff dashboard loaded')
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true)
+    if (!silent) logActivity('page_view', 'Dashboard', 'Staff dashboard loaded')
 
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
@@ -175,9 +174,9 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       setNewCommission(payslipNotifs.newCommission)
 
       setLoading(false)
-    }
-    load()
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
 
   useDashboardRefresh(load)
 

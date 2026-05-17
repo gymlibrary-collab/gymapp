@@ -114,10 +114,9 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
     loadCommissionStats(commissionOffset)
   }, [commissionOffset, loadCommissionStats])
 
-  useEffect(() => {
-    const load = async (silent = false) => {
-      if (!silent) setLoading(true)
-      if (!silent) logActivity('page_view', 'Dashboard', 'Trainer dashboard loaded')
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true)
+    if (!silent) logActivity('page_view', 'Dashboard', 'Trainer dashboard loaded')
 
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
@@ -204,9 +203,9 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       setNewCommission(payslipNotifs.newCommission)
 
       setLoading(false)
-    }
-    load()
-  }, [isActingAsTrainer])
+  }
+
+  useEffect(() => { load() }, [isActingAsTrainer])
 
   useDashboardRefresh(load)
 

@@ -198,8 +198,7 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
   }, [commissionOffset, loadCommissionStats])
 
   // ── Main data load ─────────────────────────────────────────
-  useEffect(() => {
-    const load = async (silent = false) => {
+  const load = async (silent = false) => {
       if (!gymId) { if (!silent) setLoading(false); return }
 
       try {
@@ -317,9 +316,9 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
         console.error('[ManagerDashboard] Load error:', err)
         setLoading(false)
       }
-    }
-    load()
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
 
   useDashboardRefresh(load)
 

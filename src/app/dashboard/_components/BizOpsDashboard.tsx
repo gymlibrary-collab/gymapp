@@ -103,8 +103,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
     if (disputedShifts.length <= 1) setShowDisputePanel(false)
   }
 
-  useEffect(() => {
-    const load = async (silent = false) => {
+  const load = async (silent = false) => {
       // Banner 1: Manager leave — always goes direct to biz-ops (no escalation)
       const { data: mgrIds } = await supabase.from('users_safe')
         .select('id').eq('role', 'manager')
@@ -184,8 +183,8 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
         }
       }
     }
-    load()
-  }, [])
+
+  useEffect(() => { load() }, [])
 
   useDashboardRefresh(load)
 
@@ -382,8 +381,7 @@ function BizOpsGymTabs() {
   const bizCommPeriodEnd = new Date(now.getUTCFullYear(), now.getUTCMonth() + bizCommOffset + 1, 0, 23, 59, 59).toISOString()
   const bizCommPeriodLabel = bizCommPeriodDate.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
 
-  useEffect(() => {
-    const load2 = async (silent = false) => {
+  const load2 = async (silent = false) => {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
       const gymIds = (gymsData || []).map((g: any) => g.id)
@@ -446,8 +444,8 @@ function BizOpsGymTabs() {
       const topGym = enriched.reduce((a: any, b: any) => b.totalAlerts > a.totalAlerts ? b : a, enriched[0])
       setSelectedGym(topGym?.id || enriched[0]?.id || null)
     }
-    load2()
-  }, [])
+
+  useEffect(() => { load2() }, [])
 
   useDashboardRefresh(load2)
 

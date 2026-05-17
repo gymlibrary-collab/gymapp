@@ -60,53 +60,52 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [pendingLeave, setPendingLeave] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const load = async (silent = false) => {
-      if (!silent) setLoading(true)
-      // Query 1: all gyms for the gym breakdown card
-      const { data: gyms } = await supabase
-        .from('gyms')
-        .select('*')
-        .order('name')
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true)
+    // Query 1: all gyms for the gym breakdown card
+    const { data: gyms } = await supabase
+      .from('gyms')
+      .select('*')
+      .order('name')
 
-      // Query 2: all non-archived staff for role counts and gym mapping
-      // trainer_gyms join needed to count trainers per gym
-      const { data: allStaff } = await supabase
-        .from('users_safe')
-        .select('id, role, manager_gym_id, trainer_gyms(gym_id)')
-        .eq('is_archived', false)
+    // Query 2: all non-archived staff for role counts and gym mapping
+    // trainer_gyms join needed to count trainers per gym
+    const { data: allStaff } = await supabase
+      .from('users_safe')
+      .select('id, role, manager_gym_id, trainer_gyms(gym_id)')
+      .eq('is_archived', false)
 
-      // Build role count map: { manager: 3, trainer: 8, ... }
-      const rc: Record<string, number> = {}
-      allStaff?.forEach((s: any) => { rc[s.role] = (rc[s.role] || 0) + 1 })
-      setRoleCounts(rc)
+    // Build role count map: { manager: 3, trainer: 8, ... }
+    const rc: Record<string, number> = {}
+    allStaff?.forEach((s: any) => { rc[s.role] = (rc[s.role] || 0) + 1 })
+    setRoleCounts(rc)
 
-      // Build gym breakdown: each gym with manager + trainer counts
-      setGymBreakdown((gyms || []).map(g => ({
-        ...g,
-        managers: allStaff?.filter((s: any) =>
-          s.role === 'manager' && s.manager_gym_id === g.id
-        ).length || 0,
-        trainers: allStaff?.filter((s: any) =>
-          s.role === 'trainer' && (s.trainer_gyms as any[])?.some((tg: any) => tg.gym_id === g.id)
-        ).length || 0,
-      })))
+    // Build gym breakdown: each gym with manager + trainer counts
+    setGymBreakdown((gyms || []).map(g => ({
+      ...g,
+      managers: allStaff?.filter((s: any) =>
+        s.role === 'manager' && s.manager_gym_id === g.id
+      ).length || 0,
+      trainers: allStaff?.filter((s: any) =>
+        s.role === 'trainer' && (s.trainer_gyms as any[])?.some((tg: any) => tg.gym_id === g.id)
+      ).length || 0,
+    })))
 
-      // Query 3: pending leave for biz-ops staff (admin approves these)
-      const bizOpsIds = allStaff?.filter((s: any) => s.role === 'business_ops').map((s: any) => s.id) || []
-      if (bizOpsIds.length > 0) {
-        const { count: leavePending } = await supabase
-          .from('leave_applications')
-          .select('id', { count: 'exact', head: true })
-          .in('user_id', bizOpsIds)
-          .eq('status', 'pending')
-        setPendingLeave(leavePending || 0)
-      }
-
-      setLoading(false)
+    // Query 3: pending leave for biz-ops staff (admin approves these)
+    const bizOpsIds = allStaff?.filter((s: any) => s.role === 'business_ops').map((s: any) => s.id) || []
+    if (bizOpsIds.length > 0) {
+      const { count: leavePending } = await supabase
+        .from('leave_applications')
+        .select('id', { count: 'exact', head: true })
+        .in('user_id', bizOpsIds)
+        .eq('status', 'pending')
+      setPendingLeave(leavePending || 0)
     }
-    load()
-  }, [])
+
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
 
   useDashboardRefresh(load)
 
