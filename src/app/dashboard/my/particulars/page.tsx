@@ -194,7 +194,7 @@ export default function MyParticularsPage() {
         </div>
 
         <div>
-          <label className="label">Residential Address</label>
+          <label className="label">Residential Address <span className="text-gray-400 font-normal">(minimum 5 characters)</span></label>
           <div className="flex items-start gap-2">
             <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0 mt-2.5" />
             <input className="input flex-1" value={form.address}
