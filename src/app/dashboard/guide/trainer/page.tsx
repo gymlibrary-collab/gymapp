@@ -39,14 +39,16 @@ export default function GuidePage() {
       items: [
         'Your dashboard shows: session commission, signup commission and total earned this month',
         'Session commission: unlocked when session completed + notes submitted + manager confirmed',
-        'Signup commission: credited when a new package is created',
-        'View commission payouts and payslips under My Account > My Payslips',
+        'Signup commission: credited when a new package is confirmed by the manager',
+        'View your payslips under My Account > My Payslips',
+        'Tap any commission or combined payslip to expand a line-by-line breakdown showing each session, signup and membership sale that contributed to your commission — no PDF download needed',
+        'Download the full payslip PDF for a detailed breakdown including CPF computations',
       ]
     },
     {
       icon: FileText, heading: 'My Account',
       items: [
-        'Update your phone number, address and nickname under My Particulars',
+        'Update your phone number, address and nickname under My Particulars — other fields including residency status can only be updated by Business Operations',
         'Nickname is used in your dashboard greeting and in WhatsApp reminders sent to your members',
         'Apply for leave under My Leave',
         'Leave cannot cross the year boundary — apply up to 31 Dec and note your intended return date in the Reason field',
@@ -74,7 +76,7 @@ export default function GuidePage() {
         </div>
       </div>
       <div className="card p-4 bg-blue-50 border-blue-100">
-        <p className="text-sm text-blue-800">As a Trainer, you manage your PT clients, schedule and conduct sessions, submit session notes and track your commission.</p>
+        <p className="text-sm text-blue-800">As a Trainer, you manage your PT clients, schedule and conduct sessions, submit session notes and track your commission and payslips.</p>
       </div>
       {sections.map((s, si) => {
         const Icon = s.icon

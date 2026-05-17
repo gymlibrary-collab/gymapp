@@ -53,12 +53,12 @@ export default function GuidePage() {
     {
       icon: FileText, heading: 'My Account',
       items: [
-        'Update your phone number, address and nickname under My Particulars',
+        'Update your phone number, address and nickname under My Particulars — other fields including residency status can only be updated by Business Operations',
         'Your assigned gym(s) are shown on My Particulars (part-time staff)',
         'Apply for leave under My Leave',
         'Leave cannot cross the year boundary — apply up to 31 Dec only',
         'New year leave is unavailable until Business Operations runs the year-end reset in January',
-        'View payslips under My Payslips',
+        'View your payslips under My Payslips — tap any commission payslip to expand a line-by-line breakdown of what contributed to your commission without downloading the PDF',
       ]
     },
     {

@@ -18,11 +18,13 @@ export default function GuidePage() {
       icon: Users, heading: 'Staff Management',
       items: [
         'Onboard new staff under HR > Staff Management',
-        'Fill in Full Name, Nickname, NRIC, Address, Phone, Email, Nationality, DOB, Joining Date, Probation End Date and Annual Leave Entitlement',
+        'Fill in Full Name, Nickname, NRIC, Address, Phone, Email, Nationality, Residency Status, DOB, Joining Date, Probation End Date and Annual Leave Entitlement',
+        'Residency Status determines CPF liability — set correctly: Singapore Citizen, PR, Employment Pass, S Pass, Work Permit, etc.',
         'Nickname is mandatory — appears in the greeting and birthday notifications',
         'Set Employment Type (Full-Time or Part-Time) during onboarding',
         'Part-time staff are assigned to one or more gyms via Trainer Gyms',
         'Annual Leave Entitlement is set by Biz Ops only — leave carry-forward is set in the edit form',
+        'When archiving staff, the offboarding checklist flags: unpaid payslips, unconfirmed roster shifts, active PT packages and any unprocessed commission items not yet included in a payslip — resolve these before confirming archival',
         'To archive a trainer: all active/pending PT packages must be reassigned first via PT > Package Sales',
       ]
     },
@@ -30,21 +32,34 @@ export default function GuidePage() {
       icon: DollarSign, heading: 'Payroll',
       items: [
         'Generate monthly payslips under Payroll — one per staff member per gym',
-        'Part-timer payslips are based on duty roster hours × hourly rate',
-        'Full-timer payslips are based on basic salary + bonus',
-        'CPF is calculated automatically from age brackets — ensure staff Date of Birth is set',
+        'Part-timer payslips are based on duty roster hours × hourly rate — only confirmed completed shifts are included',
+        'Full-timer payslips are based on basic salary + allowances + bonus',
+        'CPF is calculated automatically from age brackets — ensure staff Date of Birth and Residency Status are set correctly',
         'Add deductions before approving (e.g. overpayment recovery from approved disputes)',
         'Approve draft payslips → Mark Paid to complete the cycle',
         'Paid payslips are permanent — correct errors via next-month adjustment',
+        'Annual Statements and CPF submission reports are available under Payroll',
       ]
     },
     {
-      icon: DollarSign, heading: 'Commission Payouts',
+      icon: DollarSign, heading: 'Commission Payslips',
       items: [
-        'Generate commission payouts under Payroll > Commission Payouts',
-        'Add deductions before approving (e.g. advance recovery)',
-        'Commission is calculated from confirmed sessions and package signups',
-        'Approve → Mark Paid to release commission',
+        'In separate payslip mode: generate commission payslips under Payroll > Commission Payouts — one per trainer per period',
+        'Commission is calculated from manager-confirmed PT sessions and package signups',
+        'Each commission run sweeps all unprocessed items up to the selected period — late-confirmed items from prior months are included automatically and flagged as an amber notice',
+        'Approve → Mark Paid to release commission — this stamps all included commission items as paid',
+        'In combined payslip mode: commission is automatically folded into the bulk salary payslip — the Commission Payouts page is hidden',
+        'Staff can view a breakdown of their commission line items directly on the My Payslips page without downloading the PDF',
+      ]
+    },
+    {
+      icon: Settings, heading: 'Payroll Mode',
+      items: [
+        'Configure payslip generation mode under Config > Payroll Mode',
+        'Separate mode (default): salary and commission payslips are generated independently',
+        'Combined mode: bulk generation produces one payslip per staff with salary and commission merged — Commission Payouts page is hidden from nav',
+        'Switching to combined mode is permanent and cannot be reversed — a confirmation dialog is shown before enabling',
+        'Existing separate payslips are unaffected when combined mode is enabled',
       ]
     },
     {
@@ -70,6 +85,7 @@ export default function GuidePage() {
     {
       icon: Settings, heading: 'Configuration',
       items: [
+        'Payroll Mode: switch between separate and combined payslip generation (one-way switch)',
         'Leave Policy: set the global maximum carry-forward days cap',
         'WhatsApp Templates: configure reminder messages using {{member_name}}, {{trainer_nickname}}, {{session_date}}, {{session_time}}, {{gym_name}}',
         'WhatsApp Notifications: toggle which notification types are active',

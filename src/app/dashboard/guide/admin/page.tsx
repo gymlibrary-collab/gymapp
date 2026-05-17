@@ -18,8 +18,9 @@ export default function GuidePage() {
       icon: Users, heading: 'Business Ops Staff',
       items: [
         'Create and manage Business Operations accounts under Business Ops Staff',
-        'Fill in Full Name, Nickname, NRIC, Address, Phone, Email, Nationality and DOB during onboarding',
+        'Fill in Full Name, Nickname, NRIC, Address, Phone, Email, Nationality, Residency Status and DOB during onboarding',
         'Nickname is mandatory — used in the dashboard greeting and birthday notifications',
+        'Residency Status determines CPF liability category — set correctly for accurate payroll calculations',
         'Each Biz Ops account has full access to all gyms and HR functions',
         'Biz Ops accounts can be archived — this disables login without deleting data',
       ]
@@ -69,8 +70,9 @@ export default function GuidePage() {
       items: [
         'All staff authenticate via Google OAuth — no passwords stored',
         'Role-based access control: admin > business_ops > manager > trainer/staff',
-        'Users table RLS enabled — staff cannot access other staff salary or NRIC from DevTools',
-        'Sensitive field updates (role, salary, commission) blocked by database trigger for browser sessions',
+        'Row Level Security enabled on all tables — staff cannot access other staff salary, NRIC or sensitive data from DevTools',
+        'Self-update restricted by database policy — staff can only change nickname, phone and address; role, residency status and all payroll fields are locked',
+        'Sensitive field updates (role, salary, commission) require business_ops or admin access',
         'Auto-logout applies to all roles after the configured idle period',
       ]
     },

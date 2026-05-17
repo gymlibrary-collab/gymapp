@@ -65,6 +65,7 @@ CREATE TABLE users (
   hourly_rate numeric(10,2),
   nric text,
   nationality text,
+  residency_status text CHECK (residency_status IN ('singapore_citizen','singapore_pr','employment_pass','s_pass','work_permit','dependants_pass','long_term_visit_pass','other')),
   address text,
   nickname text,
   date_of_birth date,
@@ -744,9 +745,10 @@ CREATE TRIGGER trg_protect_sensitive_user_fields
 DROP VIEW IF EXISTS users_safe;
 CREATE VIEW users_safe AS
 SELECT
-  id, full_name, nickname, email, phone, nationality,
+  id, full_name, nickname, email, phone, nationality, residency_status,
   role, employment_type, is_active, is_archived, is_also_trainer,
   manager_gym_id, hourly_rate,
+  commission_signup_pct, commission_session_pct, membership_commission_sgd,
   leave_entitlement_days, leave_carry_forward_days,
   medical_leave_entitlement_days, hospitalisation_leave_entitlement_days,
   max_sessions_per_week, monthly_session_target,

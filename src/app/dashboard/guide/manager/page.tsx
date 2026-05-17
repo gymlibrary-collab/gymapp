@@ -46,7 +46,7 @@ export default function GuidePage() {
     {
       icon: Calendar, heading: 'Leave Management',
       items: [
-        'Approve or reject trainer and staff leave under Leave Management',
+        'Approve or reject trainer and staff leave under Leave Management — you can only approve leave for staff assigned to your gym',
         'Your own leave goes to Business Operations for approval — it does not appear in your own pending count',
         'Dashboard shows: at-risk members (no sessions in 30 days), expiring memberships and expiring packages',
       ]
@@ -56,6 +56,7 @@ export default function GuidePage() {
       items: [
         'View your gym\'s details and upload a gym logo under My Gym',
         'See all trainers\' session capacity and targets under Trainer Capacity',
+        'View staff profiles including residency status under My Staff (read-only)',
         'Add or edit Trainer and Operations Staff accounts under My Staff',
         'Part-time staff show their assigned gyms and hourly rate on their profile card',
       ]
