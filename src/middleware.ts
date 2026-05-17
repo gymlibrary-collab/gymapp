@@ -58,9 +58,22 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    // Redirect to login, preserve intended destination
     const loginUrl = new URL('/', request.url)
     loginUrl.searchParams.set('redirectTo', pathname)
+
+    // If this is a Next.js RSC (React Server Component) fetch, a standard redirect
+    // causes "Failed to fetch RSC payload" in the browser console because the client
+    // expects a RSC payload, not an HTML redirect. Instead, return a special header
+    // that tells the Next.js client router to do a full page navigation to the login URL.
+    const isRscRequest = request.headers.get('RSC') === '1' ||
+      request.headers.get('Next-Router-Prefetch') === '1'
+    if (isRscRequest) {
+      return new NextResponse(null, {
+        status: 200,
+        headers: { 'x-middleware-rewrite': '/', Location: loginUrl.toString() },
+      })
+    }
+
     return NextResponse.redirect(loginUrl)
   }
 
