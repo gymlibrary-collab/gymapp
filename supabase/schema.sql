@@ -760,8 +760,10 @@ GRANT SELECT ON users_safe TO anon;
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
+-- Reflects live DB state as of 17 May 2026.
+-- Run diagnostic_full_rls_picture.sql to verify against live DB.
 
--- Enable RLS
+-- ── ENABLE RLS ───────────────────────────────────────────────
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gyms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trainer_gyms ENABLE ROW LEVEL SECURITY;
@@ -770,53 +772,75 @@ ALTER TABLE gym_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE packages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payslips ENABLE ROW LEVEL SECURITY;
-ALTER TABLE commission_payouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE duty_roster ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leave_applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_payroll ENABLE ROW LEVEL SECURITY;
+ALTER TABLE salary_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commission_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_bonuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_deductions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE commission_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cpf_age_brackets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cpf_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payslip_deletions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public_holidays ENABLE ROW LEVEL SECURITY;
+ALTER TABLE membership_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE package_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE roster_shift_presets ENABLE ROW LEVEL SECURITY;
 
 -- ── USERS ────────────────────────────────────────────────────
 CREATE POLICY "users_read_own" ON users FOR SELECT USING (id = auth.uid());
 CREATE POLICY "users_admin_read" ON users FOR SELECT USING (get_user_role() = 'admin');
 CREATE POLICY "users_biz_ops_read" ON users FOR SELECT USING (get_user_role() = 'business_ops');
 CREATE POLICY "users_manager_read" ON users FOR SELECT USING (
-  get_user_role() = 'manager' AND (
-    id = auth.uid() OR manager_gym_id = get_manager_gym_id()
-  )
+  get_user_role() = 'manager' AND (id = auth.uid() OR manager_gym_id = get_manager_gym_id())
 );
-CREATE POLICY "users_update_own" ON users FOR UPDATE USING (id = auth.uid());
+CREATE POLICY "users_update_own" ON users FOR UPDATE
+  USING (id = auth.uid())
+  WITH CHECK (
+    id = auth.uid()
+    AND role IS NOT DISTINCT FROM (SELECT role FROM users WHERE id = auth.uid())
+    AND is_active IS NOT DISTINCT FROM (SELECT is_active FROM users WHERE id = auth.uid())
+    AND is_archived IS NOT DISTINCT FROM (SELECT is_archived FROM users WHERE id = auth.uid())
+    AND email IS NOT DISTINCT FROM (SELECT email FROM users WHERE id = auth.uid())
+    AND employment_type IS NOT DISTINCT FROM (SELECT employment_type FROM users WHERE id = auth.uid())
+    AND is_also_trainer IS NOT DISTINCT FROM (SELECT is_also_trainer FROM users WHERE id = auth.uid())
+    AND manager_gym_id IS NOT DISTINCT FROM (SELECT manager_gym_id FROM users WHERE id = auth.uid())
+    AND residency_status IS NOT DISTINCT FROM (SELECT residency_status FROM users WHERE id = auth.uid())
+    AND nric IS NOT DISTINCT FROM (SELECT nric FROM users WHERE id = auth.uid())
+    AND date_of_birth IS NOT DISTINCT FROM (SELECT date_of_birth FROM users WHERE id = auth.uid())
+    AND date_of_joining IS NOT DISTINCT FROM (SELECT date_of_joining FROM users WHERE id = auth.uid())
+    AND nationality IS NOT DISTINCT FROM (SELECT nationality FROM users WHERE id = auth.uid())
+  );
 CREATE POLICY "users_admin_update" ON users FOR UPDATE USING (get_user_role() = 'admin');
 CREATE POLICY "users_biz_ops_update" ON users FOR UPDATE USING (get_user_role() = 'business_ops');
 CREATE POLICY "users_manager_update" ON users FOR UPDATE USING (
-  get_user_role() = 'manager' AND
-  id IN (SELECT trainer_id FROM trainer_gyms WHERE gym_id = get_manager_gym_id())
+  get_user_role() = 'manager'
+  AND id IN (SELECT trainer_id FROM trainer_gyms WHERE gym_id = get_manager_gym_id())
 );
 CREATE POLICY "users_admin_all" ON users FOR ALL USING (get_user_role() = 'admin');
 
 -- ── GYMS ─────────────────────────────────────────────────────
 CREATE POLICY "gyms_admin_all" ON gyms FOR ALL USING (get_user_role() = 'admin');
-CREATE POLICY "gyms_biz_ops_read" ON gyms FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "gyms_biz_ops_all" ON gyms FOR ALL
+  USING (get_user_role() = 'business_ops')
+  WITH CHECK (get_user_role() = 'business_ops');
+CREATE POLICY "gyms_read" ON gyms FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "gyms_manager_read" ON gyms FOR SELECT USING (
-  get_user_role() = 'manager' AND (
-    id = get_manager_gym_id()
-    OR id = ANY(SELECT get_gym_staff_ids(get_manager_gym_id()))
-  )
+  get_user_role() = 'manager'
+  AND (id = get_manager_gym_id() OR id IN (SELECT get_gym_staff_ids(get_manager_gym_id())))
 );
+CREATE POLICY "gyms_manager_update" ON gyms FOR UPDATE
+  USING (get_user_role() = 'manager' AND id = get_manager_gym_id())
+  WITH CHECK (get_user_role() = 'manager' AND id = get_manager_gym_id());
 CREATE POLICY "gyms_staff_read" ON gyms FOR SELECT USING (
-  get_user_role() = 'staff' AND
-  id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid())
+  get_user_role() = 'staff'
+  AND id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid())
 );
-CREATE POLICY "gyms_trainer_read" ON gyms FOR SELECT USING (
-  get_user_role() = 'trainer' AND
-  id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid())
-);
-CREATE POLICY "gyms_manager_update" ON gyms FOR UPDATE USING (
-  get_user_role() = 'manager' AND id = get_manager_gym_id()
-);
-CREATE POLICY "gyms_biz_ops_write" ON gyms FOR ALL USING (get_user_role() = 'business_ops');
 
 -- ── TRAINER_GYMS ─────────────────────────────────────────────
--- NOTE: no self-referencing subqueries — causes infinite recursion
 CREATE POLICY "trainer_gyms_read" ON trainer_gyms FOR SELECT USING (
   get_user_role() = 'admin'
   OR get_user_role() = 'business_ops'
@@ -825,12 +849,78 @@ CREATE POLICY "trainer_gyms_read" ON trainer_gyms FOR SELECT USING (
   OR (get_user_role() = 'staff' AND gym_id = get_manager_gym_id())
 );
 CREATE POLICY "trainer_gyms_admin" ON trainer_gyms FOR ALL USING (get_user_role() = 'admin');
-CREATE POLICY "trainer_gyms_biz_ops" ON trainer_gyms FOR ALL USING (get_user_role() = 'business_ops');
-CREATE POLICY "trainer_gyms_manager_insert" ON trainer_gyms FOR INSERT WITH CHECK (
-  get_user_role() = 'manager' AND gym_id = get_manager_gym_id()
+CREATE POLICY "trainer_gyms_biz_ops" ON trainer_gyms FOR ALL
+  USING (get_user_role() = 'business_ops')
+  WITH CHECK (get_user_role() = 'business_ops');
+CREATE POLICY "trainer_gyms_manager_insert" ON trainer_gyms FOR INSERT
+  WITH CHECK (get_user_role() = 'manager' AND gym_id = get_manager_gym_id());
+CREATE POLICY "trainer_gyms_manager_delete" ON trainer_gyms FOR DELETE
+  USING (get_user_role() = 'manager' AND gym_id = get_manager_gym_id());
+
+-- ── MEMBERS ───────────────────────────────────────────────────
+CREATE POLICY "members_read" ON members FOR SELECT USING (
+  (get_user_role() = 'manager' AND gym_id = get_manager_gym_id())
+  OR (get_user_role() = 'trainer' AND gym_id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid()))
+  OR (get_user_role() = 'staff' AND gym_id = (SELECT manager_gym_id FROM users WHERE id = auth.uid()))
+  OR get_user_role() = 'business_ops'
+  OR get_user_role() = 'admin'
 );
-CREATE POLICY "trainer_gyms_manager_delete" ON trainer_gyms FOR DELETE USING (
-  get_user_role() = 'manager' AND gym_id = get_manager_gym_id()
+CREATE POLICY "members_write" ON members FOR INSERT
+  WITH CHECK (get_user_role() IN ('manager', 'trainer', 'staff'));
+CREATE POLICY "members_update" ON members FOR UPDATE USING (
+  get_user_role() IN ('manager', 'business_ops')
+  OR (get_user_role() = 'trainer' AND created_by = auth.uid())
+);
+
+-- ── GYM_MEMBERSHIPS ───────────────────────────────────────────
+CREATE POLICY "gym_memberships_read" ON gym_memberships FOR SELECT USING (
+  (get_user_role() = 'manager' AND gym_id = get_manager_gym_id())
+  OR (get_user_role() IN ('trainer', 'staff') AND sold_by_user_id = auth.uid())
+  OR get_user_role() = 'business_ops'
+  OR get_user_role() = 'admin'
+);
+CREATE POLICY "gym_memberships_insert" ON gym_memberships FOR INSERT
+  WITH CHECK (
+    get_user_role() IN ('manager', 'trainer', 'staff')
+    AND sold_by_user_id = auth.uid()
+  );
+CREATE POLICY "gym_memberships_confirm" ON gym_memberships FOR UPDATE
+  USING (get_user_role() IN ('manager', 'business_ops'));
+
+-- ── PACKAGES ──────────────────────────────────────────────────
+CREATE POLICY "packages_read" ON packages FOR SELECT USING (
+  get_user_role() IN ('admin', 'manager')
+  OR trainer_id = auth.uid()
+);
+CREATE POLICY "packages_biz_ops_read" ON packages FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "packages_trainer_insert" ON packages FOR INSERT WITH CHECK (
+  trainer_id = auth.uid()
+  AND (
+    get_user_role() = 'trainer'
+    OR (get_user_role() = 'manager' AND (SELECT is_also_trainer FROM users WHERE id = auth.uid()))
+  )
+);
+CREATE POLICY "packages_admin_update" ON packages FOR UPDATE
+  USING (get_user_role() IN ('admin', 'manager'));
+
+-- ── SESSIONS ──────────────────────────────────────────────────
+CREATE POLICY "sessions_read" ON sessions FOR SELECT USING (
+  (get_user_role() = 'manager' AND gym_id = get_manager_gym_id())
+  OR (get_user_role() = 'trainer' AND (trainer_id = auth.uid() OR gym_id IN (SELECT gym_id FROM trainer_gyms WHERE trainer_id = auth.uid())))
+  OR (get_user_role() = 'staff' AND gym_id = (SELECT manager_gym_id FROM users WHERE id = auth.uid()))
+  OR get_user_role() IN ('business_ops', 'admin')
+);
+CREATE POLICY "sessions_biz_ops_read" ON sessions FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "sessions_trainer_insert" ON sessions FOR INSERT WITH CHECK (
+  trainer_id = auth.uid()
+  AND (
+    get_user_role() = 'trainer'
+    OR (get_user_role() = 'manager' AND (SELECT is_also_trainer FROM users WHERE id = auth.uid()))
+  )
+);
+CREATE POLICY "sessions_update" ON sessions FOR UPDATE USING (
+  get_user_role() IN ('admin', 'manager')
+  OR trainer_id = auth.uid()
 );
 
 -- ── PAYSLIPS ──────────────────────────────────────────────────
@@ -838,14 +928,220 @@ CREATE POLICY "payslips_own_read" ON payslips FOR SELECT USING (user_id = auth.u
 CREATE POLICY "payslips_business_ops" ON payslips FOR ALL USING (get_user_role() = 'business_ops');
 
 -- ── DUTY ROSTER ───────────────────────────────────────────────
-CREATE POLICY "duty_roster_own_read" ON duty_roster FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "duty_roster_manager" ON duty_roster FOR ALL USING (
+CREATE POLICY "duty_roster_staff_read" ON duty_roster FOR SELECT USING (
+  user_id = auth.uid()
+  OR get_user_role() IN ('manager', 'business_ops')
+);
+CREATE POLICY "duty_roster_manager_write" ON duty_roster FOR ALL USING (
   get_user_role() = 'business_ops'
   OR (get_user_role() = 'manager' AND gym_id = get_manager_gym_id())
 );
 
--- Additional policies for other tables follow the same pattern:
--- admin/biz_ops = full access
--- manager = scoped to get_manager_gym_id()
--- trainer/staff = own data only
--- See existing migration files for complete policy definitions.
+-- ── LEAVE_APPLICATIONS ────────────────────────────────────────
+CREATE POLICY "leave_own" ON leave_applications FOR ALL USING (
+  user_id = auth.uid()
+  OR get_user_role() IN ('manager', 'business_ops', 'admin')
+);
+
+-- ── ACTIVITY_LOGS ─────────────────────────────────────────────
+CREATE POLICY "activity_logs_admin_read" ON activity_logs FOR SELECT USING (
+  get_user_role() = 'admin'
+);
+
+-- ── STAFF_PAYROLL ─────────────────────────────────────────────
+CREATE POLICY "staff_payroll_own_read" ON staff_payroll FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "staff_payroll_biz_ops_admin_all" ON staff_payroll FOR ALL USING (
+  get_user_role() IN ('admin', 'business_ops')
+);
+CREATE POLICY "staff_payroll_manager_read" ON staff_payroll FOR SELECT USING (
+  get_user_role() = 'manager'
+  AND user_id IN (SELECT trainer_id FROM trainer_gyms WHERE gym_id = get_manager_gym_id())
+);
+
+-- ── SALARY_HISTORY ────────────────────────────────────────────
+CREATE POLICY "salary_history_business_ops" ON salary_history FOR ALL
+  USING (get_user_role() = 'business_ops');
+
+-- ── COMMISSION_ITEMS ──────────────────────────────────────────
+CREATE POLICY "commission_items_own_read" ON commission_items FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "commission_items_manager_read" ON commission_items FOR SELECT USING (
+  get_user_role() = 'manager' AND gym_id = get_manager_gym_id()
+);
+CREATE POLICY "commission_items_biz_ops_admin_all" ON commission_items FOR ALL USING (
+  get_user_role() IN ('admin', 'business_ops')
+);
+
+-- ── STAFF_BONUSES ─────────────────────────────────────────────
+CREATE POLICY "bonuses_business_ops" ON staff_bonuses FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── PENDING_DEDUCTIONS ────────────────────────────────────────
+CREATE POLICY "pending_deductions_biz_ops" ON pending_deductions FOR ALL USING (
+  get_user_role() IN ('business_ops', 'admin')
+);
+
+-- ── COMMISSION_CONFIG ─────────────────────────────────────────
+CREATE POLICY "commission_config_read" ON commission_config FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "commission_config_biz_ops_write" ON commission_config FOR ALL USING (
+  get_user_role() IN ('admin', 'business_ops')
+);
+
+-- ── CPF_AGE_BRACKETS ──────────────────────────────────────────
+CREATE POLICY "cpf_brackets_read" ON cpf_age_brackets FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "cpf_brackets_write" ON cpf_age_brackets FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── CPF_SUBMISSIONS ───────────────────────────────────────────
+CREATE POLICY "cpf_submissions_biz_ops" ON cpf_submissions FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── PAYSLIP_DELETIONS ─────────────────────────────────────────
+CREATE POLICY "payslip_deletions_biz_ops_read" ON payslip_deletions FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "payslip_deletions_biz_ops_insert" ON payslip_deletions FOR INSERT WITH CHECK (get_user_role() = 'business_ops');
+CREATE POLICY "payslip_deletions_admin_read" ON payslip_deletions FOR SELECT USING (get_user_role() = 'admin');
+
+-- ── APP_SETTINGS ──────────────────────────────────────────────
+CREATE POLICY "app_settings_public_read" ON app_settings FOR SELECT USING (true);
+CREATE POLICY "app_settings_privileged_write" ON app_settings FOR ALL USING (
+  get_user_role() IN ('admin', 'business_ops')
+);
+
+-- ── PUBLIC_HOLIDAYS ───────────────────────────────────────────
+CREATE POLICY "holidays_read" ON public_holidays FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "holidays_write" ON public_holidays FOR ALL USING (
+  get_user_role() IN ('business_ops', 'admin')
+);
+
+-- ── MEMBERSHIP_TYPES ──────────────────────────────────────────
+CREATE POLICY "membership_types_read" ON membership_types FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "membership_types_write" ON membership_types FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── PACKAGE_TEMPLATES ─────────────────────────────────────────
+CREATE POLICY "templates_read" ON package_templates FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "templates_admin_all" ON package_templates FOR ALL USING (
+  get_user_role() IN ('admin', 'business_ops')
+);
+
+-- ── ROSTER_SHIFT_PRESETS ──────────────────────────────────────
+CREATE POLICY "roster_presets_read" ON roster_shift_presets FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "roster_presets_write" ON roster_shift_presets FOR ALL USING (
+  get_user_role() IN ('manager', 'business_ops')
+);
+
+-- ── NOTIFICATION TABLES ───────────────────────────────────────
+CREATE POLICY "leave_decision_notif_read" ON leave_decision_notif FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "leave_decision_notif_insert" ON leave_decision_notif FOR INSERT
+  WITH CHECK (get_user_role() IN ('manager', 'business_ops', 'admin'));
+CREATE POLICY "leave_decision_notif_update" ON leave_decision_notif FOR UPDATE USING (user_id = auth.uid());
+
+CREATE POLICY "pkg_rejection_notif_trainer_read" ON pkg_rejection_notif FOR SELECT USING (trainer_id = auth.uid());
+CREATE POLICY "pkg_rejection_notif_manager_insert" ON pkg_rejection_notif FOR INSERT
+  WITH CHECK (get_user_role() IN ('manager', 'business_ops'));
+CREATE POLICY "pkg_rejection_notif_trainer_update" ON pkg_rejection_notif FOR UPDATE USING (trainer_id = auth.uid());
+
+CREATE POLICY "mem_rejection_notif_seller_read" ON mem_rejection_notif FOR SELECT USING (seller_id = auth.uid());
+CREATE POLICY "mem_rejection_notif_manager_insert" ON mem_rejection_notif FOR INSERT
+  WITH CHECK (get_user_role() IN ('manager', 'business_ops'));
+CREATE POLICY "mem_rejection_notif_seller_update" ON mem_rejection_notif FOR UPDATE USING (seller_id = auth.uid());
+
+CREATE POLICY "cancellation_approved_notif_read" ON cancellation_approved_notif FOR SELECT USING (
+  EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'business_ops')
+);
+CREATE POLICY "user_read_own_rejection_notif" ON cancellation_rejection_notif FOR SELECT USING (notified_user_id = auth.uid());
+
+CREATE POLICY "shift_dispute_notif_read" ON shift_dispute_notif FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "shift_dispute_notif_write" ON shift_dispute_notif FOR ALL USING (
+  get_user_role() IN ('business_ops', 'admin')
+);
+
+CREATE POLICY "manager_dispute_notif_read" ON manager_dispute_notif FOR SELECT USING (manager_id = auth.uid());
+CREATE POLICY "manager_dispute_notif_write" ON manager_dispute_notif FOR ALL USING (
+  get_user_role() IN ('business_ops', 'admin')
+);
+
+-- ── BIRTHDAY REMINDERS ────────────────────────────────────────
+CREATE POLICY "trainer_read_member_birthdays" ON member_birthday_reminders FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'trainer'
+    AND (
+      (trainer_id IS NULL AND EXISTS (SELECT 1 FROM trainer_gyms tg WHERE tg.trainer_id = auth.uid() AND tg.gym_id = member_birthday_reminders.gym_id))
+      OR trainer_id = auth.uid()
+    )
+  )
+);
+CREATE POLICY "manager_read_gym_member_birthdays" ON member_birthday_reminders FOR SELECT USING (
+  trainer_id IS NULL
+  AND EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'manager' AND u.manager_gym_id = member_birthday_reminders.gym_id)
+);
+CREATE POLICY "staff_read_gym_member_birthdays" ON member_birthday_reminders FOR SELECT USING (
+  trainer_id IS NULL
+  AND EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'staff' AND u.manager_gym_id = member_birthday_reminders.gym_id)
+);
+
+CREATE POLICY "bizops_read_all_birthdays" ON staff_birthday_reminders FOR SELECT USING (
+  EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'business_ops')
+);
+CREATE POLICY "manager_read_own_gym_birthdays" ON staff_birthday_reminders FOR SELECT USING (
+  EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'manager' AND u.manager_gym_id = staff_birthday_reminders.gym_id)
+);
+
+-- ── CLIENTS ───────────────────────────────────────────────────
+CREATE POLICY "clients_read" ON clients FOR SELECT USING (
+  get_user_role() IN ('admin', 'manager') OR trainer_id = auth.uid()
+);
+CREATE POLICY "clients_biz_ops_read" ON clients FOR SELECT USING (get_user_role() = 'business_ops');
+CREATE POLICY "clients_trainer_insert" ON clients FOR INSERT WITH CHECK (
+  trainer_id = auth.uid()
+  AND (
+    get_user_role() = 'trainer'
+    OR (get_user_role() = 'manager' AND (SELECT is_also_trainer FROM users WHERE id = auth.uid()))
+  )
+);
+CREATE POLICY "clients_update" ON clients FOR UPDATE USING (
+  get_user_role() IN ('admin', 'manager') OR trainer_id = auth.uid()
+);
+
+-- ── MEMBERSHIP_CANCELLATION_REQUESTS ─────────────────────────
+CREATE POLICY "bizops_read_all_cancellation_requests" ON membership_cancellation_requests FOR SELECT USING (
+  EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'business_ops')
+);
+CREATE POLICY "staff_trainer_read_gym_cancellation_requests" ON membership_cancellation_requests FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM users u WHERE u.id = auth.uid()
+    AND u.role IN ('staff', 'trainer', 'manager')
+    AND (
+      u.manager_gym_id = membership_cancellation_requests.gym_id
+      OR EXISTS (SELECT 1 FROM trainer_gyms tg WHERE tg.trainer_id = auth.uid() AND tg.gym_id = membership_cancellation_requests.gym_id)
+    )
+  )
+);
+
+-- ── NON_RENEWAL_RECORDS ───────────────────────────────────────
+CREATE POLICY "non_renewal_manager_read" ON non_renewal_records FOR SELECT USING (
+  get_user_role() IN ('manager', 'business_ops', 'admin')
+);
+CREATE POLICY "non_renewal_manager_insert" ON non_renewal_records FOR INSERT
+  WITH CHECK (get_user_role() = 'manager');
+
+-- ── WHATSAPP ──────────────────────────────────────────────────
+CREATE POLICY "whatsapp_admin_manager" ON whatsapp_logs FOR ALL USING (
+  get_user_role() IN ('admin', 'manager')
+);
+CREATE POLICY "wa_notif_config_read" ON whatsapp_notifications_config FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "wa_notif_config_write" ON whatsapp_notifications_config FOR ALL USING (
+  get_user_role() IN ('admin', 'business_ops')
+);
+CREATE POLICY "whatsapp_queue_biz_ops" ON whatsapp_queue FOR ALL USING (
+  get_user_role() IN ('business_ops', 'admin', 'manager')
+);
+CREATE POLICY "templates_read" ON whatsapp_templates FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "templates_write" ON whatsapp_templates FOR ALL USING (get_user_role() = 'business_ops');
+
+-- ── CRON_LOGS ─────────────────────────────────────────────────
+CREATE POLICY "admin_read_cron_logs" ON cron_logs FOR SELECT USING (
+  EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role = 'admin')
+);
+
+-- ── CPF_RATES ─────────────────────────────────────────────────
+CREATE POLICY "cpf_rates_read" ON cpf_rates FOR SELECT USING (
+  get_user_role() IN ('admin', 'business_ops', 'manager')
+);
+CREATE POLICY "cpf_rates_business_ops_insert" ON cpf_rates FOR INSERT
+  WITH CHECK (get_user_role() = 'business_ops');
