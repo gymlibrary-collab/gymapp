@@ -23,6 +23,9 @@ export default function CpfPage() {
   const [preview, setPreview] = useState<any>(null)
   const [editingBracket, setEditingBracket] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ employee_rate: 0, employer_rate: 0, effective_from: '' })
+  const [editingCeiling, setEditingCeiling] = useState<string | null>(null) // effective_from key
+  const [ceilingValues, setCeilingValues] = useState({ ow_ceiling: 6800, annual_aw_ceiling: 102000 })
+  const [savingCeiling, setSavingCeiling] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(nowSGT().getUTCMonth() + 1)
   const [selectedYear, setSelectedYear] = useState(nowSGT().getUTCFullYear())
   const [generating, setGenerating] = useState(false)
@@ -133,6 +136,26 @@ export default function CpfPage() {
     setGenerating(false)
   }
 
+  const handleSaveCeiling = async (effectiveFrom: string) => {
+    setSavingCeiling(true)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    // Update ow_ceiling and annual_aw_ceiling on ALL brackets with this effective_from
+    const toUpdate = brackets.filter(b => (b.effective_from ? b.effective_from.split('T')[0] : '') === effectiveFrom)
+    for (const b of toUpdate) {
+      await supabase.from('cpf_age_brackets').update({
+        ow_ceiling: ceilingValues.ow_ceiling,
+        annual_aw_ceiling: ceilingValues.annual_aw_ceiling,
+        updated_by: authUser?.id,
+        updated_at: new Date().toISOString(),
+      }).eq('id', b.id)
+    }
+    await load()
+    setEditingCeiling(null)
+    setSavingCeiling(false)
+    showMsg('CPF ceilings saved')
+    logActivity('update', 'CPF Configuration', `Updated OW/AW ceilings for effective_from ${effectiveFrom}`)
+  }
+
   const handleSaveSubmission = async () => {
     if (!preview) return
     const { data: { user } } = await supabase.auth.getUser()
@@ -157,6 +180,77 @@ export default function CpfPage() {
       <div><h1 className="text-xl font-bold text-gray-900">CPF Configuration & Reports</h1><p className="text-sm text-gray-500">Singapore CPF rates by age bracket + monthly submission reports</p></div>
 
       <StatusBanner success={success} />
+
+      {/* OW & AW Ceilings */}
+      {(() => {
+        // Group brackets by effective_from to show one ceiling row per period
+        const periods: Record<string, any> = {}
+        brackets.forEach(b => {
+          const key = b.effective_from ? b.effective_from.split('T')[0] : 'default'
+          if (!periods[key]) periods[key] = { effective_from: key, ow_ceiling: b.ow_ceiling, annual_aw_ceiling: b.annual_aw_ceiling }
+        })
+        const periodList = Object.values(periods).sort((a: any, b: any) => b.effective_from.localeCompare(a.effective_from))
+        return (
+          <div className="card">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Calculator className="w-4 h-4 text-red-600" /> CPF Wage Ceilings</h2>
+              <p className="text-xs text-gray-400 mt-1">Monthly OW ceiling and annual AW ceiling applied during payslip generation. Update when IRAS announces changes.</p>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {periodList.map((p: any) => (
+                <div key={p.effective_from} className="p-4">
+                  {editingCeiling === p.effective_from ? (
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium text-gray-900">Effective {p.effective_from === 'default' ? 'all periods' : p.effective_from}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label text-xs">Monthly OW Ceiling ($)</label>
+                          <input className="input" type="number" step="100" value={ceilingValues.ow_ceiling}
+                            onChange={e => setCeilingValues(v => ({ ...v, ow_ceiling: parseFloat(e.target.value) }))} />
+                          <p className="text-xs text-gray-400 mt-1">Max ordinary wages subject to CPF per month</p>
+                        </div>
+                        <div>
+                          <label className="label text-xs">Annual AW Ceiling ($)</label>
+                          <input className="input" type="number" step="1000" value={ceilingValues.annual_aw_ceiling}
+                            onChange={e => setCeilingValues(v => ({ ...v, annual_aw_ceiling: parseFloat(e.target.value) }))} />
+                          <p className="text-xs text-gray-400 mt-1">Max additional wages (bonus) subject to CPF per year</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleSaveCeiling(p.effective_from)} disabled={savingCeiling} className="btn-primary text-xs py-1.5"><Save className="w-3.5 h-3.5 mr-1" />Save</button>
+                        <button onClick={() => setEditingCeiling(null)} className="btn-secondary text-xs py-1.5">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">Effective {p.effective_from === 'default' ? 'all periods' : p.effective_from}</p>
+                        {p.ow_ceiling == null && <p className="text-xs text-amber-600 mt-0.5">⚠ Not configured — using default ($6,800 / $102,000)</p>}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <div className="text-center">
+                          <p className="font-bold text-blue-700">{p.ow_ceiling != null ? formatSGD(p.ow_ceiling) : '$6,800'}</p>
+                          <p className="text-xs text-gray-400">Monthly OW</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-bold text-red-700">{p.annual_aw_ceiling != null ? formatSGD(p.annual_aw_ceiling) : '$102,000'}</p>
+                          <p className="text-xs text-gray-400">Annual AW</p>
+                        </div>
+                      </div>
+                      <button onClick={() => {
+                        setEditingCeiling(p.effective_from)
+                        setCeilingValues({ ow_ceiling: p.ow_ceiling ?? 6800, annual_aw_ceiling: p.annual_aw_ceiling ?? 102000 })
+                      }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Age brackets */}
       <div className="card">

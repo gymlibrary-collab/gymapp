@@ -141,14 +141,24 @@ export async function loadCpfBrackets(supabase: any): Promise<any[]> {
 // ── getCpfCeilings ───────────────────────────────────────────
 // Extract OW and AW ceilings for a given payroll year from brackets.
 // Ceilings are stored once per year (same value across all age brackets).
-// Falls back to Singapore 2026 defaults if not configured.
+// Matches on effective_from year (consistent with getCpfBracketRates).
+// Falls back to Singapore defaults if not configured in DB.
 export function getCpfCeilings(
   brackets: any[],
   year: number
 ): { owCeiling: number; annualAWCeiling: number } {
-  const yearBracket = brackets.find(
-    (b: any) => b.year === year && b.ow_ceiling != null
-  )
+  // Find the most recent bracket effective on or before Jan 1 of the payroll year
+  // that has ow_ceiling set — ceilings are stored once per effective period
+  const payrollYearStart = new Date(year, 0, 1)
+  const eligible = brackets
+    .filter((b: any) =>
+      b.ow_ceiling != null &&
+      (!b.effective_from || new Date(b.effective_from) <= payrollYearStart)
+    )
+    .sort((a: any, b: any) =>
+      new Date(b.effective_from || 0).getTime() - new Date(a.effective_from || 0).getTime()
+    )
+  const yearBracket = eligible[0] ?? null
   return {
     owCeiling: yearBracket?.ow_ceiling ?? 6800,
     annualAWCeiling: yearBracket?.annual_aw_ceiling ?? 102000,

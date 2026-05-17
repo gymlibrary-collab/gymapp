@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName, getRoleLabel, roleBadgeClass, nowSGT} from '@/lib/utils'
-import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets } from '@/lib/cpf'
+import { getAgeAsOf, getCpfBracketRates, loadCpfBrackets, getCpfCeilings } from '@/lib/cpf'
 import { Users, DollarSign, Search, ChevronRight, AlertCircle, Clock, Calendar, CheckCircle, Trash2, Download, FileText } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -530,7 +530,7 @@ export default function PayrollPage() {
                       <p className="text-sm font-bold text-gray-900">{formatSGD(payroll.current_salary)}</p>
                       {(() => {
                         const ytd = ytdOW[member.id] || 0
-                        const OW_ANNUAL_CEILING = 102000 // TODO: read from cpf_age_brackets via getCpfCeilings()
+                        const OW_ANNUAL_CEILING = getCpfCeilings(cpfBrackets, bulkYear).annualAWCeiling
                         if (ytd >= OW_ANNUAL_CEILING - 10000 && ytd < OW_ANNUAL_CEILING) {
                           return <p className="text-xs text-amber-600 mt-0.5">⚠ YTD OW {formatSGD(ytd)} — {formatSGD(OW_ANNUAL_CEILING - ytd)} below annual ceiling</p>
                         }
