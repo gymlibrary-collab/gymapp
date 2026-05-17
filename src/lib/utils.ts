@@ -206,3 +206,34 @@ export function getGreeting(nickname: string): string {
 export function getDisplayName(user: { nickname?: string; full_name: string }): string {
   return user.nickname?.trim() || user.full_name.split(' ')[0]
 }
+
+// ── addCalendarMonths ─────────────────────────────────────────
+// Adds N calendar months to a date string (YYYY-MM-DD), returning
+// a new YYYY-MM-DD string. Uses proper calendar month arithmetic —
+// 17 May + 12 months = 17 May next year, not 17 May + 360 days.
+//
+// Edge case: if the result month is shorter than the start day,
+// clamps to the last day of the result month (e.g. 31 Jan + 1 month
+// = 28/29 Feb, not 3 Mar).
+//
+// Use this instead of setDate(getDate() + months * 30) for all
+// membership and PT package end date calculations.
+export function addCalendarMonths(startDateStr: string, months: number): string {
+  const [y, m, d] = startDateStr.split('-').map(Number)
+  const resultYear = y + Math.floor((m - 1 + months) / 12)
+  const resultMonth = ((m - 1 + months) % 12) + 1
+  // Clamp to last day of result month
+  const daysInResultMonth = new Date(resultYear, resultMonth, 0).getDate()
+  const resultDay = Math.min(d, daysInResultMonth)
+  return `${resultYear}-${String(resultMonth).padStart(2, '0')}-${String(resultDay).padStart(2, '0')}`
+}
+
+// ── addCalendarDays ───────────────────────────────────────────
+// Adds N days to a YYYY-MM-DD string, returning a new YYYY-MM-DD.
+// Use for day-based durations only; prefer addCalendarMonths for
+// month-based memberships.
+export function addCalendarDays(startDateStr: string, days: number): string {
+  const d = new Date(startDateStr)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().split('T')[0]
+}

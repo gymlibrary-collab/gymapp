@@ -195,8 +195,11 @@ export default function RegisterMemberPage() {
     if (!type) { setError('Please select a membership type'); return }
 
     const startDate = nowSGT()
-    const endDate = new Date(startDate)
-    endDate.setUTCDate(endDate.getUTCDate() + type.duration_days)
+    const startDateStr = `${startDate.getUTCFullYear()}-${String(startDate.getUTCMonth()+1).padStart(2,'0')}-${String(startDate.getUTCDate()).padStart(2,'0')}`
+    // Use calendar months if membership type was configured in months; fall back to days
+    const endDateStr = type.duration_months
+      ? addCalendarMonths(startDateStr, type.duration_months)
+      : addCalendarDays(startDateStr, type.duration_days)
 
     const { error: insertErr } = await supabase.from('gym_memberships').insert({
       member_id: createdMemberId,
@@ -205,8 +208,8 @@ export default function RegisterMemberPage() {
       membership_type_name: type.name,
       membership_number: memberForm.membership_number || null,
       price_sgd: type.price_sgd,
-      start_date: `${startDate.getUTCFullYear()}-${String(startDate.getUTCMonth()+1).padStart(2,'0')}-${String(startDate.getUTCDate()).padStart(2,'0')}`,
-      end_date: `${endDate.getUTCFullYear()}-${String(endDate.getUTCMonth()+1).padStart(2,'0')}-${String(endDate.getUTCDate()).padStart(2,'0')}`,
+      start_date: startDateStr,
+      end_date: endDateStr,
       sold_by_user_id: authUser!.id,
       commission_pct: 0,
       commission_sgd: commissionPct,

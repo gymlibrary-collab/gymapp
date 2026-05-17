@@ -61,7 +61,7 @@ export default function MembershipTypesPage() {
       const months = parseInt(form.duration_months)
       if (!months || months < 1) { setError('Duration must be at least 1 month.'); setSaving(false); return }
       durationMonths = months
-      durationDays = months * 30
+      durationDays = null  // day count not stored for month-based — end date calculated at use time via addCalendarMonths()
     } else {
       const days = parseInt(form.duration_days)
       if (!days || days < 1) { setError('Please select a duration.'); setSaving(false); return }
@@ -71,7 +71,7 @@ export default function MembershipTypesPage() {
     const payload: any = {
       name: form.name.trim(),
       duration_months: durationMonths,
-      duration_days: durationDays,
+      duration_days: durationDays ?? null,
       price_sgd: parseFloat(form.price_sgd),
       gym_id: isGlobal ? null : (form.gym_id || selectedGymFilter || null),
     }

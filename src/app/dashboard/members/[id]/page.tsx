@@ -347,9 +347,10 @@ export default function MemberProfilePage() {
     const type = membershipTypes.find(t => t.id === renewalForm.membership_type_id)
     if (!type) { setRenewalSaving(false); return }
 
-    const startDate = new Date(renewalForm.start_date)
-    const endDate = new Date(startDate)
-    endDate.setDate(endDate.getDate() + type.duration_days)
+    // Use calendar months if type was configured in months, else add days
+    const endDateStr = type.duration_months
+      ? addCalendarMonths(renewalForm.start_date, type.duration_months)
+      : addCalendarDays(renewalForm.start_date, type.duration_days)
 
     const { error: err } = await supabase.from('gym_memberships').insert({
       member_id: id,
@@ -358,7 +359,7 @@ export default function MemberProfilePage() {
       membership_type_name: type.name,
       price_sgd: type.price_sgd,
       start_date: renewalForm.start_date,
-      end_date: endDate.toISOString().split('T')[0],
+      end_date: endDateStr,
       sold_by_user_id: user!.id,
       commission_pct: (user as any)?.membership_commission_pct || 0,
       commission_sgd: (user as any)?.membership_commission_sgd || 0,
@@ -380,8 +381,8 @@ export default function MemberProfilePage() {
     const template = packageTemplates.find(t => t.id === pkgForm.template_id)
     if (!template) { setSaving(false); return }
 
-    const endDate = new Date(pkgForm.start_date)
-    endDate.setDate(endDate.getDate() + parseInt(pkgForm.validity_days))
+    // validity_days is user-entered on this form — always day-based
+    const pkgEndDate = addCalendarDays(pkgForm.start_date, parseInt(pkgForm.validity_days))
 
     // Close any currently active package for this member
     // (there should only be one, but handle any that slipped through)
@@ -411,7 +412,7 @@ export default function MemberProfilePage() {
       total_price_sgd: parseFloat(pkgForm.total_price_sgd),
       price_per_session_sgd: parseFloat(pkgForm.total_price_sgd) / template.total_sessions,
       start_date: pkgForm.start_date,
-      end_date_calculated: endDate.toISOString().split('T')[0],
+      end_date_calculated: pkgEndDate,
       status: 'active',
       signup_commission_pct: (user as any)?.commission_signup_pct || 10,
       session_commission_pct: (user as any)?.commission_session_pct || 15,
@@ -739,11 +740,12 @@ export default function MemberProfilePage() {
             {renewalForm.membership_type_id && renewalForm.start_date && (() => {
               const type = membershipTypes.find(t => t.id === renewalForm.membership_type_id)
               if (!type) return null
-              const end = new Date(renewalForm.start_date)
-              end.setDate(end.getDate() + type.duration_days)
+              const endPreview = type.duration_months
+                ? addCalendarMonths(renewalForm.start_date, type.duration_months)
+                : addCalendarDays(renewalForm.start_date, type.duration_days)
               return (
                 <div className="bg-white rounded-lg border border-blue-200 p-3 text-xs space-y-1">
-                  <div className="flex justify-between text-gray-600"><span>New end date</span><span className="font-medium">{formatDate(end.toISOString().split('T')[0])}</span></div>
+                  <div className="flex justify-between text-gray-600"><span>New end date</span><span className="font-medium">{formatDate(endPreview)}</span></div>
                   <div className="flex justify-between text-gray-600"><span>Price</span><span className="font-medium">{formatSGD(type.price_sgd)}</span></div>
                   <div className="flex justify-between text-green-700 font-medium"><span>Your commission</span><span>{formatSGD((user as any)?.membership_commission_sgd || 0)}</span></div>
                 </div>
