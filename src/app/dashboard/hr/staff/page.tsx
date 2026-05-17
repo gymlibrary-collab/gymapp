@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
@@ -9,7 +9,7 @@ import { validatePhone, validateNric, validateNationality, validateHourlyRate, v
 import {
   Plus, UserCheck, Shield, Users, Briefcase, Dumbbell,
   Edit2, Trash2, X, Save, CheckCircle, AlertCircle, Archive,
-  Building2, Clock, DollarSign,
+  Building2, Clock, DollarSign, ChevronDown, Eye,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
@@ -681,20 +681,36 @@ export default function TrainersPage() {
           {filteredStaff.length === 0 ? (
             <div className="card p-8 text-center"><UserCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No staff found</p></div>
           ) : isBizOps ? (() => {
-            // ── Biz ops: original cards grouped by gym, part-timers last ──
+            // ── Biz ops: accordion grouped by gym, part-timers last ────
             const fullTimers = filteredStaff.filter((s: any) => s.employment_type !== 'part_time')
             const partTimers = filteredStaff.filter((s: any) => s.employment_type === 'part_time')
-            // Group full-timers by primary gym name
-            const gymGroups: Record<string, any[]> = {}
+
+            // Group full-timers by primary gym name, carry gym id for logo lookup
+            const gymGroups: Record<string, { members: any[]; gymId: string | null }> = {}
             fullTimers.forEach((m: any) => {
               const gymName = (m.trainer_gyms?.[0]?.gyms?.name) || (m.manager_gym?.name) || 'Unassigned'
-              if (!gymGroups[gymName]) gymGroups[gymName] = []
-              gymGroups[gymName].push(m)
+              const gymId = (m.trainer_gyms?.[0]?.gym_id) || m.manager_gym_id || null
+              if (!gymGroups[gymName]) gymGroups[gymName] = { members: [], gymId }
+              gymGroups[gymName].members.push(m)
             })
             const sortedGyms = Object.keys(gymGroups).sort()
 
-            const StaffCard = ({ member, showGym }: { member: any; showGym: boolean }) => (
-              <div className={cn('card p-4', !member.is_active && 'opacity-70', isSelf(member) && 'border-red-200 bg-red-50/20')}>
+            // Accordion open state — all collapsed by default
+            const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+            const toggleGroup = (key: string) => setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }))
+
+            // Role breakdown label for header
+            const breakdown = (members: any[]) => {
+              const counts: Record<string, number> = {}
+              members.forEach(m => { counts[m.role] = (counts[m.role] || 0) + 1 })
+              return Object.entries(counts)
+                .map(([role, n]) => `${n} ${getRoleLabel(role).toLowerCase()}${n !== 1 ? 's' : ''}`)
+                .join(', ')
+            }
+
+            // Single staff card — email · phone · joined on one line
+            const BizStaffCard = ({ member, showGym }: { member: any; showGym: boolean }) => (
+              <div className={cn('p-4 border-b border-gray-100 last:border-0', !member.is_active && 'opacity-70', isSelf(member) && 'bg-red-50/20')}>
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
@@ -711,15 +727,20 @@ export default function TrainersPage() {
                       </span>
                       <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
-                    {member.phone ? <p className="text-xs text-gray-400">{member.phone}</p> : <p className="text-xs text-amber-500">⚠ Phone not set</p>}
+                    {/* Option A single-row contact line */}
+                    <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span>{member.email}</span>
+                      {member.phone
+                        ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></>
+                        : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
+                      {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
+                    </p>
                     {showGym && (
                       <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
                     )}
                     {member.employment_type === 'part_time' && member.hourly_rate && (
                       <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
                     )}
-                    {member.date_of_joining && <p className="text-xs text-gray-400 mt-0.5">Joined: {formatDate(member.date_of_joining)}</p>}
                     {member.probation_end_date && !member.probation_passed_at && (
                       <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
                     )}
@@ -734,42 +755,68 @@ export default function TrainersPage() {
               </div>
             )
 
+            // Accordion section header
+            const AccordionHeader = ({ groupKey, icon, label, members, isPartTime }: {
+              groupKey: string; icon: React.ReactNode; label: string; members: any[]; isPartTime?: boolean
+            }) => (
+              <button
+                type="button"
+                onClick={() => toggleGroup(groupKey)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+              >
+                {icon}
+                <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{label}</span>
+                <span className="text-xs text-gray-700 font-medium flex-shrink-0">{members.length} staff</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">({isPartTime ? 'multiple gyms' : breakdown(members)})</span>
+                <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200', openGroups[groupKey] && 'rotate-180')} />
+              </button>
+            )
+
             return (
-              <div className="space-y-4">
-                {sortedGyms.map(gymName => (
-                  gymGroups[gymName].length > 0 && (
-                    <div key={gymName}>
-                      <div className="flex items-center gap-2 px-1 mb-2">
-                        <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                        <p className="text-xs font-semibold text-gray-600">{gymName}</p>
-                        <span className="text-xs text-gray-400">{gymGroups[gymName].length} staff</span>
-                      </div>
-                      <div className="space-y-2">
-                        {gymGroups[gymName].map((member: any) => (
-                          <StaffCard key={member.id} member={member} showGym={false} />
-                        ))}
-                      </div>
+              <div className="space-y-3">
+                {sortedGyms.map(gymName => {
+                  const { members, gymId } = gymGroups[gymName]
+                  if (members.length === 0) return null
+                  const gymData = gyms.find((g: any) => g.id === gymId)
+                  const logoUrl = gymData?.logo_url
+                  return (
+                    <div key={gymName} className="card overflow-hidden">
+                      <AccordionHeader
+                        groupKey={gymName}
+                        label={gymName}
+                        members={members}
+                        icon={logoUrl
+                          ? <img src={logoUrl} alt={gymName} className="w-6 h-6 rounded object-contain flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                          : <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0" />}
+                      />
+                      {openGroups[gymName] && (
+                        <div className="border-t border-gray-100">
+                          {members.map((member: any) => <BizStaffCard key={member.id} member={member} showGym={false} />)}
+                        </div>
+                      )}
                     </div>
                   )
-                ))}
+                })}
                 {partTimers.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 px-1 mb-2">
-                      <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                      <p className="text-xs font-semibold text-gray-600">Part Timers</p>
-                      <span className="text-xs text-gray-400">{partTimers.length} staff</span>
-                    </div>
-                    <div className="space-y-2">
-                      {partTimers.map((member: any) => (
-                        <StaffCard key={member.id} member={member} showGym={true} />
-                      ))}
-                    </div>
+                  <div className="card overflow-hidden">
+                    <AccordionHeader
+                      groupKey="__parttime"
+                      label="Part Timers"
+                      members={partTimers}
+                      isPartTime={true}
+                      icon={<Clock className="w-5 h-5 text-gray-400 flex-shrink-0" />}
+                    />
+                    {openGroups['__parttime'] && (
+                      <div className="border-t border-gray-100">
+                        {partTimers.map((member: any) => <BizStaffCard key={member.id} member={member} showGym={true} />)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )
           })() : (
-            // ── Manager: original cards unchanged ──────────────────────
+            // ── Manager: cards without gym line, single-row contact ───
             <div className="space-y-2">
               {filteredStaff.map(member => (
                 <div key={member.id} className={cn('card p-4', !member.is_active && 'opacity-70', isSelf(member) && 'border-red-200 bg-red-50/20')}>
@@ -789,17 +836,21 @@ export default function TrainersPage() {
                         </span>
                         <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
-                      {member.phone ? <p className="text-xs text-gray-400">{member.phone}</p> : <p className="text-xs text-amber-500">⚠ Phone not set</p>}
-                      <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
-                      {member.date_of_joining && <p className="text-xs text-gray-400 mt-0.5">Joined: {formatDate(member.date_of_joining)}</p>}
+                      {/* Single-row contact line — no gym (all staff share the manager's gym) */}
+                      <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span>{member.email}</span>
+                        {member.phone
+                          ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></>
+                          : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
+                        {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
+                      </p>
                       {member.probation_end_date && !member.probation_passed_at && (
                         <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
                       )}
                       {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="View profile"><Eye className="w-4 h-4" /></button>
                     </div>
                   </div>
                 </div>
