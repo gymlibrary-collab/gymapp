@@ -875,7 +875,7 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
         <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth || ''} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
       </div>
       <div>
-        <label className="label">Residential Address</label>
+        <label className="label">Residential Address <span className="text-gray-400 font-normal">(minimum 5 characters)</span></label>
         <input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
       </div>
       <div className="grid grid-cols-2 gap-3">

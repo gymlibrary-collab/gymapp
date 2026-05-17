@@ -222,7 +222,7 @@ export default function AdminStaffPage() {
           </div>
 
           <div>
-            <label className="label">Residential Address</label>
+            <label className="label">Residential Address <span className="text-gray-400 font-normal">(minimum 5 characters)</span></label>
             <input className="input" value={(form as any).address} onChange={set('address')}
               placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
           </div>
