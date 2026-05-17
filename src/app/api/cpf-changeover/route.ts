@@ -1,4 +1,4 @@
-import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
     const { limited } = rateLimit(request, { limit: 10, windowMs: 60 * 60_000, keyPrefix: 'cpf-changeover' })
     if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 
-    const supabase = await createSupabaseServerClient()
-    const { user, error: authErr } = await validateAndLoadCurrentUser(supabase, ['business_ops'])
+    const { user, error: authErr } = await validateAndLoadCurrentUser()
     if (authErr || !user) return NextResponse.json({ error: authErr || 'Unauthorized' }, { status: 401 })
+    if (user.role !== 'business_ops') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const adminClient = createAdminClient()
     const body = await request.json()
