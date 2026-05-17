@@ -34,7 +34,7 @@ const bizOpsNav: NavItem[] = [
   { href: '/dashboard/pt/sessions', label: 'PT Session Notes', icon: Calendar },
   { label: 'HR & Payroll', header: true, collapsible: true },
   { href: '/dashboard/payroll', label: 'Payroll', icon: Banknote },
-  { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp },
+  { href: '/dashboard/payroll/commission', label: 'Commission Payouts', icon: TrendingUp, hideWhenCombined: true },
   { href: '/dashboard/payroll/annual', label: 'Annual Statements', icon: FileText },
   { href: '/dashboard/payroll/cpf', label: 'CPF Configuration', icon: Calculator },
   { label: 'Gym Operations', header: true, collapsible: true },
@@ -47,6 +47,7 @@ const bizOpsNav: NavItem[] = [
   { label: 'Configuration', header: true, collapsible: true },
   { href: '/dashboard/config/gyms', label: 'Gym Clubs', icon: Building2 },
   { href: '/dashboard/config/commission', label: 'Commission Rates', icon: DollarSign },
+  { href: '/dashboard/config/payroll', label: 'Payroll Mode', icon: Layers },
   { href: '/dashboard/config/leave-policy', label: 'Leave Policy', icon: CalendarDays },
   { href: '/dashboard/config/escalation', label: 'Escalation Settings', icon: AlertCircle },
   { href: '/dashboard/config/whatsapp-templates', label: 'WhatsApp Templates', icon: MessageSquare },
@@ -357,7 +358,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   let nav: NavItem[]
   let portalLabel: string
   if (user.role === 'admin') { nav = adminNav; portalLabel = 'Admin Portal' }
-  else if (user.role === 'business_ops') { nav = bizOpsNav; portalLabel = 'Business Ops Portal' }
+  else if (user.role === 'business_ops') { nav = bizOpsNav.filter(item => !(item as any).hideWhenCombined || !combinedPayslipEnabled); portalLabel = 'Business Ops Portal' }
   else if (user.role === 'staff' && isPartTime) { nav = partTimerNav; portalLabel = 'Part-time Staff Portal' }
   else if (user.role === 'staff') { nav = staffNav; portalLabel = 'Operations Staff Portal' }
   else if (user.role === 'trainer') { nav = pureTrainerNav; portalLabel = 'Trainer Portal' }

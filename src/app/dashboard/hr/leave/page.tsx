@@ -192,6 +192,15 @@ export default function LeaveManagementPage() {
       }
     }
 
+    // Server-side gym check for managers — prevent approving staff from other gyms
+    if (user!.role === 'manager') {
+      const gymStaffIds = await getGymStaffIds(supabase, user!.manager_gym_id!)
+      if (!gymStaffIds.includes(app.user_id) && app.user_id !== user!.id) {
+        showError('You can only approve leave for staff in your gym.')
+        return
+      }
+    }
+
     await supabase.from('leave_applications').update({
       status: 'approved', approver_id: user!.id, approved_at: new Date().toISOString(),
     }).eq('id', id)
@@ -234,6 +243,18 @@ export default function LeaveManagementPage() {
       .select('user_id, leave_type, start_date, end_date, days_applied').eq('id', rejectId).maybeSingle()
     const { data: { user: authUser3 } } = await supabase.auth.getUser()
     const { data: me3 } = await supabase.from('users_safe').select('full_name').eq('id', authUser3!.id).maybeSingle()
+    // Server-side gym check for managers
+    if (user!.role === 'manager') {
+      const rejectedApp2 = applications.find(a => a.id === rejectId)
+      if (rejectedApp2) {
+        const gymStaffIds = await getGymStaffIds(supabase, user!.manager_gym_id!)
+        if (!gymStaffIds.includes(rejectedApp2.user_id) && rejectedApp2.user_id !== user!.id) {
+          showError('You can only reject leave for staff in your gym.')
+          return
+        }
+      }
+    }
+
     await supabase.from('leave_applications').update({
       status: 'rejected', rejection_reason: rejectReason,
       rejected_at: new Date().toISOString(),

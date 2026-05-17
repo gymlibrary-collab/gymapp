@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
           const idx = toInsert.length
           toInsert.push({
             user_id: member.id, period_month: bulkMonth, period_year: bulkYear,
-            payment_type: 'salary', gym_id: actualGymId, employment_type: 'part_time',
+            payment_type: combinedMode ? 'combined' : 'salary', gym_id: actualGymId, employment_type: 'part_time',
             salary_amount: roster.pay, commission_amount: 0, allowance_amount: 0,
             bonus_amount: 0, others_amount: 0, others_cpf_liable: false,
             total_hours: roster.hours, hourly_rate_used: member.hourly_rate || 0,
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
         const idx = toInsert.length
         toInsert.push({
           user_id: member.id, period_month: bulkMonth, period_year: bulkYear,
-          payment_type: 'salary', gym_id: gymId,
+          payment_type: combinedMode ? 'combined' : 'salary', gym_id: gymId,
           employment_type: member.employment_type || 'full_time',
           salary_amount: basicSalary, commission_amount: 0,
           allowance_amount: allowanceAmount, bonus_amount: bonusAmt,

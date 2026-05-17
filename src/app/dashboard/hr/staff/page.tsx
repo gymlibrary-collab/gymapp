@@ -290,6 +290,13 @@ export default function TrainersPage() {
       .in('status', ['active']).lt('sessions_used', 'total_sessions' as any)
     checks.activePkgs = activePkgs || []
 
+    // Orphaned commission items — unlinked to any payslip
+    const { data: orphanedItems } = await supabase.from('commission_items')
+      .select('id, source_type, amount, period_month, period_year')
+      .eq('user_id', userId)
+      .is('payslip_id', null)
+    checks.orphanedCommissionItems = orphanedItems || []
+
     setOffboardingChecklist({ member, checks })
   }
 
@@ -747,7 +754,8 @@ export default function TrainersPage() {
                  offboardingChecklist.checks.commissions.length === 0 &&
                  offboardingChecklist.checks.roster.length === 0 &&
                  offboardingChecklist.checks.packages.length === 0 &&
-                 offboardingChecklist.checks.activePkgs.length === 0 ? (
+                 offboardingChecklist.checks.activePkgs.length === 0 &&
+                 (offboardingChecklist.checks.orphanedCommissionItems?.length || 0) === 0 ? (
                   <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-lg p-3">
                     <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <p className="text-xs text-green-700">All clear — no outstanding system items</p>
@@ -757,13 +765,25 @@ export default function TrainersPage() {
                     {offboardingChecklist.checks.payslips.length > 0 && (
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                         <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.payslips.length} unpaid payslip(s)</p>
-                        {offboardingChecklist.checks.payslips.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {getMonthName(p.month)} {p.year}</p>)}
+                        {offboardingChecklist.checks.payslips.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {getMonthName(p.period_month)} {p.period_year}</p>)}
                       </div>
                     )}
                     {offboardingChecklist.checks.commissions.length > 0 && (
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.commissions.length} unpaid commission(s)</p>
-                        {offboardingChecklist.checks.commissions.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {formatDate(p.period_start)} to {formatDate(p.period_end)} ({formatSGD(p.total_commission_sgd)})</p>)}
+                        <p className="text-xs font-medium text-amber-800">⚠ {offboardingChecklist.checks.commissions.length} unpaid commission payslip(s)</p>
+                        {offboardingChecklist.checks.commissions.map((p: any) => <p key={p.id} className="text-xs text-amber-700">· {p.status} — {getMonthName(p.period_month)} {p.period_year} ({formatSGD(p.commission_amount)})</p>)}
+                      </div>
+                    )}
+                    {offboardingChecklist.checks.orphanedCommissionItems?.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-xs font-medium text-red-800">⚠ {offboardingChecklist.checks.orphanedCommissionItems.length} unprocessed commission item(s) — not yet included in any payslip</p>
+                        {offboardingChecklist.checks.orphanedCommissionItems.slice(0, 3).map((i: any) => (
+                          <p key={i.id} className="text-xs text-red-700">· {i.source_type === 'pt_session' ? 'PT Session' : i.source_type === 'pt_signup' ? 'PT Signup' : 'Membership'} — {getMonthName(i.period_month)} {i.period_year} ({formatSGD(i.amount)})</p>
+                        ))}
+                        {offboardingChecklist.checks.orphanedCommissionItems.length > 3 && (
+                          <p className="text-xs text-red-600">...and {offboardingChecklist.checks.orphanedCommissionItems.length - 3} more</p>
+                        )}
+                        <p className="text-xs text-red-600 mt-1 font-medium">Generate a commission payslip for this staff before archiving.</p>
                       </div>
                     )}
                     {offboardingChecklist.checks.roster.length > 0 && (
