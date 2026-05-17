@@ -42,7 +42,7 @@ export default function LeaveManagementPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  const { success, error, showMsg } = useToast()
+  const { success, error, showMsg, showError, setError } = useToast()
 
 
 
