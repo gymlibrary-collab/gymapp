@@ -205,12 +205,21 @@ export default function TrainersPage() {
 
   const openEdit = async (member: any) => {
     setEditingUser(member)
-    setShowCreateForm(false); setError('')
-
-    // All personal fields come from the member object already in memory —
-    // populate the form immediately so the modal shows the correct data at once.
-    // Gym fields default to what's on the member record; the trainer_gyms query
-    // below refines them (part-timers may have multiple gyms not in users_safe).
+    // Fetch trainer_gyms separately to ensure ALL gym assignments are loaded
+    // (nested select in the staff list query may not return all rows)
+    // Fetch all gym assignments directly — trainer_gyms_read now allows managers
+    // to read all rows for staff in their gym (migration v85)
+    const { data: tgRows } = await supabase.from('trainer_gyms')
+      .select('gym_id, gyms(id, name)').eq('trainer_id', member.id)
+    const nameMap: Record<string, string> = {}
+    const allGymIds: string[] = []
+    ;(tgRows || []).forEach((r: any) => {
+      if (r.gym_id) {
+        allGymIds.push(r.gym_id)
+        if (r.gyms?.name) nameMap[r.gym_id] = r.gyms.name
+      }
+    })
+    setAllGymNames(nameMap)
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -219,8 +228,9 @@ export default function TrainersPage() {
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
       membership_commission_sgd: member.membership_commission_sgd?.toString() || '10',
-      gym_id: member.manager_gym_id || '',
-      gym_ids: member.manager_gym_id ? [member.manager_gym_id] : [],
+      // Use gym assignments from API (bypasses RLS)
+      gym_id: allGymIds[0] || member.manager_gym_id || '',
+      gym_ids: allGymIds,
       manager_gym_id: member.manager_gym_id || '',
       is_also_trainer: member.is_also_trainer || false,
       date_of_birth: member.date_of_birth || '',
@@ -238,23 +248,7 @@ export default function TrainersPage() {
       nationality: member.nationality || 'Singaporean',
       residency_status: member.residency_status || 'other',
     })
-
-    // Fetch trainer_gyms to get full multi-gym assignments (part-timers may have
-    // multiple gyms not captured in users_safe). Updates gym fields only.
-    const { data: tgRows } = await supabase.from('trainer_gyms')
-      .select('gym_id, gyms(id, name)').eq('trainer_id', member.id)
-    const nameMap: Record<string, string> = {}
-    const allGymIds: string[] = []
-    ;(tgRows || []).forEach((r: any) => {
-      if (r.gym_id) {
-        allGymIds.push(r.gym_id)
-        if (r.gyms?.name) nameMap[r.gym_id] = r.gyms.name
-      }
-    })
-    setAllGymNames(nameMap)
-    if (allGymIds.length > 0) {
-      setEditForm(f => ({ ...f, gym_id: allGymIds[0], gym_ids: allGymIds }))
-    }
+    setShowCreateForm(false); setError('')
   }
 
   const checkOffboarding = async (member: any) => {
@@ -489,10 +483,9 @@ export default function TrainersPage() {
 
       {tab === 'active' && (
         <>
-          {/* Create form — modal overlay */}
+          {/* Create form */}
           {showCreateForm && isBizOps && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+            <form onSubmit={handleCreate} className="card p-4 space-y-4 border-red-200">
               <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Add New Staff Member</h2><button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
               {/* Role — Biz Ops cannot create admin or business_ops accounts */}
@@ -542,19 +535,17 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }} className="btn-secondary">Cancel</button>
               </div>
             </form>
-            </div>
           )}
 
-          {/* View panel for managers (read-only) — modal overlay */}
+          {/* View panel for managers (read-only) */}
           {editingUser && !isBizOps && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+            <div className="card p-4 space-y-4 border-gray-200">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 text-sm">Staff Particulars — {editingUser.full_name}</h2>
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
               </div>
               <div className="space-y-3 text-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div><p className="text-xs text-gray-400 mb-0.5">Full Name</p><p className="font-medium text-gray-900">{editingUser.full_name}</p></div>
                   <div><p className="text-xs text-gray-400 mb-0.5">Nickname</p><p className="text-gray-700">{editingUser.nickname || '—'}</p></div>
                   <div><p className="text-xs text-gray-400 mb-0.5">Role</p><p className="text-gray-700">{getRoleLabel(editingUser.role)}</p></div>
@@ -580,13 +571,11 @@ export default function TrainersPage() {
               </div>
               <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">Contact Business Operations to update staff particulars.</p>
             </div>
-            </div>
           )}
 
-          {/* Edit form — biz ops only — modal overlay */}
+          {/* Edit form — biz ops only */}
           {editingUser && isBizOps && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <form onSubmit={handleEdit} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+            <form onSubmit={handleEdit} className="card p-4 space-y-4 border-blue-200">
               <div className="flex items-center justify-between">
                 <div><h2 className="font-semibold text-gray-900 text-sm">Edit: {editingUser.full_name}</h2>{isSelf(editingUser) && <p className="text-xs text-red-600 mt-0.5">Your own account</p>}</div>
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
@@ -597,7 +586,7 @@ export default function TrainersPage() {
 
               {/* Role and status changes are Biz Ops only — managers cannot change staff roles */}
               {!isSelf(editingUser) && isBizOps && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div><label className="label">Role</label><select className="input" value={editForm.role} onChange={e => setEditForm((f: any) => ({ ...f, role: e.target.value }))}>{ALL_ROLES.filter(r => isBizOps ? !['admin', 'business_ops'].includes(r.value) : true).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
                   <div><label className="label">Status</label><select className="input" value={(editForm as any).is_active ? 'active' : 'inactive'} onChange={e => setEditForm((f: any) => ({ ...f, is_active: e.target.value === 'active' }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
                 </div>
@@ -664,7 +653,6 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => setEditingUser(null)} className="btn-secondary">Cancel</button>
               </div>
             </form>
-            </div>
           )}
 
           {/* Filters */}
@@ -682,82 +670,11 @@ export default function TrainersPage() {
           {/* Staff list */}
           {filteredStaff.length === 0 ? (
             <div className="card p-8 text-center"><UserCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No staff found</p></div>
-          // ── Biz ops helpers — defined at component level (not inside IIFE) ──────
-          const breakdown = (members: any[]) => {
-            const counts: Record<string, number> = {}
-            members.forEach((m: any) => { counts[m.role] = (counts[m.role] || 0) + 1 })
-            return Object.entries(counts)
-              .map(([role, n]) => `${n} ${getRoleLabel(role).toLowerCase()}${n !== 1 ? 's' : ''}`)
-              .join(', ')
-          }
-
-          const BizStaffCard = ({ member, showGym }: { member: any; showGym: boolean }) => (
-            <div className={cn('p-4 border-b border-gray-100 last:border-0', !member.is_active && 'opacity-70', isSelf(member) && 'bg-red-50/20')}>
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-900 text-sm">{member.full_name}</p>
-                    {isSelf(member) && <span className="text-xs text-red-600 font-medium">(You)</span>}
-                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
-                      {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
-                    </span>
-                    <span className={member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-indigo-100 text-indigo-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
-                      {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
-                    </span>
-                    <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span>{member.email}</span>
-                    {member.phone
-                      ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></>
-                      : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
-                    {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
-                  </p>
-                  {showGym && (
-                    <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
-                  )}
-                  {member.employment_type === 'part_time' && member.hourly_rate && (
-                    <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
-                  )}
-                  {member.probation_end_date && !member.probation_passed_at && (
-                    <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
-                  )}
-                  {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit"><Edit2 className="w-4 h-4" /></button>
-                  <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>
-                  {!isSelf(member) && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
-                </div>
-              </div>
-            </div>
-          )
-
-          const AccordionHeader = ({ groupKey, icon, label, members, isPartTime }: {
-            groupKey: string; icon: React.ReactNode; label: string; members: any[]; isPartTime?: boolean
-          }) => (
-            <button
-              type="button"
-              onClick={() => toggleGroup(groupKey)}
-              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-            >
-              {icon}
-              <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{label}</span>
-              <span className="text-xs text-gray-700 font-medium flex-shrink-0">{members.length} staff</span>
-              <span className="text-xs text-gray-400 flex-shrink-0">({isPartTime ? 'multiple gyms' : breakdown(members)})</span>
-              <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200', openGroups[groupKey] && 'rotate-180')} />
-            </button>
-          )
-
           ) : isBizOps ? (() => {
             // ── Biz ops: accordion grouped by gym, part-timers last ────
+            // openGroups and toggleGroup are at component level (hooks can't be inside IIFEs)
             const fullTimers = filteredStaff.filter((s: any) => s.employment_type !== 'part_time')
             const partTimers = filteredStaff.filter((s: any) => s.employment_type === 'part_time')
-
-            // Group full-timers by primary gym name, carry gym id for logo lookup
             const gymGroups: Record<string, { members: any[]; gymId: string | null }> = {}
             fullTimers.forEach((m: any) => {
               const gymName = (m.trainer_gyms?.[0]?.gyms?.name) || (m.manager_gym?.name) || 'Unassigned'
@@ -766,7 +683,56 @@ export default function TrainersPage() {
               gymGroups[gymName].members.push(m)
             })
             const sortedGyms = Object.keys(gymGroups).sort()
-
+            const breakdown = (members: any[]) => {
+              const counts: Record<string, number> = {}
+              members.forEach((m: any) => { counts[m.role] = (counts[m.role] || 0) + 1 })
+              return Object.entries(counts).map(([role, n]) => `${n} ${getRoleLabel(role).toLowerCase()}${n !== 1 ? 's' : ''}`).join(', ')
+            }
+            const BizCard = ({ member, showGym }: { member: any; showGym: boolean }) => (
+              <div className={cn('p-4 border-b border-gray-100 last:border-0', !member.is_active && 'opacity-70', isSelf(member) && 'bg-red-50/20')}>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-gray-900 text-sm">{member.full_name}</p>
+                      {isSelf(member) && <span className="text-xs text-red-600 font-medium">(You)</span>}
+                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
+                        {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
+                      </span>
+                      <span className={member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-indigo-100 text-indigo-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
+                        {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
+                      </span>
+                      <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span>{member.email}</span>
+                      {member.phone ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></> : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
+                      {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
+                    </p>
+                    {showGym && <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>}
+                    {member.employment_type === 'part_time' && member.hourly_rate && <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>}
+                    {member.probation_end_date && !member.probation_passed_at && <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>}
+                    {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                    <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>
+                    {!isSelf(member) && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
+                  </div>
+                </div>
+              </div>
+            )
+            const AHdr = ({ groupKey, icon, label, members, isPartTime }: { groupKey: string; icon: React.ReactNode; label: string; members: any[]; isPartTime?: boolean }) => (
+              <button type="button" onClick={() => toggleGroup(groupKey)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                {icon}
+                <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{label}</span>
+                <span className="text-xs text-gray-700 font-medium flex-shrink-0">{members.length} staff</span>
+                <span className="text-xs text-gray-400 flex-shrink-0">({isPartTime ? 'multiple gyms' : breakdown(members)})</span>
+                <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200', openGroups[groupKey] && 'rotate-180')} />
+              </button>
+            )
             return (
               <div className="space-y-3">
                 {sortedGyms.map(gymName => {
@@ -776,42 +742,23 @@ export default function TrainersPage() {
                   const logoUrl = gymData?.logo_url
                   return (
                     <div key={gymName} className="card overflow-hidden">
-                      <AccordionHeader
-                        groupKey={gymName}
-                        label={gymName}
-                        members={members}
-                        icon={logoUrl
-                          ? <img src={logoUrl} alt={gymName} className="w-6 h-6 rounded object-contain flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                          : <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0" />}
+                      <AHdr groupKey={gymName} label={gymName} members={members}
+                        icon={logoUrl ? <img src={logoUrl} alt={gymName} className="w-6 h-6 rounded object-contain flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display='none' }} /> : <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0" />}
                       />
-                      {openGroups[gymName] && (
-                        <div className="border-t border-gray-100">
-                          {members.map((member: any) => <BizStaffCard key={member.id} member={member} showGym={false} />)}
-                        </div>
-                      )}
+                      {openGroups[gymName] && <div className="border-t border-gray-100">{members.map((m: any) => <BizCard key={m.id} member={m} showGym={false} />)}</div>}
                     </div>
                   )
                 })}
                 {partTimers.length > 0 && (
                   <div className="card overflow-hidden">
-                    <AccordionHeader
-                      groupKey="__parttime"
-                      label="Part Timers"
-                      members={partTimers}
-                      isPartTime={true}
-                      icon={<Clock className="w-5 h-5 text-gray-400 flex-shrink-0" />}
-                    />
-                    {openGroups['__parttime'] && (
-                      <div className="border-t border-gray-100">
-                        {partTimers.map((member: any) => <BizStaffCard key={member.id} member={member} showGym={true} />)}
-                      </div>
-                    )}
+                    <AHdr groupKey="__pt" label="Part Timers" members={partTimers} isPartTime icon={<Clock className="w-5 h-5 text-gray-400 flex-shrink-0" />} />
+                    {openGroups['__pt'] && <div className="border-t border-gray-100">{partTimers.map((m: any) => <BizCard key={m.id} member={m} showGym />)}</div>}
                   </div>
                 )}
               </div>
             )
           })() : (
-            // ── Manager: cards without gym line, single-row contact ───
+            // ── Manager: original cards, no gym line, single-row contact, eye icon ──
             <div className="space-y-2">
               {filteredStaff.map(member => (
                 <div key={member.id} className={cn('card p-4', !member.is_active && 'opacity-70', isSelf(member) && 'border-red-200 bg-red-50/20')}>
@@ -831,17 +778,12 @@ export default function TrainersPage() {
                         </span>
                         <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
                       </div>
-                      {/* Single-row contact line — no gym (all staff share the manager's gym) */}
                       <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span>{member.email}</span>
-                        {member.phone
-                          ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></>
-                          : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
+                        {member.phone ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></> : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
                         {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
                       </p>
-                      {member.probation_end_date && !member.probation_passed_at && (
-                        <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
-                      )}
+                      {member.probation_end_date && !member.probation_passed_at && <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>}
                       {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -1008,11 +950,11 @@ function AlsoTrainerToggle({ value, onChange }: { value: boolean; onChange: (v: 
 function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any; setF: any; isBizOps: boolean; isEditing?: boolean }) {
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
         <div><label className="label">Nickname *</label><input className="input" required value={form.nickname || ''} onChange={e => setF((f: any) => ({ ...f, nickname: e.target.value }))} placeholder="e.g. Alex" /></div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric || ''} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" /></div>
         <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth || ''} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
       </div>
@@ -1020,11 +962,11 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
         <label className="label">Residential Address <span className="text-gray-400 font-normal">(minimum 5 characters)</span></label>
         <input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))} placeholder="+6591234567" /></div>
         <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Nationality</label><input className="input" value={form.nationality || ''} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
         <div>
           <label className="label">Residency Status * <span className="text-xs text-gray-400 font-normal">(determines CPF)</span></label>
@@ -1036,12 +978,12 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
         <div><label className="label">Date of Departure</label><input className="input" type="date" value={form.date_of_departure} onChange={e => setF((f: any) => ({ ...f, date_of_departure: e.target.value }))} /></div>
       </div>
       {/* Probation End Date | Annual Leave Entitlement — side by side */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Probation End Date</label>
           <input className="input" type="date" value={(form as any).probation_end_date}
