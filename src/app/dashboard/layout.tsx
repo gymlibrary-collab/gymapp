@@ -15,7 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { PartTimerContext } from '@/lib/part-timer-context'
 
-type NavItem = { href?: string; label: string; icon?: any; header?: boolean; collapsible?: boolean }
+type NavItem = { href?: string; label: string; icon?: any; header?: boolean; collapsible?: boolean; hideWhenCombined?: boolean }
 
 const adminNav: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
