@@ -29,7 +29,7 @@ export default function GuidePage() {
       items: [
         'Confirm or reject pending PT package sales from trainers under PT Package Sales',
         'To reassign a package to a different trainer: click Reassign, select the new trainer and confirm',
-        'Confirm completed session notes under PT Schedule — this unlocks the trainer's commission',
+        "Confirm completed session notes under PT Schedule — this unlocks the trainer's commission",
         'Sessions with submitted notes appear as pending confirmation on your dashboard',
       ]
     },
@@ -54,8 +54,8 @@ export default function GuidePage() {
     {
       icon: Users, heading: 'My Gym & My Staff',
       items: [
-        'View your gym's details and upload a gym logo under My Gym',
-        'See all trainers' session capacity and targets under Trainer Capacity',
+        "View your gym's details and upload a gym logo under My Gym",
+        "See all trainers' session capacity and targets under Trainer Capacity",
         'View staff profiles including residency status under My Staff (read-only)',
         'Add or edit Trainer and Operations Staff accounts under My Staff',
         'Part-time staff show their assigned gyms and hourly rate on their profile card',
