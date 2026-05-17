@@ -147,9 +147,12 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
           .select('id', { count: 'exact', head: true }).eq('year', nextYear)
         setHolidaysSetUp((count || 0) > 0)
 
+        // Check if any bracket period covers Jan 1 of next year:
+        // either a period with effective_from <= nextYear-01-01 exists (current rates carry over),
+        // or a new period for next year has been entered. Either is fine.
         const { count: cpfCount } = await supabase.from('cpf_age_brackets')
           .select('id', { count: 'exact', head: true })
-          .eq('effective_from', `${nextYear}-01-01`)
+          .lte('effective_from', `${nextYear}-01-01`)
         setCpfRatesSetUp((cpfCount || 0) >= 5)
       }
 

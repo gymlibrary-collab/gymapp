@@ -3,7 +3,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
 import {
-  loadCpfBrackets, getCpfBracketRates, getCpfCeilings,
+  loadCpfBrackets, getCpfBracketRates, getCpfCeilings, needsCpfChangeover,
   computeCpfAmounts, loadYtdOW
 } from '@/lib/cpf'
 import { nowSGT } from '@/lib/utils'
