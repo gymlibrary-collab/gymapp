@@ -677,49 +677,84 @@ export default function TrainersPage() {
             ))}
           </div>
 
-          {/* Staff list */}
+          {/* Staff list — compact table */}
           {filteredStaff.length === 0 ? (
             <div className="card p-8 text-center"><UserCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No staff found</p></div>
           ) : (
-            <div className="space-y-2">
-              {filteredStaff.map(member => (
-                <div key={member.id} className={cn('card p-4', !member.is_active && 'opacity-70', isSelf(member) && 'border-red-200 bg-red-50/20')}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-gray-900 text-sm">{member.full_name}</p>
-                        {isSelf(member) && <span className="text-xs text-red-600 font-medium">(You)</span>}
+            <div className="card overflow-hidden">
+              <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '16%' }} />
+                  <col style={{ width: '10%' }} />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-2.5">Name</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Role</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Type</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Email</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Gym</th>
+                    <th className="text-right text-xs font-medium text-gray-500 px-4 py-2.5">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredStaff.map(member => (
+                    <tr key={member.id} className={cn('group hover:bg-gray-50 transition-colors', !member.is_active && 'opacity-60', isSelf(member) && 'bg-red-50/30')}>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-red-700 font-semibold text-xs">{member.full_name.charAt(0)}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900 text-xs truncate">{member.full_name}{isSelf(member) && <span className="text-red-500 ml-1">(You)</span>}</p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {member.probation_end_date && !member.probation_passed_at
+                                ? <span className="text-amber-600">Probation</span>
+                                : member.date_of_departure
+                                ? <span className="text-red-400">Departed {formatDate(member.date_of_departure)}</span>
+                                : member.date_of_joining
+                                ? <>Joined {formatDate(member.date_of_joining)}</>
+                                : member.phone || <span className="text-amber-500">⚠ No phone</span>}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
                         <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
-                          {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
+                          {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / T'}
                         </span>
-                        <span className={member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-indigo-100 text-indigo-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
-                          {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700' : 'bg-indigo-100 text-indigo-700')}>
+                          {member.employment_type === 'part_time' ? 'PT' : 'FT'}
                         </span>
-                        <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{member.email}</p>
-                      {member.phone ? <p className="text-xs text-gray-400">{member.phone}</p> : <p className="text-xs text-amber-500">⚠ Phone not set</p>}
-                      <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
-                      {isBizOps && member.employment_type === 'part_time' && member.hourly_rate && (
-                        <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
-                      )}
-                      {member.date_of_joining && <p className="text-xs text-gray-400 mt-0.5">Joined: {formatDate(member.date_of_joining)}</p>}
-                      {member.probation_end_date && !member.probation_passed_at && (
-                    <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
-                  )}
-                {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={isBizOps ? "Edit" : "View"}><Edit2 className="w-4 h-4" /></button>
-                      {isBizOps && <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>}
-                      {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                        {isBizOps && member.employment_type === 'part_time' && member.hourly_rate && (
+                          <p className="text-xs text-blue-600 mt-0.5">{formatSGD(member.hourly_rate)}/hr</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <p className="text-xs text-gray-600 truncate">{member.email}</p>
+                        {member.phone && <p className="text-xs text-gray-400 truncate">{member.phone}</p>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <p className="text-xs text-gray-600 truncate">{getGymLabel(member)}</p>
+                        <p className={cn('text-xs', member.is_active ? 'text-green-600' : 'text-red-500')}>{member.is_active ? 'Active' : 'Inactive'}</p>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(member)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={isBizOps ? 'Edit' : 'View'}><Edit2 className="w-3.5 h-3.5" /></button>
+                          {isBizOps && <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-3.5 h-3.5 text-red-600" /></Link>}
+                          {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Archive"><Trash2 className="w-3.5 h-3.5" /></button>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </>

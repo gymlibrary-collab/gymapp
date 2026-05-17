@@ -67,9 +67,9 @@ export default function StaffPayrollDetailPage() {
   // getBracketRates: alias of getCpfBracketRates from @/lib/cpf
   const getBracketRates = getCpfBracketRates
 
-  const loadData = async () => {
-    logActivity('page_view', 'Staff Payroll', 'Viewed staff payroll')
-    setDataLoading(true)
+  const loadData = async (silent = false) => {
+    if (!silent) logActivity('page_view', 'Staff Payroll', 'Viewed staff payroll')
+    if (!silent) setDataLoading(true)
     setIsBizOpsRole(user!.role === 'business_ops')
 
     // Step 1: Load staff record first — unblocks page render immediately
@@ -134,7 +134,7 @@ export default function StaffPayrollDetailPage() {
     })
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return }
     logActivity('update', 'Staff Payroll', 'Updated staff payroll profile')
-    await loadData(); setSaving(false); setShowSalaryForm(false); showMsg('Payroll profile saved')
+    await loadData(true); setSaving(false); setShowSalaryForm(false); showMsg('Payroll profile saved')
   }
 
   const handleAddIncrement = async (e: React.FormEvent) => {
@@ -151,7 +151,7 @@ export default function StaffPayrollDetailPage() {
     })
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return }
     const d = await res.json()
-    await loadData(); setSaving(false); setShowIncrementForm(false)
+    await loadData(true); setSaving(false); setShowIncrementForm(false)
     setIncrementForm({ change_amount: '', effective_from: '', change_type: 'increment', notes: '' })
     logActivity('update', 'Staff Payroll', 'Updated staff salary')
     showMsg(`Salary updated to ${formatSGD(d.newSalary || 0)}`)
@@ -168,7 +168,7 @@ export default function StaffPayrollDetailPage() {
       }),
     })
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); setSaving(false); return }
-    await loadData(); setSaving(false); setShowBonusForm(false)
+    await loadData(true); setSaving(false); setShowBonusForm(false)
     setBonusForm({ bonus_type: 'performance', amount: '', month: nowSGT().getUTCMonth() + 1, year: nowSGT().getUTCFullYear(), notes: '' })
     logActivity('create', 'Staff Payroll', 'Recorded staff bonus')
     showMsg('Bonus recorded')
@@ -201,7 +201,7 @@ export default function StaffPayrollDetailPage() {
     const data = await res.json()
     if (!res.ok) { setError(data.error || 'Failed to generate payslip'); setSaving(false); return }
     logActivity('create', 'Staff Payroll', `Generated salary payslip — ${staff?.full_name} ${pMonth}/${pYear}`)
-    await loadData(); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
+    await loadData(true); setSaving(false); setShowPayslipForm(false); showMsg('Payslip generated')
     return
   }
   const handleDeletePayslip = async (payslipId: string) => {
@@ -212,7 +212,7 @@ export default function StaffPayrollDetailPage() {
     })
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed'); return }
     logActivity('delete', 'Staff Payroll', 'Deleted draft payslip — roster shifts and deductions released')
-    await loadData(); showMsg('Draft payslip deleted')
+    await loadData(true); showMsg('Draft payslip deleted')
   }
 
   const handleAdminDeletePayslip = async () => {
@@ -259,7 +259,7 @@ export default function StaffPayrollDetailPage() {
     await supabase.from('payslips').delete().eq('id', ps.id).eq('status', 'approved')
     setDeleteModal(null); setDeleteReason(''); setDeleting(false)
     logActivity('delete', 'Staff Payroll', 'Deleted approved payslip — roster shifts and deductions released for regeneration')
-    await loadData(); showMsg('Payslip deleted — audit record saved')
+    await loadData(true); showMsg('Payslip deleted — audit record saved')
   }
 
   const handleSaveDeduction = async () => {
@@ -282,7 +282,7 @@ export default function StaffPayrollDetailPage() {
     logActivity('update', 'Staff Payroll', `Updated deduction on ${editingDeduction.type}`)
     setEditingDeduction(null)
     setSaving(false)
-    await loadData()
+    await loadData(true)
     showMsg('Deduction saved')
   }
 
@@ -300,7 +300,7 @@ export default function StaffPayrollDetailPage() {
     if (action === 'paid') update.paid_at = new Date().toISOString()
     await supabase.from('payslips').update(update).eq('id', payslipId)
     logActivity('approve', 'Staff Payroll', `Marked payslip as ${action}`)
-    await loadData(); showMsg(`Payslip ${action}`)
+    await loadData(true); showMsg(`Payslip ${action}`)
   }
 
   const downloadPayslipPdf = async (slip: any) => {

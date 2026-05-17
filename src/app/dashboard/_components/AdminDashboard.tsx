@@ -30,7 +30,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
-import { Building2, Briefcase, UserCheck, Dumbbell, Calendar, Settings, ChevronRight } from 'lucide-react'
+import { Building2, Briefcase, UserCheck, Dumbbell, Calendar, Settings, ChevronRight, Users } from 'lucide-react'
 import Link from 'next/link'
 import { cn, getGreeting, getDisplayName} from '@/lib/utils'
 import { PageSpinner } from '@/components/PageSpinner'
@@ -72,12 +72,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     // trainer_gyms join needed to count trainers per gym
     const { data: allStaff } = await supabase
       .from('users_safe')
-      .select('id, role, manager_gym_id, trainer_gyms(gym_id)')
+      .select('id, role, employment_type, manager_gym_id, trainer_gyms(gym_id)')
       .eq('is_archived', false)
 
-    // Build role count map: { manager: 3, trainer: 8, ... }
+    // Build role count map: { manager: 3, trainer: 8, staff: 5, staff_ft: 3, staff_pt: 2, ... }
     const rc: Record<string, number> = {}
-    allStaff?.forEach((s: any) => { rc[s.role] = (rc[s.role] || 0) + 1 })
+    allStaff?.forEach((s: any) => {
+      rc[s.role] = (rc[s.role] || 0) + 1
+      // Track ops staff FT/PT split
+      if (s.role === 'staff') {
+        const key = s.employment_type === 'part_time' ? 'staff_pt' : 'staff_ft'
+        rc[key] = (rc[key] || 0) + 1
+      }
+    })
     setRoleCounts(rc)
 
     // Build gym breakdown: each gym with manager + trainer counts
@@ -123,6 +130,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     { role: 'business_ops' as const, label: 'Business Ops', icon: Briefcase, color: 'text-purple-600' },
     { role: 'manager' as const, label: 'Managers', icon: UserCheck, color: 'text-yellow-700' },
     { role: 'trainer' as const, label: 'Trainers', icon: Dumbbell, color: 'text-green-700' },
+    { role: 'staff' as const, label: 'Ops Staff', icon: Users, color: 'text-blue-600' },
   ]
 
   return (
@@ -137,7 +145,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       </div>
 
       {/* Staff count cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div className="stat-card">
           <div className="flex items-center gap-1.5 mb-1">
             <Building2 className="w-4 h-4 text-red-600" />
@@ -152,6 +160,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <p className="text-xs text-gray-500">{label}</p>
             </div>
             <p className="text-2xl font-bold">{roleCounts[role] || 0}</p>
+            {role === 'staff' && (roleCounts[role] || 0) > 0 && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {roleCounts['staff_ft'] || 0} FT · {roleCounts['staff_pt'] || 0} PT
+              </p>
+            )}
           </div>
         ))}
       </div>
