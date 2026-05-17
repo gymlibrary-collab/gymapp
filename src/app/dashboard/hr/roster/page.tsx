@@ -279,7 +279,7 @@ export default function RosterPage() {
   const handleLock = async (entry: any) => {
     if (!confirm(`Lock shift for ${entry.user?.full_name}?`)) return
     await supabase.from('duty_roster').update({
-      is_locked: true, locked_at: new Date(Date.now() + 8*60*60*1000).toISOString(), locked_by: user?.id, status: 'completed'
+      is_locked: true, locked_at: nowSGT().toISOString(), locked_by: user?.id, status: 'completed'
     }).eq('id', entry.id)
     logActivity('update', 'Duty Roster', 'Locked roster shift')
     await loadData(); showMsg('Shift locked')
@@ -372,7 +372,7 @@ export default function RosterPage() {
             className="btn-secondary p-2 disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button>
           <div className="flex-1 text-center">
             <p className="text-sm font-medium text-gray-900">{(() => {
-              const nowSGTms = new Date(Date.now() + 8*60*60*1000)
+              const nowSGTms = nowSGT()
               const d = new Date(nowSGTms.getUTCFullYear(), nowSGTms.getUTCMonth() + monthOffset, 1)
               return d.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
             })()}</p>

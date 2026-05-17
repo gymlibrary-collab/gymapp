@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, formatSGD, todaySGT } from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT , nowSGT } from '@/lib/utils'
 import { getDaysFromToday } from '@/lib/dashboard'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn , nowSGT } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { PageSpinner } from '@/components/PageSpinner'
 
@@ -106,7 +106,7 @@ export default function MyRosterPage() {
                 <div className="divide-y divide-gray-100">
                   {weekShifts.map(shift => {
                     const isToday = shift.shift_date === todaySGT()
-                    const isTomorrow = shift.shift_date === new Date(Date.now() + 86400000).toISOString().split('T')[0]
+                    const isTomorrow = shift.shift_date === new Date(nowSGT().getTime() + 86400000).toISOString().split('T')[0]
                     return (
                       <div key={shift.id} className={cn('p-4 flex items-center gap-3', isToday && 'bg-red-50', shift.is_locked && 'opacity-80')}>
                         <div className={cn('w-12 text-center flex-shrink-0 rounded-lg py-2', isToday ? 'bg-red-600' : 'bg-gray-100')}>

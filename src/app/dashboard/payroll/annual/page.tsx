@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { FileText, Download, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn , nowSGT } from '@/lib/utils'
 import { PageSpinner } from '@/components/PageSpinner'
 
 export default function AnnualStatementPage() {
@@ -20,7 +20,7 @@ export default function AnnualStatementPage() {
   const [gyms, setGyms] = useState<any[]>([])
   const [dataLoading, setDataLoading] = useState(true)
   const [selectedGym, setSelectedGym] = useState('')
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear() - 1)
+  const [selectedYear, setSelectedYear] = useState(nowSGT().getUTCFullYear() - 1)
   const [staffResults, setStaffResults] = useState<any[]>([])
   const [generating, setGenerating] = useState(false)
   const [loadingStaff, setLoadingStaff] = useState(false)
@@ -158,7 +158,7 @@ export default function AnnualStatementPage() {
   if (loading || dataLoading) return <PageSpinner />
   if (!user) return null
 
-  const availableYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 - i)
+  const availableYears = Array.from({ length: 5 }, (_, i) => nowSGT().getUTCFullYear() - 1 - i)
 
   return (
     <div className="space-y-5 max-w-2xl">

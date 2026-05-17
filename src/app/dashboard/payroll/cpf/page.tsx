@@ -25,7 +25,7 @@ export default function CpfPage() {
   const [editingBracket, setEditingBracket] = useState<string | null>(null)
   const [editValues, setEditValues] = useState({ employee_rate: 0, employer_rate: 0, effective_from: '' })
   const [selectedMonth, setSelectedMonth] = useState(nowSGT().getUTCMonth() + 1)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(nowSGT().getUTCFullYear())
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const router = useRouter()

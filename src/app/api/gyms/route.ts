@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 
 // GET /api/gyms?ids=uuid1,uuid2
 // Returns gym id+name for the given IDs using adminClient (bypasses gyms RLS)

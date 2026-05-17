@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatSGD, formatDateTime, getMonthName } from '@/lib/utils'
+import { formatSGD, formatDateTime, getMonthName , nowSGT } from '@/lib/utils'
 import { Shield, ChevronDown, ChevronUp } from 'lucide-react'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
@@ -20,7 +20,7 @@ export default function PayslipAuditPage() {
   const { success, error } = useToast()
 
   const [records, setRecords] = useState<any[]>([])
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear())
+  const [filterYear, setFilterYear] = useState(nowSGT().getUTCFullYear())
   const [filterMonth, setFilterMonth] = useState(0) // 0 = all months
   const [expanded, setExpanded] = useState<string | null>(null)
 
@@ -43,7 +43,7 @@ export default function PayslipAuditPage() {
   useEffect(() => { loadData() }, [filterYear, filterMonth])
 
 
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i)
+  const years = Array.from({ length: 5 }, (_, i) => nowSGT().getUTCFullYear() - i)
   const months = [
     { value: 0, label: 'All months' },
     ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: getMonthName(i + 1) }))

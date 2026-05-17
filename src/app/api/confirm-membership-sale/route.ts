@@ -1,4 +1,5 @@
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
 
 // ── POST /api/confirm-membership-sale ────────────────────────

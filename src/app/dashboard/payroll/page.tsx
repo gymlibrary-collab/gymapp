@@ -22,18 +22,18 @@ export default function PayrollPage() {
   const [filterType, setFilterType] = useState('all')
   const { logActivity } = useActivityLog()
   const [selectedMonth, setSelectedMonth] = useState(nowSGT().getUTCMonth() + 1)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(nowSGT().getUTCFullYear())
   const [rosterTotals, setRosterTotals] = useState<Record<string, any>>({})
   const [ytdOW, setYtdOW] = useState<Record<string, number>>({}) // user_id -> YTD ordinary wages
   const [bulkMonth, setBulkMonth] = useState(nowSGT().getUTCMonth() + 1)
-  const [bulkYear, setBulkYear] = useState(new Date().getFullYear())
+  const [bulkYear, setBulkYear] = useState(nowSGT().getUTCFullYear())
   const [bulkGenerating, setBulkGenerating] = useState(false)
   const [bulkDraftWarning, setBulkDraftWarning] = useState<string[]>([]) // names with existing drafts
   const [pendingBulkGenerate, setPendingBulkGenerate] = useState(false)
   const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[], deleted?: boolean} | null>(null)
   const [showBulkForm, setShowBulkForm] = useState(false)
   const { error: archiveError, showError: showArchiveError, setError: setArchiveError } = useToast()
-  const [archiveYear, setArchiveYear] = useState(new Date().getFullYear() - 1)
+  const [archiveYear, setArchiveYear] = useState(nowSGT().getUTCFullYear() - 1)
   const [archiveGym, setArchiveGym] = useState('')
   const [archiveGyms, setArchiveGyms] = useState<any[]>([])
   const [archiveProgress, setArchiveProgress] = useState('')
@@ -86,7 +86,7 @@ export default function PayrollPage() {
     setCpfBrackets(brackets || [])
 
     // Load YTD ordinary wages for current year to detect CPF ceiling approach
-    const currentYear = new Date().getFullYear()
+    const currentYear = nowSGT().getUTCFullYear()
     const { data: ytdSlips } = await supabase.from('payslips')
       .select('user_id, capped_ow')
       .eq('period_year', currentYear)
@@ -580,7 +580,7 @@ export default function PayrollPage() {
         <div>
           <label className="label">Year</label>
           <select className="input" value={archiveYear} onChange={e => setArchiveYear(parseInt(e.target.value))}>
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 1 - i).map(y => (
+            {Array.from({ length: 5 }, (_, i) => nowSGT().getUTCFullYear() - 1 - i).map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>

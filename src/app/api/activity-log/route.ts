@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { rateLimit } from '@/lib/rate-limit'
 
 // Admin client — bypasses RLS for writing logs

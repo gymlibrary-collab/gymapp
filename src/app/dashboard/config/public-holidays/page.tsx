@@ -16,7 +16,7 @@ export default function PublicHolidaysPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
   const { logActivity } = useActivityLog()
   const [holidays, setHolidays] = useState<any[]>([])
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(nowSGT().getUTCFullYear())
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ holiday_date: '', name: '' })
   const [saving, setSaving] = useState(false)
@@ -24,7 +24,7 @@ export default function PublicHolidaysPage() {
   const supabase = createClient()
 
   const { success, error, showMsg, showError, setError } = useToast()
-  const years = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1]
+  const years = [nowSGT().getUTCFullYear() - 1, nowSGT().getUTCFullYear(), nowSGT().getUTCFullYear() + 1]
 
 
   const load = async () => {
@@ -59,7 +59,7 @@ export default function PublicHolidaysPage() {
     showMsg('Holiday removed')
   }
 
-  const nextYear = new Date().getFullYear() + 1
+  const nextYear = nowSGT().getUTCFullYear() + 1
   const hasNextYear = holidays.some(h => new Date(h.holiday_date).getFullYear() === nextYear) ||
     selectedYear !== nextYear
   const needsNextYearSetup = nowSGT().getUTCMonth() >= 10 && // November onwards (SGT)

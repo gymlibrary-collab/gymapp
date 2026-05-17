@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { formatSGD, getMonthName, nowSGT } from '@/lib/utils'
 import { renderUnifiedPayslipPdf } from '@/lib/pdf'
-import { FileText, Download, CheckCircle } from 'lucide-react'
+import { FileText, Download, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { PageSpinner } from '@/components/PageSpinner'
@@ -20,6 +20,9 @@ export default function MyPayslipsPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['trainer', 'staff', 'manager', 'business_ops'] })
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [gymsMap, setGymsMap] = useState<Record<string, any>>({})
+  const [expandedSlipId, setExpandedSlipId] = useState<string | null>(null)
+  const [commissionItemsMap, setCommissionItemsMap] = useState<Record<string, any[]>>({})
+  const [loadingItemsFor, setLoadingItemsFor] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -55,6 +58,32 @@ export default function MyPayslipsPage() {
 
   if (loading || dataLoading) return <PageSpinner />
   if (!user) return null
+
+  const toggleCommissionBreakdown = async (slip: any) => {
+    if (expandedSlipId === slip.id) {
+      setExpandedSlipId(null)
+      return
+    }
+    setExpandedSlipId(slip.id)
+    if (commissionItemsMap[slip.id]) return // already loaded
+
+    setLoadingItemsFor(slip.id)
+    const { data: items } = await supabase
+      .from('commission_items')
+      .select('source_type, amount, period_month, period_year')
+      .eq('user_id', user!.id)
+      .eq('payslip_id', slip.id)
+      .order('period_year').order('period_month').order('source_type')
+    setCommissionItemsMap(m => ({ ...m, [slip.id]: items || [] }))
+    setLoadingItemsFor(null)
+  }
+
+  const sourceTypeLabel = (type: string) => {
+    if (type === 'pt_session') return 'PT Session'
+    if (type === 'pt_signup') return 'PT Package Signup'
+    if (type === 'membership') return 'Membership Sale'
+    return type
+  }
 
   const downloadPayslip = async (slip: any) => {
     const { default: jsPDF } = await import('jspdf')
@@ -118,40 +147,77 @@ export default function MyPayslipsPage() {
             ) : monthSlips.map(slip => {
               const gym = slip.gym_id ? gymsMap[slip.gym_id] : null
               return (
-                <div key={slip.id} className="card p-4 flex items-center gap-4">
-                  <div className="bg-red-50 p-2.5 rounded-lg flex-shrink-0">
-                    <FileText className="w-5 h-5 text-red-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900 text-sm">
-                        {getMonthName(slip.period_month)} {slip.period_year}
-                      </p>
-                      {paymentTypeBadge(slip.payment_type)}
-                      {gym && <span className="text-xs text-gray-400">{gym.name}</span>}
+                <div key={slip.id} className="card p-4">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-red-50 p-2.5 rounded-lg flex-shrink-0">
+                      <FileText className="w-5 h-5 text-red-600" />
                     </div>
-                    <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
-                      {slip.payment_type !== 'commission' && (
-                        slip.total_hours > 0
-                          ? <span>{slip.total_hours}h roster pay</span>
-                          : <span>Salary: {formatSGD(slip.salary_amount)}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-gray-900 text-sm">
+                          {getMonthName(slip.period_month)} {slip.period_year}
+                        </p>
+                        {paymentTypeBadge(slip.payment_type)}
+                        {gym && <span className="text-xs text-gray-400">{gym.name}</span>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500 flex-wrap">
+                        {slip.payment_type !== 'commission' && (
+                          slip.total_hours > 0
+                            ? <span>{slip.total_hours}h roster pay</span>
+                            : <span>Salary: {formatSGD(slip.salary_amount)}</span>
+                        )}
+                        {slip.commission_amount > 0 && <span>Commission: {formatSGD(slip.commission_amount)}</span>}
+                        {slip.bonus_amount > 0 && <span>Bonus: {formatSGD(slip.bonus_amount)}</span>}
+                        {slip.deduction_amount > 0 && <span className="text-red-600">Deduction: -{formatSGD(slip.deduction_amount)}</span>}
+                        <span className="font-medium text-gray-900">Net: {formatSGD(slip.net_salary)}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        <div className="flex items-center gap-1.5">
+                          {slip.status === 'paid'
+                            ? <><CheckCircle className="w-3 h-3 text-green-600" /><span className="text-xs text-green-600">Paid</span></>
+                            : <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
+                          }
+                        </div>
+                        {slip.commission_amount > 0 && (
+                          <button
+                            onClick={() => toggleCommissionBreakdown(slip)}
+                            className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                            {expandedSlipId === slip.id
+                              ? <><ChevronUp className="w-3 h-3" /> Hide breakdown</>
+                              : <><ChevronDown className="w-3 h-3" /> Commission breakdown</>
+                            }
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <button onClick={() => downloadPayslip(slip)}
+                      className="btn-secondary text-xs py-1.5 flex items-center gap-1 flex-shrink-0">
+                      <Download className="w-3.5 h-3.5" /> PDF
+                    </button>
+                  </div>
+                  {expandedSlipId === slip.id && slip.commission_amount > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      {loadingItemsFor === slip.id ? (
+                        <p className="text-xs text-gray-400">Loading breakdown...</p>
+                      ) : (commissionItemsMap[slip.id] || []).length === 0 ? (
+                        <p className="text-xs text-gray-400">No commission items found.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Commission breakdown</p>
+                          {(commissionItemsMap[slip.id] || []).map((item: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-500">{sourceTypeLabel(item.source_type)} — {getMonthName(item.period_month)} {item.period_year}</span>
+                              <span className="font-medium text-gray-900">{formatSGD(item.amount)}</span>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between text-xs pt-1 border-t border-gray-100 font-medium">
+                            <span className="text-gray-700">Total commission</span>
+                            <span className="text-gray-900">{formatSGD(slip.commission_amount)}</span>
+                          </div>
+                        </div>
                       )}
-                      {slip.commission_amount > 0 && <span>Commission: {formatSGD(slip.commission_amount)}</span>}
-                      {slip.bonus_amount > 0 && <span>Bonus: {formatSGD(slip.bonus_amount)}</span>}
-                      {slip.deduction_amount > 0 && <span className="text-red-600">Deduction: -{formatSGD(slip.deduction_amount)}</span>}
-                      <span className="font-medium text-gray-900">Net: {formatSGD(slip.net_salary)}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      {slip.status === 'paid'
-                        ? <><CheckCircle className="w-3 h-3 text-green-600" /><span className="text-xs text-green-600">Paid</span></>
-                        : <><CheckCircle className="w-3 h-3 text-blue-600" /><span className="text-xs text-blue-600">Approved</span></>
-                      }
-                    </div>
-                  </div>
-                  <button onClick={() => downloadPayslip(slip)}
-                    className="btn-secondary text-xs py-1.5 flex items-center gap-1 flex-shrink-0">
-                    <Download className="w-3.5 h-3.5" /> PDF
-                  </button>
+                  )}
                 </div>
               )
             })}

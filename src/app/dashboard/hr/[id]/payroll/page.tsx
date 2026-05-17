@@ -50,8 +50,8 @@ export default function StaffPayrollDetailPage() {
 
   const [salaryForm, setSalaryForm] = useState({ current_salary: '', is_cpf_liable: 'true' })
   const [incrementForm, setIncrementForm] = useState({ change_amount: '', effective_from: '', change_type: 'increment', notes: '' })
-  const [bonusForm, setBonusForm] = useState({ bonus_type: 'performance', amount: '', month: new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1, year: new Date(Date.now()+8*60*60*1000).getUTCFullYear(), notes: '' })
-  const [payslipForm, setPayslipForm] = useState({ month: new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1, year: new Date(Date.now()+8*60*60*1000).getUTCFullYear(), notes: '' })
+  const [bonusForm, setBonusForm] = useState({ bonus_type: 'performance', amount: '', month: nowSGT().getUTCMonth() + 1, year: nowSGT().getUTCFullYear(), notes: '' })
+  const [payslipForm, setPayslipForm] = useState({ month: nowSGT().getUTCMonth() + 1, year: nowSGT().getUTCFullYear(), notes: '' })
   const [payslipPreview, setPayslipPreview] = useState<any>(null)
   const supabase = createClient()
 
@@ -383,7 +383,7 @@ export default function StaffPayrollDetailPage() {
               <div className="bg-blue-50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold text-blue-700">
                   {payroll?.is_cpf_liable
-                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date(Date.now()+8*60*60*1000).getUTCFullYear(), new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1).employee_rate}%`
+                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, nowSGT().getUTCFullYear(), nowSGT().getUTCMonth() + 1).employee_rate}%`
                     : 'N/A'}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">Employee CPF</p>
@@ -391,7 +391,7 @@ export default function StaffPayrollDetailPage() {
               <div className="bg-red-50 rounded-lg p-3 text-center">
                 <p className="text-xl font-bold text-red-700">
                   {payroll?.is_cpf_liable
-                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, new Date(Date.now()+8*60*60*1000).getUTCFullYear(), new Date(Date.now()+8*60*60*1000).getUTCMonth() + 1).employer_rate}%`
+                    ? `${getBracketRates(Array.isArray(cpfRates) ? cpfRates : [], staff?.date_of_birth || null, nowSGT().getUTCFullYear(), nowSGT().getUTCMonth() + 1).employer_rate}%`
                     : 'N/A'}
                 </p>
                 <p className="text-xs text-red-600 mt-1">Employer CPF</p>

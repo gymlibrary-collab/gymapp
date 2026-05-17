@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
-import { formatDate, todaySGT} from '@/lib/utils'
+import { formatDate, todaySGT, nowSGT } from '@/lib/utils'
 import { Calendar, Plus, CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn , nowSGT } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import { StatusBanner } from '@/components/StatusBanner'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
@@ -58,7 +58,7 @@ export default function MyLeavePage() {
       .from('app_settings').select('leave_reset_year').eq('id', 'global').maybeSingle()
     if (appSettings?.leave_reset_year) setLeaveResetYear(appSettings.leave_reset_year)
 
-    const currentYear = new Date().getFullYear()
+    const currentYear = nowSGT().getUTCFullYear()
     const countDaysInYear = (app: any, year: number) => {
       const yearEnd = `${year}-12-31`
       const yearStart = `${year}-01-01`
@@ -230,7 +230,7 @@ export default function MyLeavePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">My Leave</h1>
-          <p className="text-sm text-gray-500">{new Date().getFullYear()} leave summary</p>
+          <p className="text-sm text-gray-500">{nowSGT().getUTCFullYear()} leave summary</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="btn-primary flex items-center gap-1.5">
