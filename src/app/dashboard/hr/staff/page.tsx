@@ -28,7 +28,7 @@ const ALL_ROLES = [
 ]
 
 const emptyForm = {
-  full_name: '', nickname: '', email: '', phone: '', role: 'trainer',
+  full_name: '', nickname: '', email: '', phone: '', role: 'staff',
   employment_type: 'full_time', hourly_rate: '',
   commission_signup_pct: '10', commission_session_pct: '15', membership_commission_sgd: '10',
   // gym_id: single-gym dropdown for full-timers (all roles)
