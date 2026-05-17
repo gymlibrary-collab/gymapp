@@ -7,7 +7,6 @@ import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatDate, formatSGD, todaySGT , nowSGT } from '@/lib/utils'
 import { getDaysFromToday } from '@/lib/dashboard'
 import { CalendarDays, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react'
-import { cn , nowSGT } from '@/lib/utils'
 import { useCurrentUser } from '@/hooks/useCurrentUser'
 import { PageSpinner } from '@/components/PageSpinner'
 
