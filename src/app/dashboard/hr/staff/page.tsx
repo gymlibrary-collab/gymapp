@@ -203,6 +203,9 @@ export default function TrainersPage() {
 
   const openEdit = async (member: any) => {
     setEditingUser(member)
+    // Reset form immediately so the modal doesn't flash the previous staff's values
+    // while the trainer_gyms query is in flight
+    setEditForm({ ...emptyForm, role: member.role, is_active: member.is_active })
     // Fetch trainer_gyms separately to ensure ALL gym assignments are loaded
     // (nested select in the staff list query may not return all rows)
     // Fetch all gym assignments directly — trainer_gyms_read now allows managers
