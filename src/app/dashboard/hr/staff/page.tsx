@@ -203,24 +203,12 @@ export default function TrainersPage() {
 
   const openEdit = async (member: any) => {
     setEditingUser(member)
-    // Reset form immediately so the modal doesn't flash the previous staff's values
-    // while the trainer_gyms query is in flight
-    setEditForm({ ...emptyForm, role: member.role, is_active: member.is_active })
-    // Fetch trainer_gyms separately to ensure ALL gym assignments are loaded
-    // (nested select in the staff list query may not return all rows)
-    // Fetch all gym assignments directly — trainer_gyms_read now allows managers
-    // to read all rows for staff in their gym (migration v85)
-    const { data: tgRows } = await supabase.from('trainer_gyms')
-      .select('gym_id, gyms(id, name)').eq('trainer_id', member.id)
-    const nameMap: Record<string, string> = {}
-    const allGymIds: string[] = []
-    ;(tgRows || []).forEach((r: any) => {
-      if (r.gym_id) {
-        allGymIds.push(r.gym_id)
-        if (r.gyms?.name) nameMap[r.gym_id] = r.gyms.name
-      }
-    })
-    setAllGymNames(nameMap)
+    setShowCreateForm(false); setError('')
+
+    // All personal fields come from the member object already in memory —
+    // populate the form immediately so the modal shows the correct data at once.
+    // Gym fields default to what's on the member record; the trainer_gyms query
+    // below refines them (part-timers may have multiple gyms not in users_safe).
     setEditForm({
       full_name: member.full_name, nickname: member.nickname || member.full_name.split(' ')[0], email: member.email, phone: member.phone || '',
       role: member.role, is_active: member.is_active,
@@ -229,9 +217,8 @@ export default function TrainersPage() {
       commission_signup_pct: member.commission_signup_pct?.toString() || '10',
       commission_session_pct: member.commission_session_pct?.toString() || '15',
       membership_commission_sgd: member.membership_commission_sgd?.toString() || '10',
-      // Use gym assignments from API (bypasses RLS)
-      gym_id: allGymIds[0] || member.manager_gym_id || '',
-      gym_ids: allGymIds,
+      gym_id: member.manager_gym_id || '',
+      gym_ids: member.manager_gym_id ? [member.manager_gym_id] : [],
       manager_gym_id: member.manager_gym_id || '',
       is_also_trainer: member.is_also_trainer || false,
       date_of_birth: member.date_of_birth || '',
@@ -249,7 +236,23 @@ export default function TrainersPage() {
       nationality: member.nationality || 'Singaporean',
       residency_status: member.residency_status || 'other',
     })
-    setShowCreateForm(false); setError('')
+
+    // Fetch trainer_gyms to get full multi-gym assignments (part-timers may have
+    // multiple gyms not captured in users_safe). Updates gym fields only.
+    const { data: tgRows } = await supabase.from('trainer_gyms')
+      .select('gym_id, gyms(id, name)').eq('trainer_id', member.id)
+    const nameMap: Record<string, string> = {}
+    const allGymIds: string[] = []
+    ;(tgRows || []).forEach((r: any) => {
+      if (r.gym_id) {
+        allGymIds.push(r.gym_id)
+        if (r.gyms?.name) nameMap[r.gym_id] = r.gyms.name
+      }
+    })
+    setAllGymNames(nameMap)
+    if (allGymIds.length > 0) {
+      setEditForm(f => ({ ...f, gym_id: allGymIds[0], gym_ids: allGymIds }))
+    }
   }
 
   const checkOffboarding = async (member: any) => {
