@@ -50,46 +50,32 @@ export default function PayrollPage() {
 
   const load = async () => {
     logActivity('page_view', 'Monthly Payroll', 'Viewed monthly payroll')
+    // Issue 7: Guard — only business_ops can access payroll
+    // Load all active staff with payroll profile — exclude admin (no payroll)
+    const { data: staff } = await supabase
+      .from('users_safe')
+      .select('*, staff_payroll(*)')
+      .eq('is_archived', false)
+      .neq('role', 'admin')
+      .order('employment_type').order('full_name')
+    setStaffList(staff || [])
 
+    // Load gyms for archive download
+    const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
+    setArchiveGyms(gymsData || [])
+    if (gymsData && gymsData.length > 0 && !archiveGym) setArchiveGym(gymsData[0].id)
+
+    // Load roster totals for part-timers for selected month/year
     const monthStart = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`
     const monthEnd = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]
-    const currentYear = nowSGT().getUTCFullYear()
 
-    // All 4 reads are independent — fire in parallel
-    const [
-      { data: staff },
-      { data: gymsData },
-      { data: rosterData },
-      brackets,
-      { data: ytdSlips },
-    ] = await Promise.all([
-      // Staff list with payroll profile
-      supabase.from('users_safe')
-        .select('*, staff_payroll(*)')
-        .eq('is_archived', false)
-        .neq('role', 'admin')
-        .order('employment_type').order('full_name'),
-      // Gyms for archive download
-      supabase.from('gyms').select('id, name').eq('is_active', true).order('name'),
-      // Roster totals for part-timers (unpaid shifts in selected month)
-      supabase.from('duty_roster')
-        .select('user_id, hours_worked, gross_pay, status')
-        .gte('shift_date', monthStart)
-        .lte('shift_date', monthEnd)
-        .eq('status', 'completed')
-        .is('payslip_id', null),
-      // CPF brackets
-      loadCpfBrackets(supabase),
-      // YTD ordinary wages for CPF ceiling warning
-      supabase.from('payslips')
-        .select('user_id, capped_ow')
-        .eq('period_year', currentYear)
-        .in('status', ['approved', 'paid']),
-    ])
-
-    setStaffList(staff || [])
-    if (gymsData && gymsData.length > 0 && !archiveGym) setArchiveGym(gymsData[0].id)
-    setArchiveGyms(gymsData || [])
+    const { data: rosterData } = await supabase
+      .from('duty_roster')
+      .select('user_id, hours_worked, gross_pay, status')
+      .gte('shift_date', monthStart)
+      .lte('shift_date', monthEnd)
+      .eq('status', 'completed')
+      .is('payslip_id', null)  // only show unpaid shifts in preview
 
     const totals: Record<string, any> = {}
     rosterData?.forEach((r: any) => {
@@ -100,13 +86,21 @@ export default function PayrollPage() {
     })
     setRosterTotals(totals)
 
+    const brackets = await loadCpfBrackets(supabase)
     setCpfBrackets(brackets || [])
 
+    // Load YTD ordinary wages for current year to detect CPF ceiling approach
+    const currentYear = nowSGT().getUTCFullYear()
+    const { data: ytdSlips } = await supabase.from('payslips')
+      .select('user_id, capped_ow')
+      .eq('period_year', currentYear)
+      .in('status', ['approved', 'paid'])
     const ytdMap: Record<string, number> = {}
     ytdSlips?.forEach((s: any) => {
       ytdMap[s.user_id] = (ytdMap[s.user_id] || 0) + (s.capped_ow || 0)
     })
     setYtdOW(ytdMap)
+
   }
 
   useEffect(() => { load() }, [selectedMonth, selectedYear])
