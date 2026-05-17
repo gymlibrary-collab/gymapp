@@ -34,6 +34,7 @@ import { Building2, Briefcase, UserCheck, Dumbbell, Calendar, Settings, ChevronR
 import Link from 'next/link'
 import { cn, getGreeting, getDisplayName} from '@/lib/utils'
 import { PageSpinner } from '@/components/PageSpinner'
+import { useDashboardRefresh } from '@/hooks/useDashboardRefresh'
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -60,7 +61,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const load = async () => {
+    const load = async (silent = false) => {
+      if (!silent) setLoading(true)
       // Query 1: all gyms for the gym breakdown card
       const { data: gyms } = await supabase
         .from('gyms')
@@ -105,6 +107,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }
     load()
   }, [])
+
+  useDashboardRefresh(load)
 
   if (loading) return (
     <PageSpinner />

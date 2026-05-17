@@ -274,6 +274,34 @@ Next.js was chosen over alternatives (Nuxt, SvelteKit, Remix, plain React SPA) f
 - **TypeScript first-class** — type safety across API routes and UI components catches errors at build time, which matters for payroll logic where a wrong type can cause incorrect CPF calculations.
 - **Large ecosystem** — libraries for PDF generation (jsPDF), CPF calculations, Supabase, and Twilio WhatsApp all have Next.js support and examples.
 
+### Dashboard Refresh Pattern
+All dashboard components (`ManagerDashboard`, `TrainerDashboard`, `StaffDashboard`, `BizOpsDashboard`, `AdminDashboard`) use `useDashboardRefresh` from `src/hooks/useDashboardRefresh.ts` to silently re-run their `load()` function on a fixed interval.
+
+**How it works:**
+- Initial load runs on mount with `silent = false` — shows the `<PageSpinner />` as normal
+- Background refreshes run with `silent = true` — `setLoading(true)` is skipped so the screen never blanks
+- The interval is paused automatically when the browser tab is hidden (`visibilitychange` API)
+- On tab refocus, one immediate silent refresh fires to catch up, then the interval resumes
+- The interval stops completely on component unmount — no queries fire when the user navigates away
+
+**Interval:** `DASHBOARD_REFRESH_INTERVAL_MS = 5 * 60 * 1000` (5 minutes), hardcoded in `src/hooks/useDashboardRefresh.ts`. To change the interval, update this constant and redeploy. Do not store it in `app_settings` — that would add a meta-query on every refresh cycle.
+
+**Usage in each dashboard:**
+```typescript
+const load = async (silent = false) => {
+  if (!silent) setLoading(true)
+  if (!silent) logActivity(...)   // page_view only on real navigation
+  // ... all queries unchanged ...
+  setLoading(false)
+}
+useEffect(() => { load() }, [])
+useDashboardRefresh(load)
+```
+
+**What refreshes:** everything in `load()` — notifications, pending counts, stats tiles, action items. The refresh is not selective because the queries are fast (all indexed, tiny payloads) and running all of them ensures complete consistency.
+
+**What does not refresh:** commission period stats (navigator offset) and drill-down data — these are user-driven views that only update when the user interacts with the period navigator.
+
 ### `Promise.all()` with Supabase — reads only
 Supabase query builders return PromiseLike, not native Promise. `Promise.all()` is safe for **reads** where queries are independent. Rules:
 - **Reads:** use `Promise.all()` when queries do not depend on each other's result.

@@ -53,6 +53,7 @@ import {
   fetchUpcomingSessions,
 } from '@/lib/dashboard'
 import { PageSpinner } from '@/components/PageSpinner'
+import { useDashboardRefresh } from '@/hooks/useDashboardRefresh'
 
 interface ManagerDashboardProps {
   user: any
@@ -198,10 +199,11 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
 
   // ── Main data load ─────────────────────────────────────────
   useEffect(() => {
-    const load = async () => {
-      if (!gymId) { setLoading(false); return }
+    const load = async (silent = false) => {
+      if (!gymId) { if (!silent) setLoading(false); return }
 
       try {
+      if (!silent) setLoading(true)
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
       const monthStart = getMonthStart()
@@ -318,6 +320,8 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
     }
     load()
   }, [])
+
+  useDashboardRefresh(load)
 
   // ── Action handlers ────────────────────────────────────────
   const handleNonRenewal = async () => {

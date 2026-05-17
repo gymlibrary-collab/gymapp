@@ -45,6 +45,7 @@ import {
   fetchNotifications, dismissNotifications, fetchUpcomingSessions, fetchCommissionStats,
 } from '@/lib/dashboard'
 import { PageSpinner } from '@/components/PageSpinner'
+import { useDashboardRefresh } from '@/hooks/useDashboardRefresh'
 
 interface TrainerDashboardProps {
   user: any
@@ -114,8 +115,9 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
   }, [commissionOffset, loadCommissionStats])
 
   useEffect(() => {
-    const load = async () => {
-      logActivity('page_view', 'Dashboard', 'Trainer dashboard loaded')
+    const load = async (silent = false) => {
+      if (!silent) setLoading(true)
+      if (!silent) logActivity('page_view', 'Dashboard', 'Trainer dashboard loaded')
 
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
@@ -205,6 +207,8 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
     }
     load()
   }, [isActingAsTrainer])
+
+  useDashboardRefresh(load)
 
   const dismissPayslipNotif = async () => {
     await dismissPayslipNotifications(supabase, user.id)

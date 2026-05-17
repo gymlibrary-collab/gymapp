@@ -40,6 +40,7 @@ import {
   fetchPayslipNotifications, dismissPayslipNotifications, fetchNotifications, dismissNotifications, fetchUpcomingSessions,
 } from '@/lib/dashboard'
 import { PageSpinner } from '@/components/PageSpinner'
+import { useDashboardRefresh } from '@/hooks/useDashboardRefresh'
 
 interface StaffDashboardProps {
   user: any
@@ -98,8 +99,9 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
   useEffect(() => { loadCommissionStats(commissionOffset) }, [commissionOffset, loadCommissionStats])
 
   useEffect(() => {
-    const load = async () => {
-      logActivity('page_view', 'Dashboard', 'Staff dashboard loaded')
+    const load = async (silent = false) => {
+      if (!silent) setLoading(true)
+      if (!silent) logActivity('page_view', 'Dashboard', 'Staff dashboard loaded')
 
       const todayStart = getTodayStart()
       const todayEnd = getTodayEnd()
@@ -176,6 +178,8 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
     }
     load()
   }, [])
+
+  useDashboardRefresh(load)
 
   const dismissPayslipNotif = async () => {
     await dismissPayslipNotifications(supabase, user.id)

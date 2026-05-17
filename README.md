@@ -108,6 +108,14 @@ npm run dev
 
 ### HR & Payroll
 
+### Dashboard Auto-Refresh
+All dashboard components silently re-run their full `load()` function every 5 minutes via the `useDashboardRefresh` hook (`src/hooks/useDashboardRefresh.ts`). This keeps notifications, pending counts, and stats tiles fresh without a page reload.
+
+- Silent refreshes skip `setLoading(true)` — the screen never blanks
+- The interval pauses when the browser tab is in the background
+- The interval stops when the user navigates away from the dashboard
+- Interval constant: `DASHBOARD_REFRESH_INTERVAL_MS` in `useDashboardRefresh.ts` — change and redeploy to adjust
+
 ### CPF Rate Handling
 
 CPF rates are determined by the `cpf_age_brackets` table, which holds multiple period sets identified by `effective_from` date. The app supports up to 3 concurrent periods: old, current, and pending (future).

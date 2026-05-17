@@ -29,7 +29,7 @@ import Link from 'next/link'
 import { cn, formatSGD, formatDate, getMonthName, getGreeting, getDisplayName, nowSGT} from '@/lib/utils'
 import StaffBirthdayPanel from './StaffBirthdayPanel'
 import { getTodayStart, getTodayEnd, getMonthStart, getDaysFromToday, getTodayStr } from '@/lib/dashboard'
-
+import { useDashboardRefresh } from '@/hooks/useDashboardRefresh'
 interface BizOpsDashboardProps {
   user: any
 }
@@ -104,7 +104,7 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
   }
 
   useEffect(() => {
-    const load = async () => {
+    const load = async (silent = false) => {
       // Banner 1: Manager leave — always goes direct to biz-ops (no escalation)
       const { data: mgrIds } = await supabase.from('users_safe')
         .select('id').eq('role', 'manager')
@@ -186,6 +186,8 @@ function BizOpsDashboardAlerts({ user }: { user: any }) {
     }
     load()
   }, [])
+
+  useDashboardRefresh(load)
 
   if (pendingManagerLeave === 0 && escalatedLeave === 0 && holidaysSetUp && cpfRatesSetUp && cancelApprovedNotifs.length === 0 && disputedShifts.length === 0 && !leaveResetReminder) return null
 
@@ -381,7 +383,7 @@ function BizOpsGymTabs() {
   const bizCommPeriodLabel = bizCommPeriodDate.toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
 
   useEffect(() => {
-    const load = async () => {
+    const load2 = async (silent = false) => {
       const { data: gymsData } = await supabase.from('gyms').select('id, name').eq('is_active', true).order('name')
 
       const gymIds = (gymsData || []).map((g: any) => g.id)
@@ -444,8 +446,10 @@ function BizOpsGymTabs() {
       const topGym = enriched.reduce((a: any, b: any) => b.totalAlerts > a.totalAlerts ? b : a, enriched[0])
       setSelectedGym(topGym?.id || enriched[0]?.id || null)
     }
-    load()
+    load2()
   }, [])
+
+  useDashboardRefresh(load2)
 
   useEffect(() => {
     const loadBizComm = async () => {
