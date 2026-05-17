@@ -35,7 +35,7 @@ admin → business_ops → manager → trainer / staff (full-time or part-time)
 
 ## Conventions
 
-- **Never use `Promise.all()` with Supabase query builders** — exception: biz-ops bulk gym reads in `reports/page.tsx` and `getGymStaffIds()` in `dashboard.ts`.
+- **`Promise.all()` is safe for Supabase reads only** — never for writes (insert/update/delete must stay sequential). Approved patterns: dashboard load functions where multiple reads are independent (`ManagerDashboard`, `TrainerDashboard`, `StaffDashboard`, `payroll/page`), biz-ops bulk gym reads in `reports/page.tsx`, and `getGymStaffIds()` in `dashboard.ts`. Sequential await remains default for writes and anywhere a result feeds the next query.
 - **`adminClient`** (`createAdminClient`) is used in API routes and auth callbacks only — never in browser components.
 - **Date/time**: always use SGT. Use `nowSGT()` from `@/lib/utils` for current time. Use `getTodayStart()`, `getTodayEnd()`, `getMonthStart()`, `getDaysFromToday()` from `@/lib/dashboard` for query ranges.
 - **Users table**: RLS enabled. Client queries use `users_safe` (non-sensitive) or direct `users` for own row. Sensitive data (salary, NRIC, commission rates) only via `adminClient` in API routes.
@@ -274,8 +274,12 @@ Next.js was chosen over alternatives (Nuxt, SvelteKit, Remix, plain React SPA) f
 - **TypeScript first-class** — type safety across API routes and UI components catches errors at build time, which matters for payroll logic where a wrong type can cause incorrect CPF calculations.
 - **Large ecosystem** — libraries for PDF generation (jsPDF), CPF calculations, Supabase, and Twilio WhatsApp all have Next.js support and examples.
 
-### No `Promise.all()` with Supabase
-Supabase query builders return PromiseLike, not native Promise. Use sequential awaits except where explicitly documented.
+### `Promise.all()` with Supabase — reads only
+Supabase query builders return PromiseLike, not native Promise. `Promise.all()` is safe for **reads** where queries are independent. Rules:
+- **Reads:** use `Promise.all()` when queries do not depend on each other's result.
+- **Writes:** always sequential — insert/update/delete must never run in `Promise.all()`.
+- **Dependencies:** if query B needs a result from query A, await A first, then parallelise B with other independent reads.
+- **Dashboard pattern:** Phase 1 critical reads fire together; Phase 2 non-critical reads fire together after `setLoading(false)`. See `ManagerDashboard.tsx` as the reference implementation.
 
 ### users_safe vs users vs adminClient
 - `from('users_safe')` — non-sensitive cross-user data (names, roles, gym assignments, hourly_rate)
