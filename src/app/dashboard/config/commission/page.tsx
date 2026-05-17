@@ -110,7 +110,7 @@ export default function CommissionConfigPage() {
             <input className="input" type="number" min="0" max="100" step="0.5"
               value={signupPct} onChange={e => setSignupPct(e.target.value)} />
             <p className="text-xs text-gray-400 mt-1">
-              % of package price paid to trainer on confirmed sign-up. Default: {signupPct || '10'}%.
+              % of package price paid to trainer on confirmed sign-up. Default: {signupPct || '0'}%.
             </p>
           </div>
           <div>
@@ -118,7 +118,7 @@ export default function CommissionConfigPage() {
             <input className="input" type="number" min="0" max="100" step="0.5"
               value={sessionPct} onChange={e => setSessionPct(e.target.value)} />
             <p className="text-xs text-gray-400 mt-1">
-              % of session price paid to trainer per completed session. Default: {sessionPct || '15'}%.
+              % of session price paid to trainer per completed session. Default: {sessionPct || '0'}%.
             </p>
           </div>
         </div>
