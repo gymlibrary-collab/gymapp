@@ -1,4 +1,5 @@
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { rateLimit } from '@/lib/rate-limit'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
 import {
@@ -23,6 +24,10 @@ import { nowSGT } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
   try {
+  // Rate limiting — expensive bulk generation
+  const { limited } = rateLimit(request, { limit: 10, windowMs: 3600000, keyPrefix: 'gen-bulk' })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
     const serverClient = await createSupabaseServerClient()
     const { data: { user: authUser } } = await serverClient.auth.getUser()
     if (!authUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

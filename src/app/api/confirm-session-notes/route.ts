@@ -1,4 +1,5 @@
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { rateLimit } from '@/lib/rate-limit'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
 import { nowSGT } from '@/lib/utils'
@@ -24,6 +25,10 @@ import { nowSGT } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
   try {
+  // Rate limiting — session note confirmation
+  const { limited } = rateLimit(request, { limit: 60, windowMs: 60000, keyPrefix: 'confirm-session' })
+  if (limited) return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+
     // ── Auth ──────────────────────────────────────────────────
     const serverClient = await createSupabaseServerClient()
     const { data: { user: authUser } } = await serverClient.auth.getUser()

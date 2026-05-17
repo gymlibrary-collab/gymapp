@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rate-limit'
 import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 
