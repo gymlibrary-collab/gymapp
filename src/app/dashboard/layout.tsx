@@ -153,6 +153,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [viewMode, setViewMode] = useState<ViewMode>('manager')
   const [initError, setInitError] = useState<string | null>(null)
   const [appName, setAppName] = useState('GymApp')
+  const [combinedPayslipEnabled, setCombinedPayslipEnabled] = useState(false)
 
   const router = useRouter()
   const pathname = usePathname()
@@ -241,10 +242,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           const saved = sessionStorage.getItem(VIEW_KEY) as ViewMode | null
           setViewMode(saved || 'manager')
         }
-        const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes, app_name').eq('id', 'global').maybeSingle()
+        const { data: settings } = await supabase.from('app_settings').select('admin_sidebar_logo_url, auto_logout_minutes, app_name, combined_payslip_enabled').eq('id', 'global').maybeSingle()
         const mins = settings?.auto_logout_minutes || 10; logoutMinutesRef.current = mins; setAutoLogoutMinutes(mins)
         // Set browser tab title from configured app name
         if (settings?.app_name) setAppName(settings.app_name)
+        setCombinedPayslipEnabled(!!(settings as any)?.combined_payslip_enabled)
         if (u.role === 'admin') {
           setSidebarLogo(settings?.admin_sidebar_logo_url ? settings.admin_sidebar_logo_url + '?t=' + Date.now() : null); setGymName('Gym Library')
         } else if (u.role === 'manager' && u.manager_gym_id) {
