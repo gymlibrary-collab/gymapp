@@ -115,9 +115,13 @@ export async function POST(request: NextRequest) {
     // trainer_gyms entries so the roster page can filter available staff by gym.
     // All roles except admin/biz_ops get trainer_gyms entries:
     //   manager: from manager_gym_id
-    //   trainer, full-time staff, part-time staff: from gymIdsToAssign
+    //   trainer, full-time staff: from body.gym_id (single gym dropdown)
+    //   part-time staff: from gym_ids (multi-gym checkboxes)
+    const isPartTimeStaff = role === 'staff' && body.employment_type === 'part_time'
     const finalGymIds = role === 'manager' && manager_gym_id ? [manager_gym_id]
-      : (role === 'trainer' || role === 'staff') ? gymIdsToAssign : []
+      : isPartTimeStaff ? gymIdsToAssign
+      : (role === 'trainer' || role === 'staff') && body.gym_id ? [body.gym_id]
+      : []
 
     if (finalGymIds.length > 0) {
       await adminClient.from('trainer_gyms').insert(
