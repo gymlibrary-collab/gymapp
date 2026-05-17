@@ -127,12 +127,14 @@ CREATE TABLE members (
 -- Membership types (templates per gym)
 CREATE TABLE membership_types (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  gym_id uuid NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,       -- nullable: global types have no gym
   name text NOT NULL,
-  duration_days integer NOT NULL,
+  duration_days integer NOT NULL,                            -- NOT NULL; null only after duration_months migration
+  duration_months integer CHECK (duration_months > 0),      -- added: month-based types store months, duration_days=null after migration
   price_sgd numeric(10,2) NOT NULL,
   is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  created_by uuid REFERENCES users(id) ON DELETE NO ACTION
 );
 
 -- Active gym memberships
@@ -803,6 +805,36 @@ GRANT SELECT ON users_safe TO anon;
 
 -- ── ENABLE RLS ───────────────────────────────────────────────
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+-- Legacy/PT client records (pre-member system)
+CREATE TABLE clients (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  full_name text NOT NULL,
+  phone text NOT NULL,
+  email text,
+  date_of_birth date,
+  gender text CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
+  health_notes text,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'lost')),
+  gym_id uuid REFERENCES gyms(id) ON DELETE CASCADE,
+  trainer_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+
+-- Historical CPF rate records (superseded by cpf_age_brackets)
+CREATE TABLE cpf_rates (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  effective_from date NOT NULL,
+  employee_rate numeric NOT NULL,
+  employer_rate numeric NOT NULL,
+  notes text,
+  created_at timestamptz DEFAULT now(),
+  created_by uuid REFERENCES users(id) ON DELETE NO ACTION
+);
+
+ALTER TABLE cpf_rates ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE gyms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trainer_gyms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
