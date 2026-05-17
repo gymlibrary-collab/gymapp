@@ -71,6 +71,8 @@ export default function TrainersPage() {
   const [createForm, setCreateForm] = useState({ ...emptyForm })
   const [editForm, setEditForm] = useState({ ...emptyForm, is_active: true, role: '' })
   const [allGymNames, setAllGymNames] = useState<Record<string, string>>({})
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const toggleGroup = (key: string) => setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }))
 
   const router = useRouter()
   const supabase = createClient()
@@ -680,6 +682,76 @@ export default function TrainersPage() {
           {/* Staff list */}
           {filteredStaff.length === 0 ? (
             <div className="card p-8 text-center"><UserCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No staff found</p></div>
+          // ── Biz ops helpers — defined at component level (not inside IIFE) ──────
+          const breakdown = (members: any[]) => {
+            const counts: Record<string, number> = {}
+            members.forEach((m: any) => { counts[m.role] = (counts[m.role] || 0) + 1 })
+            return Object.entries(counts)
+              .map(([role, n]) => `${n} ${getRoleLabel(role).toLowerCase()}${n !== 1 ? 's' : ''}`)
+              .join(', ')
+          }
+
+          const BizStaffCard = ({ member, showGym }: { member: any; showGym: boolean }) => (
+            <div className={cn('p-4 border-b border-gray-100 last:border-0', !member.is_active && 'opacity-70', isSelf(member) && 'bg-red-50/20')}>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-gray-900 text-sm">{member.full_name}</p>
+                    {isSelf(member) && <span className="text-xs text-red-600 font-medium">(You)</span>}
+                    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
+                      {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
+                    </span>
+                    <span className={member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-indigo-100 text-indigo-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
+                      {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
+                    </span>
+                    <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span>{member.email}</span>
+                    {member.phone
+                      ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></>
+                      : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
+                    {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
+                  </p>
+                  {showGym && (
+                    <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
+                  )}
+                  {member.employment_type === 'part_time' && member.hourly_rate && (
+                    <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
+                  )}
+                  {member.probation_end_date && !member.probation_passed_at && (
+                    <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
+                  )}
+                  {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                  <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>
+                  {!isSelf(member) && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
+                </div>
+              </div>
+            </div>
+          )
+
+          const AccordionHeader = ({ groupKey, icon, label, members, isPartTime }: {
+            groupKey: string; icon: React.ReactNode; label: string; members: any[]; isPartTime?: boolean
+          }) => (
+            <button
+              type="button"
+              onClick={() => toggleGroup(groupKey)}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+            >
+              {icon}
+              <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{label}</span>
+              <span className="text-xs text-gray-700 font-medium flex-shrink-0">{members.length} staff</span>
+              <span className="text-xs text-gray-400 flex-shrink-0">({isPartTime ? 'multiple gyms' : breakdown(members)})</span>
+              <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200', openGroups[groupKey] && 'rotate-180')} />
+            </button>
+          )
+
           ) : isBizOps ? (() => {
             // ── Biz ops: accordion grouped by gym, part-timers last ────
             const fullTimers = filteredStaff.filter((s: any) => s.employment_type !== 'part_time')
@@ -694,83 +766,6 @@ export default function TrainersPage() {
               gymGroups[gymName].members.push(m)
             })
             const sortedGyms = Object.keys(gymGroups).sort()
-
-            // Accordion open state — all collapsed by default
-            const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
-            const toggleGroup = (key: string) => setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }))
-
-            // Role breakdown label for header
-            const breakdown = (members: any[]) => {
-              const counts: Record<string, number> = {}
-              members.forEach(m => { counts[m.role] = (counts[m.role] || 0) + 1 })
-              return Object.entries(counts)
-                .map(([role, n]) => `${n} ${getRoleLabel(role).toLowerCase()}${n !== 1 ? 's' : ''}`)
-                .join(', ')
-            }
-
-            // Single staff card — email · phone · joined on one line
-            const BizStaffCard = ({ member, showGym }: { member: any; showGym: boolean }) => (
-              <div className={cn('p-4 border-b border-gray-100 last:border-0', !member.is_active && 'opacity-70', isSelf(member) && 'bg-red-50/20')}>
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span className="text-red-700 font-semibold text-sm">{member.full_name.charAt(0)}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900 text-sm">{member.full_name}</p>
-                      {isSelf(member) && <span className="text-xs text-red-600 font-medium">(You)</span>}
-                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
-                        {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
-                      </span>
-                      <span className={member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium' : 'bg-indigo-100 text-indigo-700 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'}>
-                        {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
-                      </span>
-                      <span className={member.is_active ? 'badge-active' : 'badge-inactive'}>{member.is_active ? 'Active' : 'Inactive'}</span>
-                    </div>
-                    {/* Option A single-row contact line */}
-                    <p className="text-xs text-gray-500 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span>{member.email}</span>
-                      {member.phone
-                        ? <><span className="text-gray-300">·</span><span className="text-gray-400">{member.phone}</span></>
-                        : <><span className="text-gray-300">·</span><span className="text-amber-500">⚠ Phone not set</span></>}
-                      {member.date_of_joining && <><span className="text-gray-300">·</span><span className="text-gray-400">Joined {formatDate(member.date_of_joining)}</span></>}
-                    </p>
-                    {showGym && (
-                      <div className="flex items-center gap-1 mt-1"><Building2 className="w-3 h-3 text-gray-300 flex-shrink-0" /><p className="text-xs text-gray-400">{getGymLabel(member)}</p></div>
-                    )}
-                    {member.employment_type === 'part_time' && member.hourly_rate && (
-                      <p className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{formatSGD(member.hourly_rate)}/hr</p>
-                    )}
-                    {member.probation_end_date && !member.probation_passed_at && (
-                      <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full mt-0.5">Probation</span>
-                    )}
-                    {member.date_of_departure && <p className="text-xs text-red-400 mt-0.5">Departed: {formatDate(member.date_of_departure)}{member.departure_reason && ` — ${member.departure_reason}`}</p>}
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => openEdit(member)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit"><Edit2 className="w-4 h-4" /></button>
-                    <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-4 h-4 text-red-600" /></Link>
-                    {!isSelf(member) && <button onClick={() => handleArchive(member)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>}
-                  </div>
-                </div>
-              </div>
-            )
-
-            // Accordion section header
-            const AccordionHeader = ({ groupKey, icon, label, members, isPartTime }: {
-              groupKey: string; icon: React.ReactNode; label: string; members: any[]; isPartTime?: boolean
-            }) => (
-              <button
-                type="button"
-                onClick={() => toggleGroup(groupKey)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-              >
-                {icon}
-                <span className="text-sm font-semibold text-gray-800 flex-1 truncate">{label}</span>
-                <span className="text-xs text-gray-700 font-medium flex-shrink-0">{members.length} staff</span>
-                <span className="text-xs text-gray-400 flex-shrink-0">({isPartTime ? 'multiple gyms' : breakdown(members)})</span>
-                <ChevronDown className={cn('w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200', openGroups[groupKey] && 'rotate-180')} />
-              </button>
-            )
 
             return (
               <div className="space-y-3">
