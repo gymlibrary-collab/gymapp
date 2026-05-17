@@ -677,84 +677,118 @@ export default function TrainersPage() {
             ))}
           </div>
 
-          {/* Staff list — compact table */}
+          {/* Staff list — biz ops: table with gym column; manager: condensed rows */}
           {filteredStaff.length === 0 ? (
             <div className="card p-8 text-center"><UserCheck className="w-10 h-10 text-gray-300 mx-auto mb-3" /><p className="text-gray-500 text-sm">No staff found</p></div>
-          ) : (
-            <div className="card overflow-hidden">
-              <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
-                <colgroup>
-                  <col style={{ width: '28%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '22%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '10%' }} />
-                </colgroup>
+          ) : isBizOps ? (
+            // ── Biz ops table ──────────────────────────────────────────
+            <div className="card overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm" style={{ minWidth: '680px' }}>
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-2.5">Name</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Role</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Type</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Email</th>
-                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5">Gym</th>
-                    <th className="text-right text-xs font-medium text-gray-500 px-4 py-2.5">Actions</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-4 py-2.5 w-[22%]">Name</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5 w-[11%]">Role</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5 w-[12%]">Type</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5 w-[20%]">Contact</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5 w-[18%]">Gym</th>
+                    <th className="text-left text-xs font-medium text-gray-500 px-3 py-2.5 w-[9%]">Status</th>
+                    <th className="text-right text-xs font-medium text-gray-500 px-4 py-2.5 w-[8%]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredStaff.map(member => (
-                    <tr key={member.id} className={cn('group hover:bg-gray-50 transition-colors', !member.is_active && 'opacity-60', isSelf(member) && 'bg-red-50/30')}>
+                    <tr key={member.id} className={cn('hover:bg-gray-50 transition-colors', !member.is_active && 'opacity-60', isSelf(member) && 'bg-red-50/30')}>
                       <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                             <span className="text-red-700 font-semibold text-xs">{member.full_name.charAt(0)}</span>
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium text-gray-900 text-xs truncate">{member.full_name}{isSelf(member) && <span className="text-red-500 ml-1">(You)</span>}</p>
-                            <p className="text-xs text-gray-400 truncate">
+                            <p className="font-medium text-gray-900 text-xs truncate">{member.full_name}{isSelf(member) && <span className="text-red-500 ml-1 text-[10px]">(You)</span>}</p>
+                            <p className="text-[10px] text-gray-400 truncate">
                               {member.probation_end_date && !member.probation_passed_at
-                                ? <span className="text-amber-600">Probation</span>
+                                ? <span className="text-amber-600">Probation · ends {formatDate(member.probation_end_date)}</span>
                                 : member.date_of_departure
                                 ? <span className="text-red-400">Departed {formatDate(member.date_of_departure)}</span>
-                                : member.date_of_joining
-                                ? <>Joined {formatDate(member.date_of_joining)}</>
-                                : member.phone || <span className="text-amber-500">⚠ No phone</span>}
+                                : member.date_of_joining ? <>Joined {formatDate(member.date_of_joining)}</> : null}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
-                          {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / T'}
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap', roleBadgeClass(member.role))}>
+                          {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700' : 'bg-indigo-100 text-indigo-700')}>
-                          {member.employment_type === 'part_time' ? 'PT' : 'FT'}
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap', member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700' : 'bg-indigo-100 text-indigo-700')}>
+                          {member.employment_type === 'part_time' ? 'Part-time' : 'Full-time'}
                         </span>
-                        {isBizOps && member.employment_type === 'part_time' && member.hourly_rate && (
-                          <p className="text-xs text-blue-600 mt-0.5">{formatSGD(member.hourly_rate)}/hr</p>
+                        {member.employment_type === 'part_time' && member.hourly_rate && (
+                          <p className="text-[10px] text-blue-600 mt-0.5">{formatSGD(member.hourly_rate)}/hr</p>
                         )}
                       </td>
                       <td className="px-3 py-2.5">
-                        <p className="text-xs text-gray-600 truncate">{member.email}</p>
-                        {member.phone && <p className="text-xs text-gray-400 truncate">{member.phone}</p>}
+                        <p className="text-xs text-gray-700 truncate">{member.email}</p>
+                        {member.phone
+                          ? <p className="text-[10px] text-gray-400">{member.phone}</p>
+                          : <p className="text-[10px] text-amber-500">⚠ No phone</p>}
                       </td>
                       <td className="px-3 py-2.5">
-                        <p className="text-xs text-gray-600 truncate">{getGymLabel(member)}</p>
-                        <p className={cn('text-xs', member.is_active ? 'text-green-600' : 'text-red-500')}>{member.is_active ? 'Active' : 'Inactive'}</p>
+                        {/* Allow wrap so long gym names are fully readable */}
+                        <p className="text-xs text-gray-700 leading-snug">{getGymLabel(member)}</p>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', member.is_active ? 'badge-active' : 'badge-inactive')}>
+                          {member.is_active ? 'Active' : 'Inactive'}
+                        </span>
                       </td>
                       <td className="px-4 py-2.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(member)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title={isBizOps ? 'Edit' : 'View'}><Edit2 className="w-3.5 h-3.5" /></button>
-                          {isBizOps && <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-3.5 h-3.5 text-red-600" /></Link>}
-                          {!isSelf(member) && isBizOps && <button onClick={() => handleArchive(member)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Archive"><Trash2 className="w-3.5 h-3.5" /></button>}
+                        <div className="flex items-center justify-end gap-0.5">
+                          <button onClick={() => openEdit(member)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <Link href={`/dashboard/hr/${member.id}/payroll`} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center" title="Payroll Profile"><DollarSign className="w-3.5 h-3.5 text-red-600" /></Link>
+                          {!isSelf(member) && <button onClick={() => handleArchive(member)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Archive"><Trash2 className="w-3.5 h-3.5" /></button>}
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          ) : (
+            // ── Manager condensed rows — no gym column ─────────────────
+            <div className="card overflow-hidden">
+              <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                <p className="text-xs text-gray-500">{gyms.find(g => g.id === user?.manager_gym_id)?.name || 'Your gym'} · {filteredStaff.length} member{filteredStaff.length !== 1 ? 's' : ''}</p>
+              </div>
+              {filteredStaff.map(member => (
+                <div key={member.id} className={cn('flex items-center gap-3 px-4 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors', !member.is_active && 'opacity-60', isSelf(member) && 'bg-red-50/30')}>
+                  <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-red-700 font-semibold text-xs">{member.full_name.charAt(0)}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-medium text-gray-900 text-sm">{member.full_name}{isSelf(member) && <span className="text-red-500 text-xs ml-1">(You)</span>}</p>
+                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', roleBadgeClass(member.role))}>
+                        {getRoleLabel(member.role)}{member.role === 'manager' && member.is_also_trainer && ' / Trainer'}
+                      </span>
+                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', member.employment_type === 'part_time' ? 'bg-orange-100 text-orange-700' : 'bg-indigo-100 text-indigo-700')}>
+                        {member.employment_type === 'part_time' ? `Part-time${member.hourly_rate ? ` · ${formatSGD(member.hourly_rate)}/hr` : ''}` : 'Full-time'}
+                      </span>
+                      {member.is_active
+                        ? member.probation_end_date && !member.probation_passed_at && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Probation</span>
+                        : <span className="badge-inactive">Inactive</span>}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">
+                      {member.email}{member.phone ? ` · ${member.phone}` : ' · ⚠ No phone'}
+                      {member.probation_end_date && !member.probation_passed_at && ` · ends ${formatDate(member.probation_end_date)}`}
+                      {member.date_of_departure && <span className="text-red-400"> · Departed {formatDate(member.date_of_departure)}</span>}
+                    </p>
+                  </div>
+                  <button onClick={() => openEdit(member)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex-shrink-0" title="View"><Edit2 className="w-4 h-4" /></button>
+                </div>
+              ))}
             </div>
           )}
         </>
