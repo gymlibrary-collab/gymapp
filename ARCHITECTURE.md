@@ -92,10 +92,10 @@ admin → business_ops → manager → trainer / staff (full-time or part-time)
 
 | Export | Purpose |
 |---|---|
-| `PDF_TABLE_STYLE` | Standard autoTable style (red header, right-aligned amounts) |
+| `renderUnifiedPayslipPdf(doc, autoTable, slip, staff, branding, allSlips)` | **Primary PDF renderer** — handles all payment types (salary/commission/combined). Shows all earnings rows (0.00 when not applicable), CPF detail, YTD summary, commission breakdown. |
+| `resolvePayslipBranding(supabase, gymId)` | Loads gym logo + company name for PDF header |
 | `loadLogoAsBase64(url)` | Fetches logo URL → base64 data URL |
 | `getImageDimensions(src)` | Returns `{ w, h }` of an image |
-| `addLogoHeader(doc, logoUrl, title, fontSize?)` | Renders gym logo + title in PDF header |
 
 ### `src/lib/cpf.ts`
 
@@ -106,6 +106,20 @@ admin → business_ops → manager → trainer / staff (full-time or part-time)
 | `getCpfCeilings(brackets, year)` | Returns `{ owCeiling, annualAWCeiling }` — reads from DB, falls back to $6,800 / $102,000 |
 | `getCpfPeriods(brackets)` | Returns all distinct `effective_from` keys sorted newest first |
 | `needsCpfChangeover(brackets, year, month)` | Returns `{ pendingPeriod, oldestPeriod }` if the payroll period has crossed a pending bracket's effective date, else null |
+
+### Commission Items
+
+`commission_items` is the source of truth for all commissions earned. It replaces boolean flags (`commission_paid`) on `sessions`, `packages`, and `gym_memberships`.
+
+| Field | Purpose |
+|---|---|
+| `source_type` | `'pt_session'` \| `'pt_package'` \| `'membership'` |
+| `source_id` | FK to the originating row |
+| `period_month/year` | Payroll period the item belongs to (set at confirmation time in SGT) |
+| `payslip_id` | `NULL` = unpaid. Stamped when commission payslip is marked paid. FK `ON DELETE SET NULL` enables safe payslip deletion without orphaning items. |
+
+**Unpaid commission query:** `WHERE payslip_id IS NULL AND period_month = X AND period_year = Y`
+**Reversal on delete:** FK automatically clears `payslip_id` — no manual flag reversal needed.
 
 ### `src/lib/cron.ts`
 
@@ -243,11 +257,22 @@ Daily jobs (in order):
 | v87b | protect_sensitive_user_fields trigger |
 | v88 | users_safe view |
 | v89 | Users RLS enabled — recursion-free policies |
-| **Next** | **v90** |
+| v90 | Unified payslip redesign: renames `payslips` columns (`month/year` → `period_month/year`, `basic_salary` → `salary_amount`), adds `payment_type`, `commission_amount`, `allowance_amount`, `others_*`, `ow_ceiling_used`, `annual_aw_ceiling_used`, `ytd_ow_before`, `ytd_aw_before`. Restructures `staff_payroll` as a payroll profile (one row per staff). Creates `commission_items` table. Adds `combined_payslip_enabled` to `app_settings`. Adds `residency_status` to `users`. |
+| v91 | CPF bracket period model: `cpf_age_brackets` restructured with `effective_from`, `age_from/to`, `ow_ceiling`, `annual_aw_ceiling`. `getCpfPeriods()`, `needsCpfChangeover()` added to `cpf.ts`. New `POST /api/cpf-changeover` route. |
+| **Next** | **v92** |
 
 ---
 
 ## Key Design Decisions
+
+### Why Next.js
+Next.js was chosen over alternatives (Nuxt, SvelteKit, Remix, plain React SPA) for the following reasons:
+
+- **API routes built-in** — payroll, commission, CPF changeover, and auth routes live in the same codebase as the UI. No separate backend server to deploy or maintain.
+- **Vercel deployment is seamless** — Next.js is made by Vercel. Deploy is one push to GitHub. Serverless functions, cron jobs, and environment variables all work natively with zero config.
+- **Server-side auth middleware** — `src/middleware.ts` guards all `/dashboard/*` routes server-side before the page loads, which is more secure than client-only auth guards. RSC requests on session expiry are handled gracefully (no "Failed to fetch RSC payload" errors).
+- **TypeScript first-class** — type safety across API routes and UI components catches errors at build time, which matters for payroll logic where a wrong type can cause incorrect CPF calculations.
+- **Large ecosystem** — libraries for PDF generation (jsPDF), CPF calculations, Supabase, and Twilio WhatsApp all have Next.js support and examples.
 
 ### No `Promise.all()` with Supabase
 Supabase query builders return PromiseLike, not native Promise. Use sequential awaits except where explicitly documented.

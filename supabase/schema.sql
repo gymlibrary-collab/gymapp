@@ -26,13 +26,25 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE app_settings (
   id text PRIMARY KEY DEFAULT 'global',
   app_name text DEFAULT 'GymApp',
-  sidebar_logo_url text,
+  company_name text DEFAULT 'Gym Operations Suite',
+  -- Logo URLs
+  login_logo_url text,
+  admin_sidebar_logo_url text,
   payslip_logo_url text,
+  -- Operational settings
   auto_logout_minutes integer DEFAULT 10,
-  leave_reset_year integer,
-  max_leave_carry_forward_days integer DEFAULT 0,
-  fy_start_month integer DEFAULT 1,
-  created_at timestamptz DEFAULT now()
+  leave_reset_year integer DEFAULT 2026,
+  leave_reset_reminder_seen_at timestamptz,
+  max_leave_carry_forward_days integer DEFAULT 5,
+  -- Payroll mode
+  combined_payslip_enabled boolean DEFAULT false,  -- one-way switch; once true cannot be reversed
+  -- Escalation thresholds
+  escalation_leave_hours integer DEFAULT 48,
+  escalation_membership_sales_hours integer DEFAULT 48,
+  escalation_pt_package_hours integer DEFAULT 48,
+  escalation_pt_session_hours integer DEFAULT 48,
+  escalation_membership_expiry_days integer DEFAULT 7,
+  updated_at timestamptz DEFAULT now()
 );
 
 -- Gyms
@@ -245,42 +257,57 @@ CREATE TABLE sessions (
 
 CREATE TABLE payslips (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES users(id) ON DELETE CASCADE,
   gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
-  month integer NOT NULL,
-  year integer NOT NULL,
-  employment_type text,
-  -- Part-timer fields
-  total_hours numeric(10,2),
-  hourly_rate numeric(10,2),
-  -- Full-timer fields
-  basic_salary numeric(10,2),
-  annual_salary_override numeric(10,2),
-  -- Common
-  bonus_amount numeric(10,2) DEFAULT 0,
-  deduction_amount numeric(10,2) DEFAULT 0,
+  period_month integer NOT NULL,
+  period_year integer NOT NULL,
+  payment_type text DEFAULT 'salary',            -- 'salary' | 'commission' | 'combined'
+  employment_type text DEFAULT 'full_time',
+  -- Salary fields
+  salary_amount numeric DEFAULT 0,               -- OW: roster pay (part-timer) or fixed salary (full-timer)
+  total_hours numeric,                           -- part-timer: hours from locked roster shifts
+  hourly_rate_used numeric,                      -- part-timer: rate at generation time
+  -- Commission fields
+  commission_amount numeric DEFAULT 0,           -- OW: from commission_items for this period
+  commission_period_month integer,               -- may differ from period_month (late confirmations)
+  commission_period_year integer,
+  -- Allowance / others
+  allowance_amount numeric DEFAULT 0,
+  others_amount numeric DEFAULT 0,
+  others_label text,
+  others_cpf_liable boolean DEFAULT false,
+  -- Bonus and deductions
+  bonus_amount numeric DEFAULT 0,
+  deduction_amount numeric DEFAULT 0,
   deduction_reason text,
-  gross_salary numeric(10,2),
-  net_salary numeric(10,2),
+  -- Computed totals
+  gross_salary numeric,
+  net_salary numeric,
+  total_employer_cost numeric,
   -- CPF fields
-  is_cpf_liable boolean DEFAULT false,
-  employee_cpf_rate numeric(5,4),
-  employer_cpf_rate numeric(5,4),
-  aw_subject_to_cpf numeric(10,2),
-  employee_cpf_amount numeric(10,2) DEFAULT 0,
-  employer_cpf_amount numeric(10,2) DEFAULT 0,
-  capped_ow numeric(10,2),
-  ytd_ow numeric(10,2),
+  is_cpf_liable boolean DEFAULT true,
+  employee_cpf_rate numeric DEFAULT 20.00,       -- snapshot at generation
+  employer_cpf_rate numeric DEFAULT 17.00,       -- snapshot at generation
+  ow_ceiling_used numeric DEFAULT 8000,          -- snapshot at generation
+  annual_aw_ceiling_used numeric DEFAULT 102000, -- snapshot at generation
+  capped_ow numeric DEFAULT 0,
+  aw_subject_to_cpf numeric DEFAULT 0,
+  employee_cpf_amount numeric DEFAULT 0,
+  employer_cpf_amount numeric DEFAULT 0,
+  ytd_ow_before numeric DEFAULT 0,               -- YTD ordinary wages before this payslip
+  ytd_aw_before numeric DEFAULT 0,               -- YTD additional wages before this payslip
+  low_income_flag boolean DEFAULT false,
   cpf_adjustment_note text,
-  total_employer_cost numeric(10,2),
   -- Status
-  status text DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'paid')),
+  status text DEFAULT 'draft',                   -- 'draft' | 'approved' | 'paid'
   notes text,
-  approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  generated_by uuid REFERENCES users(id),
+  generated_at timestamptz DEFAULT now(),
+  approved_by uuid REFERENCES users(id),
   approved_at timestamptz,
   paid_at timestamptz,
   created_at timestamptz DEFAULT now(),
-  UNIQUE(user_id, gym_id, month, year)
+  UNIQUE(user_id, gym_id, period_month, period_year, payment_type)
 );
 
 -- Payslip deletion audit trail
@@ -318,35 +345,7 @@ CREATE TABLE pending_deductions (
   created_at timestamptz DEFAULT now()
 );
 
--- Commission payouts
-CREATE TABLE commission_payouts (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
-  period_start date,
-  period_end date,
-  period_month integer,
-  period_year integer,
-  pt_signup_commission_sgd numeric(10,2) DEFAULT 0,
-  pt_session_commission_sgd numeric(10,2) DEFAULT 0,
-  membership_commission_sgd numeric(10,2) DEFAULT 0,
-  total_commission_sgd numeric(10,2) DEFAULT 0,
-  deduction_amount numeric(10,2) DEFAULT 0,
-  deduction_reason text,
-  net_commission_sgd numeric(10,2) GENERATED ALWAYS AS (total_commission_sgd - deduction_amount) STORED,
-  is_cpf_liable boolean DEFAULT false,
-  employee_cpf_rate numeric(5,4),
-  employer_cpf_rate numeric(5,4),
-  aw_subject_to_cpf numeric(10,2),
-  employee_cpf_amount numeric(10,2) DEFAULT 0,
-  employer_cpf_amount numeric(10,2) DEFAULT 0,
-  low_income_flag boolean DEFAULT false,
-  status text DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'paid')),
-  approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
-  approved_at timestamptz,
-  paid_at timestamptz,
-  created_at timestamptz DEFAULT now()
-);
+-- commission_payouts table removed in v90 — replaced by unified payslips + commission_items
 
 -- CPF age brackets config
 CREATE TABLE cpf_age_brackets (
@@ -394,6 +393,26 @@ CREATE TABLE commission_config (
 );
 
 -- Salary history (for audit)
+-- Commission items — source of truth for all commissions earned
+-- Created atomically when session/package/membership is confirmed by manager
+-- payslip_id stamped when commission is paid; NULL = unpaid
+CREATE TABLE commission_items (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
+  source_type text NOT NULL,                     -- 'pt_session' | 'pt_package' | 'membership'
+  source_id uuid NOT NULL,                       -- FK to sessions.id / packages.id / gym_memberships.id
+  amount numeric NOT NULL,                       -- commission amount in SGD
+  period_month integer NOT NULL,                 -- payroll period this item belongs to
+  period_year integer NOT NULL,
+  payslip_id uuid REFERENCES payslips(id) ON DELETE SET NULL,  -- NULL = unpaid
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(source_type, source_id)                 -- one commission item per source event
+);
+CREATE INDEX commission_items_source_lookup ON commission_items(source_type, source_id);
+CREATE INDEX commission_items_user_period_unpaid ON commission_items(user_id, period_year, period_month) WHERE payslip_id IS NULL;
+
+
 CREATE TABLE salary_history (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -405,11 +424,20 @@ CREATE TABLE salary_history (
 );
 
 CREATE TABLE staff_payroll (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  gym_id uuid REFERENCES gyms(id) ON DELETE SET NULL,
-  month integer NOT NULL,
-  year integer NOT NULL,
+  -- One row per staff member — their payroll profile (not per-period)
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  -- Salary
+  current_salary numeric,                        -- full-timer monthly gross
+  -- Allowance (included in OW, CPF-liable)
+  monthly_allowance numeric DEFAULT 0,
+  allowance_label text,
+  -- Others (CPF liability configurable)
+  others_monthly_amount numeric DEFAULT 0,
+  others_label text,
+  others_cpf_liable boolean DEFAULT false,
+  -- CPF
+  is_cpf_liable boolean DEFAULT true,
+  updated_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()
 );
 
