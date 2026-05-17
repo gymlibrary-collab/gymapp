@@ -102,7 +102,10 @@ admin → business_ops → manager → trainer / staff (full-time or part-time)
 | Export | Purpose |
 |---|---|
 | `getAgeAsOf(dob, refDate)` | Whole-number age as of reference date |
-| `getCpfBracketRates(brackets, dob, year, month)` | Returns `{ employee_rate, employer_rate }` for CPF bracket |
+| `getCpfBracketRates(brackets, dob, year, month)` | Returns `{ employee_rate, employer_rate }` for the bracket effective on the payroll period month |
+| `getCpfCeilings(brackets, year)` | Returns `{ owCeiling, annualAWCeiling }` — reads from DB, falls back to $6,800 / $102,000 |
+| `getCpfPeriods(brackets)` | Returns all distinct `effective_from` keys sorted newest first |
+| `needsCpfChangeover(brackets, year, month)` | Returns `{ pendingPeriod, oldestPeriod }` if the payroll period has crossed a pending bracket's effective date, else null |
 
 ### `src/lib/cron.ts`
 
@@ -253,6 +256,9 @@ Supabase query builders return PromiseLike, not native Promise. Use sequential a
 - `from('users_safe')` — non-sensitive cross-user data (names, roles, gym assignments, hourly_rate)
 - `from('users')` in browser — own row only (useCurrentUser, pt/onboard)
 - `adminClient.from('users')` — all columns, server-side only (payroll, staff management for Biz Ops)
+
+### CPF Bracket Periods
+`cpf_age_brackets` holds up to 3 concurrent period sets identified by `effective_from` date (old / current / pending). Rate selection is lazy — `getCpfBracketRates()` and `getCpfCeilings()` filter by `effective_from ≤ payroll month start` at generation time. No cron or dashboard polling needed. Changeover (deleting the oldest period when a new one takes effect) is triggered during a payroll run and executed server-side via `POST /api/cpf-changeover` (business_ops only, adminClient). CPF rates are snapshotted onto payslip rows at generation — existing payslips are unaffected by bracket changes.
 
 ### SGT Timezone
 All date calculations use SGT (UTC+8). `new Date()` is UTC and causes off-by-one errors near midnight. Always use `nowSGT()`. `timestamptz` field writes (approved_at, updated_at etc) correctly use UTC for database storage.

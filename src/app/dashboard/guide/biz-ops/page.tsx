@@ -34,7 +34,7 @@ export default function GuidePage() {
         'Generate monthly payslips under Payroll — one per staff member per gym',
         'Part-timer payslips are based on duty roster hours × hourly rate — only confirmed completed shifts are included',
         'Full-timer payslips are based on basic salary + allowances + bonus',
-        'CPF is calculated automatically from age brackets — ensure staff Date of Birth and Residency Status are set correctly',
+        'CPF is calculated automatically from the age bracket set effective on the payroll period month — ensure staff Date of Birth and Residency Status are set correctly',
         'Add deductions before approving (e.g. overpayment recovery from approved disputes)',
         'Approve draft payslips → Mark Paid to complete the cycle',
         'Paid payslips are permanent — correct errors via next-month adjustment',
@@ -91,7 +91,8 @@ export default function GuidePage() {
         'WhatsApp Notifications: toggle which notification types are active',
         'Commission Rates: set default signup and session commission percentages per gym',
         'Public Holidays: add holidays to exclude from leave calculations',
-        'CPF Brackets: configure CPF age bracket rates for each year',
+        'CPF Brackets: configure CPF age bracket rates and OW/AW ceilings — each period set (identified by effective date) covers all age brackets and both ceilings. Edit an entire period in one form.',
+        'CPF changeover: when running payroll for a month that has crossed a new bracket effective date, the system prompts to apply the changeover — removes the oldest period and promotes the pending set to current. You can skip and apply on the next payroll run.',
       ]
     },
     {

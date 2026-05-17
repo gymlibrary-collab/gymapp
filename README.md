@@ -118,9 +118,12 @@ CPF rates are determined by the `cpf_age_brackets` table, which holds multiple p
 - OW and AW ceilings follow the same logic via `getCpfCeilings()`.
 
 **Payslip CPF snapshot — rates are locked at generation:**
-- When a payslip is generated, the CPF rates (`employee_cpf_rate`, `employer_cpf_rate`) and ceiling values (`capped_ow`, `ow_ceiling_used`, `annual_aw_ceiling_used`) are written directly onto the payslip row.
+- When a payslip is generated, the CPF rates (`employee_cpf_rate`, `employer_cpf_rate`) and ceiling values (`capped_ow`, `ow_ceiling`) are written directly onto the payslip row.
 - Approved and paid payslips are **never recalculated**. Changing or deleting CPF bracket rows has no effect on existing payslips.
 - This means bracket cleanup (removing old periods) is safe at any time — past payslips are self-contained records.
+
+**Payroll period vs payout month:**
+- The month/year selector on the payroll page is labelled "Payroll period month" — this is the work month being paid, not the payout month. A January run for December work correctly uses December's CPF brackets.
 
 **CPF bracket changeover:**
 - When a payroll run's period month reaches or passes a pending bracket's `effective_from`, the app prompts biz ops to apply the changeover.
@@ -153,6 +156,7 @@ CPF rates are determined by the `cpf_age_brackets` table, which holds multiple p
 - WhatsApp reminders day before sessions
 
 ### Security
+- `src/middleware.ts` handles RSC (React Server Component) requests gracefully when sessions expire — returns a client-redirect header instead of a 302, preventing "Failed to fetch RSC payload" console errors on idle sessions.
 - Google OAuth — no passwords stored
 - Users table RLS — staff cannot access other staff's salary or NRIC
 - SECURITY DEFINER functions for safe cross-table RLS evaluation
@@ -184,6 +188,7 @@ src/
     api/
       activity-log/         Activity log write endpoint
       cron/                 Automated job handlers
+      cpf-changeover/       CPF bracket period changeover (business_ops only)
       staff/                Staff CRUD (adminClient)
       staff-rates/          Hourly rate lookup (managers only) — RETIRED
   components/               Shared UI components

@@ -65,7 +65,6 @@ CREATE TABLE users (
   hourly_rate numeric(10,2),
   nric text,
   nationality text,
-  residency_status text CHECK (residency_status IN ('singapore_citizen','singapore_pr','employment_pass','s_pass','work_permit','dependants_pass','long_term_visit_pass','other')),
   address text,
   nickname text,
   date_of_birth date,
@@ -352,14 +351,24 @@ CREATE TABLE commission_payouts (
 -- CPF age brackets config
 CREATE TABLE cpf_age_brackets (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  year integer NOT NULL,
   label text NOT NULL,
-  age_min integer NOT NULL,
-  age_max integer,
+  age_from integer NOT NULL,
+  age_to integer,
   employee_rate numeric(5,4) NOT NULL,
   employer_rate numeric(5,4) NOT NULL,
+  -- Ceilings stored once per period (same value on all brackets sharing an effective_from)
+  ow_ceiling numeric(10,2),           -- monthly OW ceiling (e.g. 6800.00)
+  annual_aw_ceiling numeric(10,2),    -- annual AW ceiling (e.g. 102000.00)
+  -- Period versioning — multiple periods coexist; app picks most recent <= payroll month
+  effective_from date,                -- NULL = applies to all periods (legacy)
+  notes text,
+  updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  updated_at timestamptz DEFAULT now(),
   created_at timestamptz DEFAULT now()
 );
+-- Supports up to 3 concurrent periods: old / current / pending (future).
+-- getCpfBracketRates() and getCpfCeilings() filter by effective_from <= payroll month start.
+-- Changeover: POST /api/cpf-changeover deletes oldest period rows when a new one takes effect.
 
 -- CPF submissions (annual reconciliation)
 CREATE TABLE cpf_submissions (
@@ -745,10 +754,9 @@ CREATE TRIGGER trg_protect_sensitive_user_fields
 DROP VIEW IF EXISTS users_safe;
 CREATE VIEW users_safe AS
 SELECT
-  id, full_name, nickname, email, phone, nationality, residency_status,
+  id, full_name, nickname, email, phone, nationality,
   role, employment_type, is_active, is_archived, is_also_trainer,
   manager_gym_id, hourly_rate,
-  commission_signup_pct, commission_session_pct, membership_commission_sgd,
   leave_entitlement_days, leave_carry_forward_days,
   medical_leave_entitlement_days, hospitalisation_leave_entitlement_days,
   max_sessions_per_week, monthly_session_target,
