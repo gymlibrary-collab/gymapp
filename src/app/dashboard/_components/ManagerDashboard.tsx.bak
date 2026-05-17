@@ -216,101 +216,89 @@ export default function ManagerDashboard({ user }: ManagerDashboardProps) {
       // PHASE 1 — Critical data: shown immediately
       // Today's sessions, stats, pending counts, notifications
       // ══════════════════════════════════════════════════════
-      // PHASE 1 — All critical reads fired in parallel
-      // None depend on each other's result
-      // ══════════════════════════════════════════════════════
-      const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
 
-      const [
-        { data: todayData },
-        { count: memberCount },
-        { count: pkgCount },
-        { data: sessData },
-        { data: memSalesData },
-        { count: pendingCount },
-        { count: cancelCount },
-        { data: dispNotifs },
-        pendingMems,
-        pendingSess,
-        notifications,
-        payslipNotifs,
-      ] = await Promise.all([
-        // Today's sessions
-        supabase.from('sessions')
-          .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
-          .eq('gym_id', gymId).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
-        // Stats
-        supabase.from('members').select('id', { count: 'exact', head: true }).eq('gym_id', gymId),
-        supabase.from('packages').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'active'),
-        supabase.from('sessions').select('session_commission_sgd').eq('gym_id', gymId).eq('status', 'completed').gte('marked_complete_at', monthStart),
-        supabase.from('gym_memberships').select('price_sgd, commission_sgd').eq('gym_id', gymId).eq('sale_status', 'confirmed').gte('created_at', monthStart),
-        // Pending banner counts
-        supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending'),
-        supabase.from('membership_cancellation_requests').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'pending'),
-        // Dispute notifications
-        supabase.from('manager_dispute_notif').select('*').eq('manager_id', user.id).is('seen_at', null).order('created_at', { ascending: false }),
-        // Pending confirmations (helper functions)
-        fetchPendingMemberships(supabase, gymId),
-        fetchPendingSessionConfirmations(supabase, gymId),
-        fetchNotifications(supabase, user.id, user.role),
-        fetchPayslipNotifications(supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at),
-      ])
-
-      // Apply Phase 1 results
+      // ── Today's sessions ──────────────────────────────────
+      const { data: todayData } = await supabase.from('sessions')
+        .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
+        .eq('gym_id', gymId).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
       setTodaySessions(todayData || [])
+
+      // ── Stats ──────────────────────────────────────────────
+      const { count: memberCount } = await supabase.from('members').select('id', { count: 'exact', head: true }).eq('gym_id', gymId)
+      const { count: pkgCount } = await supabase.from('packages').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'active')
+      const { data: sessData } = await supabase.from('sessions').select('session_commission_sgd').eq('gym_id', gymId).eq('status', 'completed').gte('marked_complete_at', monthStart)
+      const { data: memSalesData } = await supabase.from('gym_memberships').select('price_sgd, commission_sgd').eq('gym_id', gymId).eq('sale_status', 'confirmed').gte('created_at', monthStart)
+      // commission_payouts removed — commission items tracked via commission_items
+      const payoutData: any[] = []
+
       const membershipRevenue = memSalesData?.reduce((s: number, m: any) => s + (m.price_sgd || 0), 0) || 0
-      setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: 0, membershipRevenue, membershipSalesCount: memSalesData?.length || 0, totalCommissionPayout: 0 })
+      const totalCommissionPayout = 0 // now read from commission_items via loadCommissionStats
+      setStats({ members: memberCount || 0, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: 0, membershipRevenue, membershipSalesCount: memSalesData?.length || 0, totalCommissionPayout })
+
+      // ── Pending confirmations ──────────────────────────────
+      setPendingMemberships(await fetchPendingMemberships(supabase, gymId))
+      setPendingSessions(await fetchPendingSessionConfirmations(supabase, gymId))
+
+      // ── Pending counts (banners) ───────────────────────────
+      const { count: pendingCount } = await supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
       setPendingMemSales(pendingCount || 0)
+      const { count: cancelCount } = await supabase.from('membership_cancellation_requests')
+        .select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'pending')
       setPendingCancellations(cancelCount || 0)
+
+      // ── Notifications ──────────────────────────────────────
+      const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
+        await fetchNotifications(supabase, user.id, user.role)
+      setMemRejectionNotifs(memRej)
+      setLeaveDecisionNotifs(leaveNotifs)
+      setRejectionNotifs(pkgRej)
+
+      const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at)
+      setNewPayslip(ps)
+      setNewCommission(pc)
+
+      // Dispute resolution notifications
+      const { data: dispNotifs } = await supabase.from('manager_dispute_notif')
+        .select('*').eq('manager_id', user.id).is('seen_at', null)
+        .order('created_at', { ascending: false })
       setDisputeNotifs(dispNotifs || [])
-      setPendingMemberships(pendingMems)
-      setPendingSessions(pendingSess)
-      setMemRejectionNotifs(notifications.memRejectionNotifs)
-      setLeaveDecisionNotifs(notifications.leaveDecisionNotifs)
-      setRejectionNotifs(notifications.pkgRejectionNotifs)
-      setNewPayslip(payslipNotifs.newPayslip)
-      setNewCommission(payslipNotifs.newCommission)
 
       // ── Show dashboard now — Phase 1 complete ──────────────
       setLoading(false)
 
       // ══════════════════════════════════════════════════════
-      // PHASE 2 — Non-critical reads fired in parallel
+      // PHASE 2 — Non-critical data: loads after dashboard shown
       // Schedule, package alerts, expiring memberships, leave
       // ══════════════════════════════════════════════════════
-      const [
-        upcomingSess,
-        { data: schedData },
-        lowPkgs,
-        expiringPkgs,
-        expiringMems,
-        atRisk,
-        pendingLeaveCount,
-      ] = await Promise.all([
-        fetchUpcomingSessions(supabase, { gymId, todayEnd }),
-        supabase.from('sessions')
-          .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
-          .in('status', ['scheduled', 'completed']).eq('gym_id', gymId)
-          .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
-          .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200),
-        fetchLowSessionPackages(supabase, { gymId, limit: 10 }),
-        fetchExpiringPackages(supabase, { gymId, withinDays: 7, limit: 10 }),
-        fetchExpiringMemberships(supabase, gymId, { withinDays: 30, limit: 20 }),
-        fetchAtRiskMembers(supabase, gymId),
-        fetchPendingLeave(supabase, gymId, user.id),
-      ])
 
-      // Apply Phase 2 results
-      setUpcomingSessions(upcomingSess)
+      // ── Upcoming sessions ──────────────────────────────────
+      setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
+
+      // ── Gym schedule ───────────────────────────────────────
+      const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
+      const { data: schedData } = await supabase.from('sessions')
+        .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
+        .in('status', ['scheduled', 'completed']).eq('gym_id', gymId)
+        .gte('scheduled_at', now.toISOString().split('T')[0] + 'T00:00:00')
+        .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
       setGymScheduleSessions(schedData || [])
-      setLowSessionPackages(lowPkgs)
-      setExpiringPackages(expiringPkgs)
+
+      // ── Package alerts ─────────────────────────────────────
+      setLowSessionPackages(await fetchLowSessionPackages(supabase, { gymId, limit: 10 }))
+      setExpiringPackages(await fetchExpiringPackages(supabase, { gymId, withinDays: 7, limit: 10 }))
+
+      // ── Expiring memberships ───────────────────────────────
+      const expiringMems = await fetchExpiringMemberships(supabase, gymId, { withinDays: 30, limit: 20 })
       const renewedIds = new Set(
         expiringMems.filter((m: any) => expiringMems.some((m2: any) => m2.member_id === m.member_id && new Date(m2.end_date) > new Date(m.end_date))).map((m: any) => m.member_id)
       )
       setExpiringMemberships(expiringMems.filter((m: any) => !renewedIds.has(m.member_id)).slice(0, 10))
-      setAtRiskMembers(atRisk)
-      setPendingLeave(pendingLeaveCount)
+
+      // ── At-risk members ────────────────────────────────────
+      setAtRiskMembers(await fetchAtRiskMembers(supabase, gymId))
+
+      // ── Pending leave ──────────────────────────────────────
+      setPendingLeave(await fetchPendingLeave(supabase, gymId, user.id))
       } catch (err) {
         console.error('[ManagerDashboard] Load error:', err)
         setLoading(false)
