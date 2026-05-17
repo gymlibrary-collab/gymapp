@@ -483,7 +483,7 @@ export default function TrainersPage() {
         <>
           {/* Create form — modal overlay */}
           {showCreateForm && isBizOps && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) { setShowCreateForm(false); setCreateForm({ ...emptyForm }) } }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Add New Staff Member</h2><button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
@@ -539,7 +539,7 @@ export default function TrainersPage() {
 
           {/* View panel for managers (read-only) — modal overlay */}
           {editingUser && !isBizOps && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) setEditingUser(null) }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 text-sm">Staff Particulars — {editingUser.full_name}</h2>
@@ -577,7 +577,7 @@ export default function TrainersPage() {
 
           {/* Edit form — biz ops only — modal overlay */}
           {editingUser && isBizOps && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) setEditingUser(null) }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <form onSubmit={handleEdit} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div><h2 className="font-semibold text-gray-900 text-sm">Edit: {editingUser.full_name}</h2>{isSelf(editingUser) && <p className="text-xs text-red-600 mt-0.5">Your own account</p>}</div>
