@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { formatSGD } from '@/lib/utils'
@@ -13,6 +14,92 @@ import { PageSpinner } from '@/components/PageSpinner'
 
 type FormType = { name: string; duration_type: 'months' | 'days'; duration_months: string; duration_days: string; price_sgd: string; gym_id: string }
 const EMPTY_FORM: FormType = { name: '', duration_type: 'months', duration_months: '', duration_days: '', price_sgd: '', gym_id: '' }
+
+
+// ── TypeForm — defined outside MembershipTypesPage to prevent focus loss ──────
+// When defined inside the component, every state change (e.g. typing in Name)
+// recreates the function reference, causing React to unmount+remount the form
+// and lose input focus. Props replace closed-over state.
+interface TypeFormProps {
+  isGlobal: boolean
+  form: any
+  setForm: (fn: (f: any) => any) => void
+  gyms: any[]
+  selectedGymFilter: string
+  editing: any
+  setShowGlobalForm: (v: boolean) => void
+  setShowGymForm: (v: boolean) => void
+  handleSubmit: (e: React.FormEvent, isGlobal: boolean) => void
+  saving: boolean
+}
+
+function TypeForm({ isGlobal, form, setForm, gyms, selectedGymFilter, editing, setShowGlobalForm, setShowGymForm, handleSubmit, saving }: TypeFormProps) {
+  return (
+    <form onSubmit={e => handleSubmit(e, isGlobal)} className="card p-4 space-y-4 border-red-200">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-900 text-sm">{editing ? 'Edit Type' : isGlobal ? 'New Global Type' : 'New Gym-Specific Type'}</h2>
+        <button type="button" onClick={() => { isGlobal ? setShowGlobalForm(false) : setShowGymForm(false); setForm(() => EMPTY_FORM) }}><X className="w-4 h-4 text-gray-400" /></button>
+      </div>
+      {!isGlobal && (
+        <div>
+          <label className="label">Gym *</label>
+          <select className="input" value={form.gym_id || selectedGymFilter} onChange={e => setForm(f => ({ ...f, gym_id: e.target.value }))} required>
+            {gyms.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={isGlobal ? 'e.g. Monthly, Annual' : 'e.g. 12-Month Promo — Gym A'} /></div>
+      <div>
+        <label className="label">Duration *</label>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs mb-2">
+          <button type="button" onClick={() => setForm(f => ({ ...f, duration_type: 'months', duration_days: '' }))}
+            className={cn('px-3 py-1.5 font-medium flex-1 transition-colors', form.duration_type === 'months' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50')}>
+            Months
+          </button>
+          <button type="button" onClick={() => setForm(f => ({ ...f, duration_type: 'days', duration_months: '' }))}
+            className={cn('px-3 py-1.5 font-medium flex-1 transition-colors', form.duration_type === 'days' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50')}>
+            Days (short pass)
+          </button>
+        </div>
+        {form.duration_type === 'months' ? (
+          <select className="input" required value={form.duration_months} onChange={e => setForm(f => ({ ...f, duration_months: e.target.value }))}>
+            <option value="">Select duration...</option>
+            {[1,3,6,12,18,24].map(m => <option key={m} value={m}>{m} month{m !== 1 ? 's' : ''}</option>)}
+          </select>
+        ) : (
+          <select className="input" required value={form.duration_days} onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))}>
+            <option value="">Select duration...</option>
+            {[1,7,14,21].map(d => <option key={d} value={d}>{d} day{d !== 1 ? 's' : ''}</option>)}
+          </select>
+        )}
+      </div>
+      <div><label className="label">Price (SGD) *</label><input className="input" required type="number" min="0" step="0.01" value={form.price_sgd} onChange={e => setForm(f => ({ ...f, price_sgd: e.target.value }))} placeholder="0.00" /></div>
+      <div className="flex gap-2">
+        <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2"><Save className="w-4 h-4" />{saving ? 'Saving...' : editing ? 'Save Changes' : 'Add Type'}</button>
+        <button type="button" onClick={() => { isGlobal ? setShowGlobalForm(false) : setShowGymForm(false); setForm(() => EMPTY_FORM) }} className="btn-secondary">Cancel</button>
+      </div>
+    </form>
+  )
+}
+
+// ── TypeRow ───────────────────────────────────────────────────────────────────
+function TypeRow({ type, isGlobal, openEdit, toggleActive }: { type: any; isGlobal: boolean; openEdit: (t: any, g: boolean) => void; toggleActive: (t: any) => void }) {
+  return (
+    <div className={cn('flex items-center gap-3 p-4', !type.is_active && 'opacity-60')}>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-medium text-gray-900 text-sm">{type.name}</p>
+          <span className={type.is_active ? 'badge-active' : 'badge-inactive'}>{type.is_active ? 'Active' : 'Inactive'}</span>
+        </div>
+        <p className="text-xs text-gray-500">{type.duration_months ? `${type.duration_months} month${type.duration_months !== 1 ? 's' : ''}` : `${type.duration_days} day${type.duration_days !== 1 ? 's' : ''}`} · {formatSGD(type.price_sgd)}</p>
+      </div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => openEdit(type, isGlobal)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
+        <button onClick={() => toggleActive(type)} className={cn('text-xs px-2 py-1 rounded-lg', type.is_active ? 'text-gray-500 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50')}>{type.is_active ? 'Deactivate' : 'Activate'}</button>
+      </div>
+    </div>
+  )
+}
 
 export default function MembershipTypesPage() {
   const { user, loading } = useCurrentUser({ allowedRoles: ['business_ops'] })
@@ -112,68 +199,7 @@ export default function MembershipTypesPage() {
     showMsg(type.is_active ? 'Membership type deactivated' : 'Membership type activated')
   }
 
-  const TypeForm = ({ isGlobal }: { isGlobal: boolean }) => (
-    <form onSubmit={e => handleSubmit(e, isGlobal)} className="card p-4 space-y-4 border-red-200">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900 text-sm">{editing ? 'Edit Type' : isGlobal ? 'New Global Type' : 'New Gym-Specific Type'}</h2>
-        <button type="button" onClick={() => { isGlobal ? setShowGlobalForm(false) : setShowGymForm(false); setEditing(null); setForm(EMPTY_FORM) }}><X className="w-4 h-4 text-gray-400" /></button>
-      </div>
-      {!isGlobal && (
-        <div>
-          <label className="label">Gym *</label>
-          <select className="input" value={form.gym_id || selectedGymFilter} onChange={e => setForm(f => ({ ...f, gym_id: e.target.value }))} required>
-            {gyms.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </div>
-      )}
-      <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={isGlobal ? 'e.g. Monthly, Annual' : 'e.g. 12-Month Promo — Gym A'} /></div>
-      <div>
-        <label className="label">Duration *</label>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs mb-2">
-          <button type="button" onClick={() => setForm(f => ({ ...f, duration_type: 'months', duration_days: '' }))}
-            className={cn('px-3 py-1.5 font-medium flex-1 transition-colors', form.duration_type === 'months' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50')}>
-            Months
-          </button>
-          <button type="button" onClick={() => setForm(f => ({ ...f, duration_type: 'days', duration_months: '' }))}
-            className={cn('px-3 py-1.5 font-medium flex-1 transition-colors', form.duration_type === 'days' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50')}>
-            Days (short pass)
-          </button>
-        </div>
-        {form.duration_type === 'months' ? (
-          <select className="input" required value={form.duration_months} onChange={e => setForm(f => ({ ...f, duration_months: e.target.value }))}>
-            <option value="">Select duration...</option>
-            {[1,3,6,12,18,24].map(m => <option key={m} value={m}>{m} month{m !== 1 ? 's' : ''}</option>)}
-          </select>
-        ) : (
-          <select className="input" required value={form.duration_days} onChange={e => setForm(f => ({ ...f, duration_days: e.target.value }))}>
-            <option value="">Select duration...</option>
-            {[1,7,14,21].map(d => <option key={d} value={d}>{d} day{d !== 1 ? 's' : ''}</option>)}
-          </select>
-        )}
-      </div>
-      <div><label className="label">Price (SGD) *</label><input className="input" required type="number" min="0" step="0.01" value={form.price_sgd} onChange={e => setForm(f => ({ ...f, price_sgd: e.target.value }))} placeholder="0.00" /></div>
-      <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="btn-primary flex-1 flex items-center justify-center gap-2"><Save className="w-4 h-4" />{saving ? 'Saving...' : editing ? 'Save Changes' : 'Add Type'}</button>
-        <button type="button" onClick={() => { isGlobal ? setShowGlobalForm(false) : setShowGymForm(false); setEditing(null); setForm(EMPTY_FORM) }} className="btn-secondary">Cancel</button>
-      </div>
-    </form>
-  )
-
-  const TypeRow = ({ type, isGlobal }: { type: any; isGlobal: boolean }) => (
-    <div className={cn('flex items-center gap-3 p-4', !type.is_active && 'opacity-60')}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-medium text-gray-900 text-sm">{type.name}</p>
-          <span className={type.is_active ? 'badge-active' : 'badge-inactive'}>{type.is_active ? 'Active' : 'Inactive'}</span>
-        </div>
-        <p className="text-xs text-gray-500">{type.duration_months ? `${type.duration_months} month${type.duration_months !== 1 ? 's' : ''}` : `${type.duration_days} day${type.duration_days !== 1 ? 's' : ''}`} · {formatSGD(type.price_sgd)}</p>
-      </div>
-      <div className="flex items-center gap-1">
-        <button onClick={() => openEdit(type, isGlobal)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-        <button onClick={() => toggleActive(type)} className={cn('text-xs px-2 py-1 rounded-lg', type.is_active ? 'text-gray-500 hover:bg-gray-100' : 'text-green-600 hover:bg-green-50')}>{type.is_active ? 'Deactivate' : 'Activate'}</button>
-      </div>
-    </div>
-  )
+  // TypeForm and TypeRow are defined as top-level components below.
 
   if (loading || !user || dataLoading) return <PageSpinner />
 
@@ -188,10 +214,10 @@ export default function MembershipTypesPage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Layers className="w-4 h-4 text-red-600" /> Global Types <span className="text-xs text-gray-400 font-normal">(available at all gyms)</span></h2>
           <button onClick={() => { setShowGlobalForm(!showGlobalForm); setShowGymForm(false); setEditing(null); setForm(EMPTY_FORM) }} className="btn-primary text-xs py-1.5 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Global</button>
         </div>
-        {showGlobalForm && <div className="p-4 border-b border-gray-100"><TypeForm isGlobal={true} /></div>}
+        {showGlobalForm && <div className="p-4 border-b border-gray-100"><TypeForm isGlobal={true} form={form} setForm={setForm} gyms={gyms} selectedGymFilter={selectedGymFilter} editing={editing} setShowGlobalForm={setShowGlobalForm} setShowGymForm={setShowGymForm} handleSubmit={handleSubmit} saving={saving} /></div>}
         {globalTypes.length === 0
           ? <p className="p-4 text-sm text-gray-400 text-center">No global types configured</p>
-          : <div className="divide-y divide-gray-100">{globalTypes.map(t => <TypeRow key={t.id} type={t} isGlobal={true} />)}</div>
+          : <div className="divide-y divide-gray-100">{globalTypes.map(t => <TypeRow key={t.id} type={t} isGlobal={true} openEdit={openEdit} toggleActive={toggleActive} />)}</div>
         }
       </div>
 
@@ -201,10 +227,10 @@ export default function MembershipTypesPage() {
           <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Building2 className="w-4 h-4 text-red-600" /> Gym-Specific Types</h2>
           <button onClick={() => { setShowGymForm(!showGymForm); setShowGlobalForm(false); setEditing(null); setForm(EMPTY_FORM) }} className="btn-primary text-xs py-1.5 flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add</button>
         </div>
-        {showGymForm && <div className="p-4 border-b border-gray-100"><TypeForm isGlobal={false} /></div>}
+        {showGymForm && <div className="p-4 border-b border-gray-100"><TypeForm isGlobal={false} form={form} setForm={setForm} gyms={gyms} selectedGymFilter={selectedGymFilter} editing={editing} setShowGlobalForm={setShowGlobalForm} setShowGymForm={setShowGymForm} handleSubmit={handleSubmit} saving={saving} /></div>}
         {gymTypes.length === 0
           ? <p className="p-4 text-sm text-gray-400 text-center">No gym-specific types for this gym</p>
-          : <div className="divide-y divide-gray-100">{gymTypes.map(t => <TypeRow key={t.id} type={t} isGlobal={false} />)}</div>
+          : <div className="divide-y divide-gray-100">{gymTypes.map(t => <TypeRow key={t.id} type={t} isGlobal={false} openEdit={openEdit} toggleActive={toggleActive} />)}</div>
         }
       </div>
 
