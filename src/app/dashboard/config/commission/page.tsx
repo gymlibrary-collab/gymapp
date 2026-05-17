@@ -16,6 +16,8 @@ export default function CommissionConfigPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [membershipPct, setMembershipPct] = useState('')
+  const [signupPct, setSignupPct] = useState('')
+  const [sessionPct, setSessionPct] = useState('')
   const [defaultHourlyRate, setDefaultHourlyRate] = useState('')
   const router = useRouter()
   const supabase = createClient()
@@ -33,6 +35,8 @@ export default function CommissionConfigPage() {
       // Use first gym's membership commission as display default
       const firstCfg = gymConfigs?.[0]
       setMembershipPct(firstCfg?.default_membership_commission_sgd?.toString() || '10')
+      setSignupPct(firstCfg?.default_signup_pct?.toString() || '10')
+      setSessionPct(firstCfg?.default_session_pct?.toString() || '15')
       // Load default_hourly_rate separately (added in migration_v90_addendum)
       // Safe: if column not yet added, silently uses the default '12'
       if (firstCfg?.gym_id) {
@@ -60,6 +64,8 @@ export default function CommissionConfigPage() {
       // Try with default_hourly_rate (requires migration_v90_addendum to have run)
       const { error: upsertErr } = await supabase.from('commission_config').upsert({
         gym_id: gym.id,
+        default_signup_pct: parseFloat(signupPct),
+        default_session_pct: parseFloat(sessionPct),
         default_membership_commission_sgd: parseFloat(membershipPct),
         default_hourly_rate: parseFloat(defaultHourlyRate),
         updated_at: now,
@@ -68,6 +74,8 @@ export default function CommissionConfigPage() {
         // Column not yet added — save without hourly rate
         await supabase.from('commission_config').upsert({
           gym_id: gym.id,
+          default_signup_pct: parseFloat(signupPct),
+          default_session_pct: parseFloat(sessionPct),
           default_membership_commission_sgd: parseFloat(membershipPct),
           updated_at: now,
         }, { onConflict: 'gym_id' })
@@ -88,7 +96,33 @@ export default function CommissionConfigPage() {
 
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-        <p>Membership sale commission is a fixed SGD amount applied equally to all staff. PT commissions (sign-up and session) are percentage-based and can be overridden per staff member in Staff Management. Part-timer hourly rates can be overridden when adding roster shifts.</p>
+        <p>Set default commission rates here — all three are pre-filled when onboarding new staff. PT sign-up and session commissions are percentage-based and can be overridden per staff member in Staff Management. Membership commission is a fixed SGD amount per confirmed sale. Hourly rates apply to part-timers and can be overridden per shift.</p>
+      </div>
+
+      <div className="card p-4 space-y-5">
+        <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+          <DollarSign className="w-4 h-4 text-red-600" /> PT Commission Defaults
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="label">PT Sign-Up Commission (%)</label>
+            <input className="input" type="number" min="0" max="100" step="0.5"
+              value={signupPct} onChange={e => setSignupPct(e.target.value)} />
+            <p className="text-xs text-gray-400 mt-1">
+              % of package price paid to trainer on confirmed sign-up. Default: {signupPct || '10'}%.
+            </p>
+          </div>
+          <div>
+            <label className="label">PT Session Commission (%)</label>
+            <input className="input" type="number" min="0" max="100" step="0.5"
+              value={sessionPct} onChange={e => setSessionPct(e.target.value)} />
+            <p className="text-xs text-gray-400 mt-1">
+              % of session price paid to trainer per completed session. Default: {sessionPct || '15'}%.
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">These are defaults — can be overridden per staff member in Staff Management.</p>
       </div>
 
       <div className="card p-4 space-y-5">
