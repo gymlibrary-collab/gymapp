@@ -126,6 +126,57 @@ export function getCpfBracketRates(
     : { employee_rate: 20, employer_rate: 17 }
 }
 
+
+// ── getCpfPeriods ─────────────────────────────────────────────
+// Returns all distinct effective_from periods in the brackets,
+// sorted newest first. Used for changeover detection.
+export function getCpfPeriods(brackets: any[]): string[] {
+  const keys = new Set<string>()
+  brackets.forEach((b: any) => {
+    const key = b.effective_from ? b.effective_from.split('T')[0] : 'default'
+    keys.add(key)
+  })
+  return Array.from(keys).sort((a, b) => b.localeCompare(a))
+}
+
+// ── needsCpfChangeover ────────────────────────────────────────
+// Returns the pending period key if the payroll period month has
+// reached or passed a pending bracket's effective_from date.
+// Returns null if no changeover is needed.
+export function needsCpfChangeover(
+  brackets: any[],
+  payrollYear: number,
+  payrollMonth: number
+): { pendingPeriod: string; oldestPeriod: string | null } | null {
+  const periods = getCpfPeriods(brackets)
+  if (periods.length < 2) return null // only one period — no changeover possible
+
+  const payrollDate = new Date(payrollYear, payrollMonth - 1, 1)
+
+  // Active period = most recent effective_from <= payroll date
+  const activePeriod = periods.find(p => {
+    if (p === 'default') return true
+    return new Date(p) <= payrollDate
+  }) ?? null
+
+  // Pending period = effective_from > today's date (not yet active in calendar)
+  // but <= payroll date (meaning the payroll period has passed the boundary)
+  const today = new Date()
+  const pendingPeriod = periods.find(p => {
+    if (p === 'default') return false
+    const d = new Date(p)
+    return d <= payrollDate && d > today
+  }) ?? null
+
+  if (!pendingPeriod) return null
+
+  // Oldest period = the one to delete if there are 3 periods
+  const oldest = periods[periods.length - 1]
+  const oldestPeriod = periods.length >= 3 ? oldest : null
+
+  return { pendingPeriod, oldestPeriod }
+}
+
 // ── loadCpfBrackets ──────────────────────────────────────────
 // Load all CPF age brackets from the database.
 // Returns brackets with ow_ceiling and annual_aw_ceiling included.

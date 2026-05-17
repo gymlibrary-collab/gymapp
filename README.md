@@ -107,6 +107,27 @@ npm run dev
 - Part-time staff can be assigned to multiple gyms
 
 ### HR & Payroll
+
+### CPF Rate Handling
+
+CPF rates are determined by the `cpf_age_brackets` table, which holds multiple period sets identified by `effective_from` date. The app supports up to 3 concurrent periods: old, current, and pending (future).
+
+**Rate selection at payroll generation time:**
+- Rates are picked based on the **payroll period month** (the work month being paid), not the generation date. A January payroll run for December work uses December's brackets.
+- `getCpfBracketRates()` filters brackets where `effective_from ≤ first day of payroll month`, then picks the most recent valid set.
+- OW and AW ceilings follow the same logic via `getCpfCeilings()`.
+
+**Payslip CPF snapshot — rates are locked at generation:**
+- When a payslip is generated, the CPF rates (`employee_cpf_rate`, `employer_cpf_rate`) and ceiling values (`capped_ow`, `ow_ceiling_used`, `annual_aw_ceiling_used`) are written directly onto the payslip row.
+- Approved and paid payslips are **never recalculated**. Changing or deleting CPF bracket rows has no effect on existing payslips.
+- This means bracket cleanup (removing old periods) is safe at any time — past payslips are self-contained records.
+
+**CPF bracket changeover:**
+- When a payroll run's period month reaches or passes a pending bracket's `effective_from`, the app prompts biz ops to apply the changeover.
+- Changeover deletes the oldest period's bracket rows (if 3 periods exist) and the pending period automatically becomes current.
+- If biz ops skips the prompt, the run proceeds with current brackets. The prompt reappears on the next payroll run.
+- Changeover is executed server-side via `POST /api/cpf-changeover` (business_ops only, adminClient).
+
 - Full-time staff: monthly payslips with CPF calculation (age-bracket aware)
 - Part-time staff: hourly payslips based on duty roster attendance
 - Commission payouts for trainers (session + signup commissions)

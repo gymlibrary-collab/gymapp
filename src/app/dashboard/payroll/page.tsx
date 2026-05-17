@@ -28,6 +28,10 @@ export default function PayrollPage() {
   const [bulkMonth, setBulkMonth] = useState(nowSGT().getUTCMonth() + 1)
   const [bulkYear, setBulkYear] = useState(nowSGT().getUTCFullYear())
   const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [changeoverPrompt, setChangeoverPrompt] = useState<{
+    pendingPeriod: string; oldestPeriod: string | null
+  } | null>(null)
+  const [changeoverLoading, setChangeoverLoading] = useState(false)
   const [bulkDraftWarning, setBulkDraftWarning] = useState<string[]>([]) // names with existing drafts
   const [pendingBulkGenerate, setPendingBulkGenerate] = useState(false)
   const [bulkResult, setBulkResult] = useState<{generated: number, skipped: number, noSalary: string[], noShifts: string[], deleted?: boolean} | null>(null)
@@ -138,7 +142,7 @@ export default function PayrollPage() {
     }
     setBulkDraftWarning([])
     setPendingBulkGenerate(false)
-    setBulkGenerating(true); setBulkResult(null)
+    setBulkGenerating(true); setBulkResult(null); setChangeoverPrompt(null)
     const { data: { user: authUser } } = await supabase.auth.getUser()
     const monthStart = `${bulkYear}-${String(bulkMonth).padStart(2, '0')}-01`
     const monthEnd = new Date(bulkYear, bulkMonth, 0).toISOString().split('T')[0]
@@ -210,6 +214,11 @@ export default function PayrollPage() {
       body: JSON.stringify({ period_month: bulkMonth, period_year: bulkYear }),
     })
     const data = await res.json()
+    if (data.requiresChangeover) {
+      setChangeoverPrompt({ pendingPeriod: data.pendingPeriod, oldestPeriod: data.oldestPeriod })
+      setBulkGenerating(false)
+      return
+    }
     if (!res.ok) { setBulkResult({ generated: 0, skipped: 0, noSalary: [data.error || 'Failed'], noShifts: [] }); setBulkGenerating(false); return }
     setBulkResult({ generated: data.generated, skipped: data.skipped, noSalary: data.noSalary || [], noShifts: [] })
     if (data.existingDrafts?.length > 0) setBulkDraftWarning(data.existingDrafts)
@@ -324,6 +333,24 @@ export default function PayrollPage() {
   }
 
 
+  const handleChangeover = async (doChangeover: boolean) => {
+    if (doChangeover && changeoverPrompt?.oldestPeriod) {
+      setChangeoverLoading(true)
+      const res = await fetch('/api/cpf-changeover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldest_period: changeoverPrompt.oldestPeriod }),
+      })
+      const data = await res.json()
+      if (!res.ok) { alert('Changeover failed: ' + (data.error || 'Unknown error')); setChangeoverLoading(false); return }
+      await load() // reload brackets with updated periods
+      setChangeoverLoading(false)
+    }
+    setChangeoverPrompt(null)
+    // Proceed with payroll run (changeover_confirmed = true skips the check)
+    handleBulkGenerate()
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -356,7 +383,7 @@ export default function PayrollPage() {
           <div className="space-y-3 border-t border-gray-100 pt-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Month</label>
+                <label className="label">Payroll period month</label>
                 <select className="input" value={bulkMonth} onChange={e => setBulkMonth(parseInt(e.target.value))}>
                   {Array.from({ length: 12 }, (_, i) => (
                     <option key={i + 1} value={i + 1}>{['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i]}</option>
@@ -364,18 +391,49 @@ export default function PayrollPage() {
                 </select>
               </div>
               <div>
-                <label className="label">Year</label>
+                <label className="label">Payroll period year</label>
                 <input className="input" type="number" value={bulkYear} onChange={e => setBulkYear(parseInt(e.target.value))} />
               </div>
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700 space-y-1">
-              <p className="font-medium">What will be generated:</p>
+              <p className="font-medium">Payroll period: work done in {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][bulkMonth-1]} {bulkYear}</p>
               <p>· Full-time staff — basic salary + any bonuses recorded for this month</p>
               <p>· Part-time staff — from locked roster shifts for this month</p>
               <p>· CPF rates applied from age bracket table (based on date of birth)</p>
               <p>· Staff with no salary set and part-timers with no shifts are skipped</p>
               <p>· Existing draft payslips for this month are overwritten — approved/paid are protected</p>
             </div>
+
+            {/* CPF Changeover prompt */}
+            {changeoverPrompt && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-800">CPF bracket changeover required</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      New CPF brackets effective <strong>{changeoverPrompt.pendingPeriod}</strong> apply to this payroll period.
+                      {changeoverPrompt.oldestPeriod
+                        ? ` The oldest bracket set (${changeoverPrompt.oldestPeriod}) will be permanently removed.`
+                        : ' No old brackets will be removed — the current set becomes historical.'}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Existing payslips are unaffected — their CPF rates are already locked in.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleChangeover(true)} disabled={changeoverLoading}
+                    className="btn-primary text-xs py-1.5 disabled:opacity-50">
+                    {changeoverLoading ? 'Applying...' : 'Apply changeover & generate payslips'}
+                  </button>
+                  <button onClick={() => handleChangeover(false)} disabled={changeoverLoading}
+                    className="btn-secondary text-xs py-1.5 disabled:opacity-50">
+                    Skip — use current brackets
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Draft overwrite warning */}
             {bulkDraftWarning.length > 0 && pendingBulkGenerate && (

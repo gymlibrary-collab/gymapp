@@ -4,7 +4,7 @@ import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
 import {
   loadCpfBrackets, getCpfBracketRates, getCpfCeilings,
-  computeCpfAmounts, loadYtdOW
+  computeCpfAmounts, loadYtdOW, needsCpfChangeover
 } from '@/lib/cpf'
 import { nowSGT, todaySGT } from '@/lib/utils'
 
@@ -146,6 +146,16 @@ export async function POST(request: NextRequest) {
 
     // Load CPF config
     const brackets = await loadCpfBrackets(adminClient)
+    // ── CPF changeover check ─────────────────────────────────
+    const changeover = needsCpfChangeover(brackets, pYear, pMonth)
+    if (changeover && !body.changeover_confirmed) {
+      return NextResponse.json({
+        requiresChangeover: true,
+        pendingPeriod: changeover.pendingPeriod,
+        oldestPeriod: changeover.oldestPeriod,
+      }, { status: 200 })
+    }
+
     const { owCeiling, annualAWCeiling } = getCpfCeilings(brackets, pYear)
     const rates = getCpfBracketRates(brackets, staff.date_of_birth, pYear, pMonth)
 

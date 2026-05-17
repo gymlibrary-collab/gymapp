@@ -252,46 +252,84 @@ export default function CpfPage() {
         )
       })()}
 
-      {/* Age brackets */}
-      <div className="card">
-        <div className="p-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2"><Calculator className="w-4 h-4 text-red-600" /> CPF Rates by Age Bracket</h2>
-          <p className="text-xs text-gray-400 mt-1">Auto-applied to payslips based on staff date of birth. Update when government changes rates.</p>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {brackets.map(b => (
-            <div key={b.id} className="p-4">
-              {editingBracket === b.id ? (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-900">{b.label}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="label text-xs">Employee CPF %</label><input className="input" type="number" step="0.1" value={editValues.employee_rate} onChange={e => setEditValues(v => ({ ...v, employee_rate: parseFloat(e.target.value) }))} /></div>
-                    <div><label className="label text-xs">Employer CPF %</label><input className="input" type="number" step="0.1" value={editValues.employer_rate} onChange={e => setEditValues(v => ({ ...v, employer_rate: parseFloat(e.target.value) }))} /></div>
-                  </div>
-                  <div><label className="label text-xs">Effective From</label><input className="input" type="date" value={editValues.effective_from} onChange={e => setEditValues(v => ({ ...v, effective_from: e.target.value }))} /></div>
-                  <div className="flex gap-2"><button onClick={() => handleSaveBracket(b.id)} disabled={saving} className="btn-primary text-xs py-1.5"><Save className="w-3.5 h-3.5 mr-1" />Save</button><button onClick={() => setEditingBracket(null)} className="btn-secondary text-xs py-1.5">Cancel</button></div>
+      {/* Age brackets — grouped by effective_from period */}
+      {(() => {
+        const today = nowSGT()
+        // Group brackets by effective_from key, sorted newest first
+        const grouped: Record<string, any[]> = {}
+        brackets.forEach(b => {
+          const key = b.effective_from ? b.effective_from.split('T')[0] : 'default'
+          if (!grouped[key]) grouped[key] = []
+          grouped[key].push(b)
+        })
+        // Show only the 2 most recent periods (current + pending if exists)
+        // Historical periods beyond that are kept in the DB for payslip audit
+        // but hidden from the config UI after changeover cleanup
+        const allPeriodKeys = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+        const periodKeys = allPeriodKeys.slice(0, 2)
+
+        // Determine the currently active period (most recent effective_from <= today)
+        const activePeriodKey = allPeriodKeys.find(k => {
+          if (k === 'default') return true
+          return new Date(k) <= new Date(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+        }) ?? periodKeys[periodKeys.length - 1]
+
+        return periodKeys.map(periodKey => {
+          const periodBrackets = grouped[periodKey].sort((a: any, b: any) => (a.age_from ?? 0) - (b.age_from ?? 0))
+          const isActive = periodKey === activePeriodKey
+          const isFuture = periodKey !== 'default' &&
+            new Date(periodKey) > new Date(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+          return (
+            <div key={periodKey} className="card">
+              <div className={cn("p-4 border-b border-gray-100 flex items-center gap-3", isActive ? "bg-green-50" : isFuture ? "bg-amber-50" : "bg-gray-50")}>
+                <Calculator className={cn("w-4 h-4", isActive ? "text-green-600" : isFuture ? "text-amber-600" : "text-gray-400")} />
+                <div className="flex-1">
+                  <h2 className="font-semibold text-gray-900 text-sm">
+                    CPF Rates by Age Bracket
+                    {periodKey === 'default' ? '' : ` — effective ${periodKey}`}
+                  </h2>
+                  <p className={cn("text-xs mt-0.5", isActive ? "text-green-700" : isFuture ? "text-amber-700" : "text-gray-400")}>
+                    {isActive ? '✓ Currently active — applied to all new payslips' : isFuture ? `⏳ Pending — takes effect on ${periodKey}` : `Historical — used for payslips before ${periodKeys[periodKeys.indexOf(periodKey) - 1] ?? 'now'}`}
+                  </p>
                 </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{b.label}</p>
-                    {b.effective_from && <p className="text-xs text-gray-400">Effective {b.effective_from.split('T')[0]}</p>}
+              </div>
+              <div className="divide-y divide-gray-100">
+                {periodBrackets.map((b: any) => (
+                  <div key={b.id} className="p-4">
+                    {editingBracket === b.id ? (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-gray-900">{b.label}</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><label className="label text-xs">Employee CPF %</label><input className="input" type="number" step="0.1" value={editValues.employee_rate} onChange={e => setEditValues(v => ({ ...v, employee_rate: parseFloat(e.target.value) }))} /></div>
+                          <div><label className="label text-xs">Employer CPF %</label><input className="input" type="number" step="0.1" value={editValues.employer_rate} onChange={e => setEditValues(v => ({ ...v, employer_rate: parseFloat(e.target.value) }))} /></div>
+                        </div>
+                        <div><label className="label text-xs">Effective From</label><input className="input" type="date" value={editValues.effective_from} onChange={e => setEditValues(v => ({ ...v, effective_from: e.target.value }))} /></div>
+                        <div className="flex gap-2"><button onClick={() => handleSaveBracket(b.id)} disabled={saving} className="btn-primary text-xs py-1.5"><Save className="w-3.5 h-3.5 mr-1" />Save</button><button onClick={() => setEditingBracket(null)} className="btn-secondary text-xs py-1.5">Cancel</button></div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{b.label}</p>
+                          <p className="text-xs text-gray-400">Age {b.age_from}{b.age_to ? `–${b.age_to}` : '+'}</p>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="text-center"><p className="font-bold text-blue-700">{b.employee_rate}%</p><p className="text-xs text-gray-400">Employee</p></div>
+                          <div className="text-center"><p className="font-bold text-red-700">{b.employer_rate}%</p><p className="text-xs text-gray-400">Employer</p></div>
+                          <div className="text-center"><p className="font-bold text-gray-900">{(b.employee_rate + b.employer_rate).toFixed(2)}%</p><p className="text-xs text-gray-400">Total</p></div>
+                        </div>
+                        <button onClick={() => { setEditingBracket(b.id); setEditValues({ employee_rate: b.employee_rate, employer_rate: b.employer_rate, effective_from: b.effective_from ? b.effective_from.split('T')[0] : '' }) }}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="text-center"><p className="font-bold text-blue-700">{b.employee_rate}%</p><p className="text-xs text-gray-400">Employee</p></div>
-                    <div className="text-center"><p className="font-bold text-red-700">{b.employer_rate}%</p><p className="text-xs text-gray-400">Employer</p></div>
-                    <div className="text-center"><p className="font-bold text-gray-900">{b.employee_rate + b.employer_rate}%</p><p className="text-xs text-gray-400">Total</p></div>
-                  </div>
-                  <button onClick={() => { setEditingBracket(b.id); setEditValues({ employee_rate: b.employee_rate, employer_rate: b.employer_rate, effective_from: b.effective_from ? b.effective_from.split('T')[0] : '' }) }}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+          )
+        })
+      })()}
 
       <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />

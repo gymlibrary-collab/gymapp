@@ -1,10 +1,10 @@
-import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+\import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
 import {
   loadCpfBrackets, getCpfBracketRates, getCpfCeilings,
-  computeCpfAmounts
+  computeCpfAmounts, needsCpfChangeover
 } from '@/lib/cpf'
 import { nowSGT } from '@/lib/utils'
 
@@ -110,6 +110,18 @@ export async function POST(request: NextRequest) {
 
     // Load CPF config once for all staff
     const brackets = await loadCpfBrackets(adminClient)
+    // ── CPF changeover check ─────────────────────────────────
+    // If the payroll period has crossed a pending bracket's effective_from,
+    // signal the UI to prompt the user before proceeding.
+    const changeover = needsCpfChangeover(brackets, bulkYear, bulkMonth)
+    if (changeover && !body.changeover_confirmed) {
+      return NextResponse.json({
+        requiresChangeover: true,
+        pendingPeriod: changeover.pendingPeriod,
+        oldestPeriod: changeover.oldestPeriod,
+      }, { status: 200 })
+    }
+
     const { owCeiling, annualAWCeiling } = getCpfCeilings(brackets, bulkYear)
 
     // Load all active non-admin staff with payroll profiles
