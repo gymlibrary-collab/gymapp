@@ -111,9 +111,9 @@ export default function TrainersPage() {
       const trainerIds = allTgIds // all roles in trainer_gyms for this gym
       const ptIds: string[] = [] // no longer needed separately
 
-      // Only roles a manager should see: trainer and staff (not admin/biz ops/other managers)
-      activeQ = activeQ.in('role', ['trainer', 'staff'])
-      archQ   = archQ.in('role', ['trainer', 'staff'])
+      // Managers can see trainers, ops staff, and fellow managers at their gym
+      activeQ = activeQ.in('role', ['trainer', 'staff', 'manager'])
+      archQ   = archQ.in('role', ['trainer', 'staff', 'manager'])
 
       const allGymIds = Array.from(new Set([...trainerIds, ...ptIds]))
       if (allGymIds.length > 0) {
