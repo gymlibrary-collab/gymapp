@@ -66,6 +66,8 @@ admin → business_ops → manager → trainer / staff (full-time or part-time)
 | `getGreeting(nickname)` | Time-aware greeting (SGT) |
 | `withinWorkingDays(shiftDateStr, days, publicHolidays)` | Check if date is within N working days |
 | `getDisplayName(user)` | Returns nickname if set, else first word of full_name |
+| `addCalendarMonths(dateStr, months)` | Adds N calendar months to a `YYYY-MM-DD` string — 17 May + 12 = 17 May next year. Clamps to last day of month (31 Jan + 1 = 28 Feb). **Always use this for month-based membership and PT package end dates — never `months * 30`.** |
+| `addCalendarDays(dateStr, days)` | Adds N days to a `YYYY-MM-DD` string. Use only for day-based durations. |
 
 ### `src/lib/dashboard.ts`
 

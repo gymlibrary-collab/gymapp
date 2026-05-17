@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { useActivityLog } from '@/hooks/useActivityLog'
 import { useViewMode } from '@/lib/view-mode-context'
-import { formatDate, formatSGD, todaySGT} from '@/lib/utils'
+import { formatDate, formatSGD, todaySGT, addCalendarMonths, addCalendarDays } from '@/lib/utils'
 import {
   ArrowLeft, Phone, Heart, CreditCard, Package, Calendar,
   Plus, CheckCircle, XCircle, Clock, Edit2, Save, X,
