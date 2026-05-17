@@ -109,36 +109,36 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
       // Membership sales escalation is now handled by the daily cron
       // at /api/cron/escalate-membership-sales (runs at 0103 SGT).
 
-      // ── gymId block: 7 reads in parallel ─────────────────
+      // ── Today's sessions ──────────────────────────────────
       if (gymId) {
-        const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
-        const [
-          { data: todayData },
-          upcomingSess,
-          { data: schedData },
-          { count: memberCount },
-          { count: pkgCount },
-          { data: sessData },
-          { data: memSalesData },
-        ] = await Promise.all([
-          supabase.from('sessions')
-            .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
-            .eq('gym_id', gymId).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
-          fetchUpcomingSessions(supabase, { gymId, todayEnd }),
-          supabase.from('sessions')
-            .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
-            .in('status', ['scheduled', 'completed'])
-            .gte('scheduled_at', getTodayStr() + 'T00:00:00+08:00')
-            .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
-            .eq('gym_id', gymId),
-          supabase.from('members').select('id', { count: 'exact', head: true }).eq('gym_id', gymId),
-          supabase.from('packages').select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'active'),
-          supabase.from('sessions').select('session_commission_sgd').eq('gym_id', gymId).eq('status', 'completed').gte('marked_complete_at', monthStart),
-          supabase.from('gym_memberships').select('price_sgd').eq('gym_id', gymId).eq('sale_status', 'confirmed').gte('created_at', monthStart),
-        ])
+        const { data: todayData } = await supabase.from('sessions')
+          .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
+          .eq('gym_id', gymId).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
         setTodaySessions(todayData || [])
-        setUpcomingSessions(upcomingSess)
+
+        // ── Upcoming sessions ──────────────────────────────
+        setUpcomingSessions(await fetchUpcomingSessions(supabase, { gymId, todayEnd }))
+
+        // ── Gym schedule ───────────────────────────────────
+        const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
+        const { data: schedData } = await supabase.from('sessions')
+          .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
+          .in('status', ['scheduled', 'completed'])
+          .gte('scheduled_at', getTodayStr() + 'T00:00:00+08:00')
+          .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
+          .eq('gym_id', gymId)
         setGymScheduleSessions(schedData || [])
+
+        // ── Stats ──────────────────────────────────────────
+        const { count: memberCount } = await supabase.from('members')
+          .select('id', { count: 'exact', head: true }).eq('gym_id', gymId)
+        const { count: pkgCount } = await supabase.from('packages')
+          .select('id', { count: 'exact', head: true }).eq('gym_id', gymId).eq('status', 'active')
+        const { data: sessData } = await supabase.from('sessions')
+          .select('session_commission_sgd').eq('gym_id', gymId).eq('status', 'completed').gte('marked_complete_at', monthStart)
+        const { data: memSalesData } = await supabase.from('gym_memberships')
+          .select('price_sgd').eq('gym_id', gymId).eq('sale_status', 'confirmed').gte('created_at', monthStart)
+
         setStats({
           members: memberCount || 0,
           packages: pkgCount || 0,
@@ -150,27 +150,29 @@ export default function StaffDashboard({ user }: StaffDashboardProps) {
         })
       }
 
-      // ── Outside gymId: 4 reads in parallel ────────────────
-      const [
-        { count: pendingCount },
-        notifications,
-        { data: cancelRejections },
-        payslipNotifs,
-      ] = await Promise.all([
-        supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending'),
-        fetchNotifications(supabase, user.id, user.role),
-        supabase.from('cancellation_rejection_notif')
-          .select('id, member_name, membership_type, rejection_reason, rejected_by_name, rejected_at')
-          .eq('notified_user_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false }),
-        fetchPayslipNotifications(supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at),
-      ])
+      // ── Pending membership sales ───────────────────────────
+      const { count: pendingCount } = await supabase.from('gym_memberships')
+        .select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
       setPendingMemSales(pendingCount || 0)
-      setMemRejectionNotifs(notifications.memRejectionNotifs)
-      setLeaveDecisionNotifs(notifications.leaveDecisionNotifs)
-      setRejectionNotifs(notifications.pkgRejectionNotifs)
+
+      // ── Notifications ──────────────────────────────────────
+      const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
+        await fetchNotifications(supabase, user.id, user.role)
+      setMemRejectionNotifs(memRej)
+      setLeaveDecisionNotifs(leaveNotifs)
+      setRejectionNotifs(pkgRej)
+
+      // ── Cancellation rejection notifications ──────────────
+      const { data: cancelRejections } = await supabase.from('cancellation_rejection_notif')
+        .select('id, member_name, membership_type, rejection_reason, rejected_by_name, rejected_at')
+        .eq('notified_user_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
       setCancelRejectionNotifs(cancelRejections || [])
-      setNewPayslip(payslipNotifs.newPayslip)
-      setNewCommission(payslipNotifs.newCommission)
+
+      const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(
+        supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at
+      )
+      setNewPayslip(ps)
+      setNewCommission(pc)
 
       setLoading(false)
     }
