@@ -481,9 +481,10 @@ export default function TrainersPage() {
 
       {tab === 'active' && (
         <>
-          {/* Create form */}
+          {/* Create form — modal overlay */}
           {showCreateForm && isBizOps && (
-            <form onSubmit={handleCreate} className="card p-4 space-y-4 border-red-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) { setShowCreateForm(false); setCreateForm({ ...emptyForm }) } }}>
+            <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Add New Staff Member</h2><button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
               {/* Role — Biz Ops cannot create admin or business_ops accounts */}
@@ -533,11 +534,13 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }} className="btn-secondary">Cancel</button>
               </div>
             </form>
+            </div>
           )}
 
-          {/* View panel for managers (read-only) */}
+          {/* View panel for managers (read-only) — modal overlay */}
           {editingUser && !isBizOps && (
-            <div className="card p-4 space-y-4 border-gray-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) setEditingUser(null) }}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 text-sm">Staff Particulars — {editingUser.full_name}</h2>
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
@@ -569,11 +572,13 @@ export default function TrainersPage() {
               </div>
               <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">Contact Business Operations to update staff particulars.</p>
             </div>
+            </div>
           )}
 
-          {/* Edit form — biz ops only */}
+          {/* Edit form — biz ops only — modal overlay */}
           {editingUser && isBizOps && (
-            <form onSubmit={handleEdit} className="card p-4 space-y-4 border-blue-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) setEditingUser(null) }}>
+            <form onSubmit={handleEdit} className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div><h2 className="font-semibold text-gray-900 text-sm">Edit: {editingUser.full_name}</h2>{isSelf(editingUser) && <p className="text-xs text-red-600 mt-0.5">Your own account</p>}</div>
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
@@ -651,6 +656,7 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => setEditingUser(null)} className="btn-secondary">Cancel</button>
               </div>
             </form>
+            </div>
           )}
 
           {/* Filters */}
