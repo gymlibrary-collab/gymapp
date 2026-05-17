@@ -122,84 +122,78 @@ export default function TrainerDashboard({ user, isActingAsTrainer = false }: Tr
       const monthStart = getMonthStart()
       const now = nowSGT() // SGT
 
-      // ── Step 1: trainer gym assignments (gymIds needed for schedule filter) ──
+      // ── Trainer gym assignments ────────────────────────────
       const { data: tgRows } = await supabase.from('trainer_gyms').select('gym_id').eq('trainer_id', user.id)
       const gymIds = tgRows?.map((r: any) => r.gym_id) || []
       setTrainerGymIds(gymIds)
 
-      // ── Step 2: all remaining reads in parallel ────────────
-      const curMonth = now.getUTCMonth() + 1
-      const curYear = now.getUTCFullYear()
-      const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
+      // ── Today's sessions ──────────────────────────────────
+      const { data: todayData } = await supabase.from('sessions')
+        .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
+        .eq('trainer_id', user.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at')
+      setTodaySessions(todayData || [])
 
+      // ── Upcoming sessions ──────────────────────────────────
+      setUpcomingSessions(await fetchUpcomingSessions(supabase, { trainerId: user.id, todayEnd }))
+
+      // ── Gym schedule ───────────────────────────────────────
+      const schedEnd = getDaysFromToday(14) + 'T23:59:59+08:00'
       let schedQ = supabase.from('sessions')
         .select('*, member:members(full_name, phone), trainer:users!sessions_trainer_id_fkey(id, full_name), package:packages(package_name, total_sessions, sessions_used)')
         .in('status', ['scheduled', 'completed'])
         .gte('scheduled_at', getTodayStr() + 'T00:00:00+08:00')
         .lte('scheduled_at', schedEnd).order('scheduled_at').limit(200)
       if (gymIds.length > 0) schedQ = schedQ.in('gym_id', gymIds)
-
-      const [
-        { data: todayData },
-        upcomingSess,
-        { data: schedData },
-        { data: trainerPkgs },
-        { count: pkgCount },
-        { data: sessData },
-        commResult,
-        lowPkgs,
-        expiringPkgs,
-        { count: pendingCount },
-        notifications,
-        { data: cancelRejections },
-        payslipNotifs,
-      ] = await Promise.all([
-        // Today's sessions
-        supabase.from('sessions')
-          .select('*, member:members(full_name), trainer:users!sessions_trainer_id_fkey(full_name), package:packages(package_name, sessions_used, total_sessions)')
-          .eq('trainer_id', user.id).gte('scheduled_at', todayStart).lte('scheduled_at', todayEnd).order('scheduled_at'),
-        // Upcoming sessions
-        fetchUpcomingSessions(supabase, { trainerId: user.id, todayEnd }),
-        // Gym schedule (uses gymIds from Step 1)
-        schedQ,
-        // Stats — active packages for member count
-        supabase.from('packages').select('member_id').eq('trainer_id', user.id).eq('status', 'active'),
-        // Stats — package count
-        supabase.from('packages').select('id', { count: 'exact', head: true }).eq('trainer_id', user.id).eq('status', 'active'),
-        // Stats — completed sessions this month
-        supabase.from('sessions').select('id').eq('trainer_id', user.id).eq('status', 'completed').gte('marked_complete_at', monthStart),
-        // Commission stats from commission_items
-        fetchCommissionStats(supabase, { userId: user.id, periodMonth: curMonth, periodYear: curYear, isTrainer: true }),
-        // Package alerts
-        fetchLowSessionPackages(supabase, { trainerId: user.id, limit: 10 }),
-        fetchExpiringPackages(supabase, { trainerId: user.id, withinDays: 7, limit: 10 }),
-        // Pending membership sales count
-        supabase.from('gym_memberships').select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending'),
-        // Notifications
-        fetchNotifications(supabase, user.id, user.role),
-        // Cancellation rejection notifications
-        supabase.from('cancellation_rejection_notif')
-          .select('id, member_name, membership_type, rejection_reason, rejected_by_name, rejected_at')
-          .eq('notified_user_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false }),
-        // Payslip notifications
-        fetchPayslipNotifications(supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at),
-      ])
-
-      // Apply results
-      setTodaySessions(todayData || [])
-      setUpcomingSessions(upcomingSess)
+      const { data: schedData } = await schedQ
       setGymScheduleSessions(schedData || [])
+
+      // ── Stats ──────────────────────────────────────────────
+      const { data: trainerPkgs } = await supabase.from('packages')
+        .select('member_id').eq('trainer_id', user.id).eq('status', 'active')
       const memberCount = new Set(trainerPkgs?.map((p: any) => p.member_id)).size
+
+      const { count: pkgCount } = await supabase.from('packages')
+        .select('id', { count: 'exact', head: true }).eq('trainer_id', user.id).eq('status', 'active')
+
+      // Commission: read from commission_items (source of truth)
+      // now is already declared above (nowSGT())
+      const curMonth = now.getUTCMonth() + 1
+      const curYear = now.getUTCFullYear()
+      const { data: sessData } = await supabase.from('sessions')
+        .select('id').eq('trainer_id', user.id).eq('status', 'completed').gte('marked_complete_at', monthStart)
+      const commResult = await fetchCommissionStats(supabase, {
+        userId: user.id, periodMonth: curMonth, periodYear: curYear, isTrainer: true,
+      })
+
       setStats({ members: memberCount, packages: pkgCount || 0, sessions: sessData?.length || 0, commission: commResult.unpaidTotal, ptSessionTotal: commResult.ptSessionTotal, ptSignupTotal: commResult.ptSignupTotal, membershipTotal: commResult.membershipTotal, membershipRevenue: 0, membershipSalesCount: 0, totalCommissionPayout: commResult.paidTotal })
-      setLowSessionPackages(lowPkgs)
-      setExpiringPackages(expiringPkgs)
+
+      // ── Package alerts ─────────────────────────────────────
+      setLowSessionPackages(await fetchLowSessionPackages(supabase, { trainerId: user.id, limit: 10 }))
+      setExpiringPackages(await fetchExpiringPackages(supabase, { trainerId: user.id, withinDays: 7, limit: 10 }))
+
+      // ── Pending membership sales ───────────────────────────
+      const { count: pendingCount } = await supabase.from('gym_memberships')
+        .select('id', { count: 'exact', head: true }).eq('sold_by_user_id', user.id).eq('sale_status', 'pending')
       setPendingMemSales(pendingCount || 0)
-      setMemRejectionNotifs(notifications.memRejectionNotifs)
-      setLeaveDecisionNotifs(notifications.leaveDecisionNotifs)
-      setRejectionNotifs(notifications.pkgRejectionNotifs)
+
+      // ── Notifications ──────────────────────────────────────
+      const { memRejectionNotifs: memRej, leaveDecisionNotifs: leaveNotifs, pkgRejectionNotifs: pkgRej } =
+        await fetchNotifications(supabase, user.id, user.role)
+      setMemRejectionNotifs(memRej)
+      setLeaveDecisionNotifs(leaveNotifs)
+      setRejectionNotifs(pkgRej)
+
+      // ── Cancellation rejection notifications ──────────────
+      const { data: cancelRejections } = await supabase.from('cancellation_rejection_notif')
+        .select('id, member_name, membership_type, rejection_reason, rejected_by_name, rejected_at')
+        .eq('notified_user_id', user.id).is('seen_at', null).order('rejected_at', { ascending: false })
       setCancelRejectionNotifs(cancelRejections || [])
-      setNewPayslip(payslipNotifs.newPayslip)
-      setNewCommission(payslipNotifs.newCommission)
+
+      const { newPayslip: ps, newCommission: pc } = await fetchPayslipNotifications(
+        supabase, user.id, user.payslip_notif_seen_at, user.commission_notif_seen_at
+      )
+      setNewPayslip(ps)
+      setNewCommission(pc)
 
       setLoading(false)
     }
