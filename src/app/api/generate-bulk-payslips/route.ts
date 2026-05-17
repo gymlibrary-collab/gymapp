@@ -1,4 +1,4 @@
-\import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
+import { createAdminClient, createSupabaseServerClient } from '@/lib/supabase-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { validateAndLoadCurrentUser } from '@/lib/api-auth'
 import { NextResponse, NextRequest } from 'next/server'
