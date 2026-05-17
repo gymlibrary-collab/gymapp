@@ -98,6 +98,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot generate payslips for a future month' }, { status: 400 })
     }
 
+    // Check combined payslip mode
+    const { data: appSettings } = await adminClient
+      .from('app_settings').select('combined_payslip_enabled').eq('id', 'global').maybeSingle()
+    const combinedMode = !!(appSettings as any)?.combined_payslip_enabled
+
     // Load CPF config once for all staff
     const brackets = await loadCpfBrackets(adminClient)
     const { owCeiling, annualAWCeiling } = getCpfCeilings(brackets, bulkYear)
