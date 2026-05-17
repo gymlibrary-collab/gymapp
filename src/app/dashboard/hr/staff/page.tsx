@@ -483,9 +483,10 @@ export default function TrainersPage() {
 
       {tab === 'active' && (
         <>
-          {/* Create form */}
+          {/* Create form — modal, no backdrop dismiss to prevent data loss */}
           {showCreateForm && isBizOps && (
-            <form onSubmit={handleCreate} className="card p-4 space-y-4 border-red-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <form onSubmit={handleCreate} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between"><h2 className="font-semibold text-gray-900 text-sm">Add New Staff Member</h2><button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }}><X className="w-4 h-4 text-gray-400" /></button></div>
 
               {/* Role — Biz Ops cannot create admin or business_ops accounts */}
@@ -535,17 +536,19 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => { setShowCreateForm(false); setCreateForm({ ...emptyForm }) }} className="btn-secondary">Cancel</button>
               </div>
             </form>
+            </div>
           )}
 
-          {/* View panel for managers (read-only) */}
+          {/* View panel for managers (read-only) — modal */}
           {editingUser && !isBizOps && (
-            <div className="card p-4 space-y-4 border-gray-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 text-sm">Staff Particulars — {editingUser.full_name}</h2>
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
               </div>
               <div className="space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div><p className="text-xs text-gray-400 mb-0.5">Full Name</p><p className="font-medium text-gray-900">{editingUser.full_name}</p></div>
                   <div><p className="text-xs text-gray-400 mb-0.5">Nickname</p><p className="text-gray-700">{editingUser.nickname || '—'}</p></div>
                   <div><p className="text-xs text-gray-400 mb-0.5">Role</p><p className="text-gray-700">{getRoleLabel(editingUser.role)}</p></div>
@@ -571,11 +574,13 @@ export default function TrainersPage() {
               </div>
               <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">Contact Business Operations to update staff particulars.</p>
             </div>
+            </div>
           )}
 
-          {/* Edit form — biz ops only */}
+          {/* Edit form — biz ops only — modal, no backdrop dismiss */}
           {editingUser && isBizOps && (
-            <form onSubmit={handleEdit} className="card p-4 space-y-4 border-blue-200">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <form onSubmit={handleEdit} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div><h2 className="font-semibold text-gray-900 text-sm">Edit: {editingUser.full_name}</h2>{isSelf(editingUser) && <p className="text-xs text-red-600 mt-0.5">Your own account</p>}</div>
                 <button type="button" onClick={() => setEditingUser(null)}><X className="w-4 h-4 text-gray-400" /></button>
@@ -586,7 +591,7 @@ export default function TrainersPage() {
 
               {/* Role and status changes are Biz Ops only — managers cannot change staff roles */}
               {!isSelf(editingUser) && isBizOps && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div><label className="label">Role</label><select className="input" value={editForm.role} onChange={e => setEditForm((f: any) => ({ ...f, role: e.target.value }))}>{ALL_ROLES.filter(r => isBizOps ? !['admin', 'business_ops'].includes(r.value) : true).map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
                   <div><label className="label">Status</label><select className="input" value={(editForm as any).is_active ? 'active' : 'inactive'} onChange={e => setEditForm((f: any) => ({ ...f, is_active: e.target.value === 'active' }))}><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
                 </div>
@@ -653,6 +658,7 @@ export default function TrainersPage() {
                 <button type="button" onClick={() => setEditingUser(null)} className="btn-secondary">Cancel</button>
               </div>
             </form>
+            </div>
           )}
 
           {/* Filters */}
@@ -950,11 +956,11 @@ function AlsoTrainerToggle({ value, onChange }: { value: boolean; onChange: (v: 
 function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any; setF: any; isBizOps: boolean; isEditing?: boolean }) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label className="label">Full Name *</label><input className="input" required value={form.full_name} onChange={e => setF((f: any) => ({ ...f, full_name: e.target.value }))} /></div>
         <div><label className="label">Nickname *</label><input className="input" required value={form.nickname || ''} onChange={e => setF((f: any) => ({ ...f, nickname: e.target.value }))} placeholder="e.g. Alex" /></div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label className="label">NRIC / FIN / Passport</label><input className="input" value={form.nric || ''} onChange={e => setF((f: any) => ({ ...f, nric: e.target.value.toUpperCase() }))} placeholder="e.g. S1234567A" /></div>
         <div><label className="label">Date of Birth</label><input className="input" type="date" value={form.date_of_birth || ''} onChange={e => setF((f: any) => ({ ...f, date_of_birth: e.target.value }))} /></div>
       </div>
@@ -962,11 +968,11 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
         <label className="label">Residential Address <span className="text-gray-400 font-normal">(minimum 5 characters)</span></label>
         <input className="input" value={form.address || ''} onChange={e => setF((f: any) => ({ ...f, address: e.target.value }))} placeholder="e.g. 123 Orchard Road, #01-01, Singapore 238858" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label className="label">Phone *</label><input className="input" required type="tel" value={form.phone} onChange={e => setF((f: any) => ({ ...f, phone: e.target.value.replace(/\s/g, '').trim() }))} placeholder="+6591234567" /></div>
         <div><label className="label">Email *</label><input className="input" required type="email" value={form.email} onChange={e => setF((f: any) => ({ ...f, email: e.target.value }))} /></div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label className="label">Nationality</label><input className="input" value={form.nationality || ''} onChange={e => setF((f: any) => ({ ...f, nationality: e.target.value }))} placeholder="e.g. Singaporean" /></div>
         <div>
           <label className="label">Residency Status * <span className="text-xs text-gray-400 font-normal">(determines CPF)</span></label>
@@ -978,12 +984,12 @@ function PersonalFields({ form, setF, isBizOps, isEditing = false }: { form: any
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div><label className="label">Date of Joining</label><input className="input" type="date" value={form.date_of_joining} onChange={e => setF((f: any) => ({ ...f, date_of_joining: e.target.value }))} /></div>
         <div><label className="label">Date of Departure</label><input className="input" type="date" value={form.date_of_departure} onChange={e => setF((f: any) => ({ ...f, date_of_departure: e.target.value }))} /></div>
       </div>
       {/* Probation End Date | Annual Leave Entitlement — side by side */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Probation End Date</label>
           <input className="input" type="date" value={(form as any).probation_end_date}
